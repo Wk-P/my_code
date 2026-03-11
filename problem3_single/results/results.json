@@ -1,0 +1,24 @@
+{
+  "scenario": "Scenario 1",
+  "N": 10,
+  "M": 10,
+  "ilp": {
+    "ar": 0.502242,
+    "violations": 0
+  },
+  "random": {
+    "ar_mean": 0.439772,
+    "ar_std": 0.049486,
+    "viol_mean": 5.0167
+  },
+  "ppo": {
+    "ar_mean": 0.721053,
+    "ar_std": 0.0,
+    "viol_mean": 16.0
+  },
+  "training": {
+    "total_steps": 200000,
+    "n_episodes": 20070,
+    "ar_last50": 0.687996
+  }
+}

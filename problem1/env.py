@@ -20,7 +20,7 @@ class my_env(gym.Env):
     Goal: find a policy that maximizes AR over multiple episodes.
     """
 
-    def __init__(self, ecus: list, services: list):
+    def __init__(self, ecus: list[my_ecu], services: list[my_service]):
         self.ecus     = ecus
         self.services = services
         self.M = len(services)
