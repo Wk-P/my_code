@@ -12,13 +12,13 @@
     "viol_mean": 5.0167
   },
   "ppo": {
-    "ar_mean": 0.721053,
+    "ar_mean": 0.776923,
     "ar_std": 0.0,
-    "viol_mean": 16.0
+    "viol_mean": 18.0
   },
   "training": {
     "total_steps": 200000,
     "n_episodes": 20070,
-    "ar_last50": 0.687996
+    "ar_last50": 0.776923
   }
 }

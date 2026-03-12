@@ -1,11 +1,12 @@
 """
-P3 Environment — Service Deployment on 200 randomised scenarios.
+P3 Environment — RL WITHOUT constraint enforcement.
 
-Same constraint logic as env/env.py:
-  1. Capacity violation  → reward = -1, episode terminates immediately.
-  2. Single-ECU rule     → same: reward = -1, episode terminates.
-  3. Reward              → sparse final AR on successful completion.
-  4. Scenarios           → reset() randomly picks one of 200 scenarios.
+Design intent (matches docs.md):
+  • Constraint violations are RECORDED but NOT penalized.
+  • Episode NEVER terminates early — always runs M steps.
+  • Infeasible assignments still happen (remaining_vms can go negative).
+  • Reward: sparse final AR at step M-1, 0.0 for intermediate steps.
+  • Scenarios: reset() randomly picks one of the provided scenarios.
 """
 
 import sys
@@ -19,61 +20,53 @@ from problem2_single.objects import ECU, SVC
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  P3 Environment
+#  P3 Environment — NO constraint enforcement
 # ─────────────────────────────────────────────────────────────────────────────
 
 class P3Env(gym.Env):
     """
     Each episode assigns M services to N ECUs, one service per step.
 
-    Constraint violations → reward = -1, episode terminates immediately:
-      • capacity_violations      : remaining_vms[j] < service.requirement
-      • single_service_violations: ECU j already had a service assigned
+    Constraints are NOT enforced:
+      • capacity violation   → only recorded, assignment still happens
+      • duplicate ECU usage  → only recorded, assignment still happens
+      • remaining_vms can go negative (overloaded)
 
     Reward:
       • 0.0  for every intermediate step
-      • -1.0 on any constraint violation (episode ends)
-      • final AR at the last step (step M-1) on clean completion
+      • final AR at step M-1 (always reached, never terminates early)
 
     Observation  (shape: N+2):
-      [0]   current service demand, normalised by max initial capacity  ∈ [0,1]
-      [1]   current cumulative AR                                        ∈ [0,1]
-      [2:]  remaining capacity fraction per ECU
+      [0]   current service demand, normalised by max initial capacity
+      [1]   current cumulative AR
+      [2:]  remaining capacity fraction per ECU (can be negative if overloaded)
     """
 
     metadata = {"render_modes": []}
 
     def __init__(self, ecus: list[ECU], services: list[SVC], scenarios=None):
-        """
-        scenarios: 可选，list of (caps_list, reqs_list)。
-        若提供，每次 reset() 将从中随机选取一个 scenario。
-        """
         super().__init__()
-        self._scenarios = scenarios   # None → 固定单 scenario
+        self._scenarios = scenarios
         self.ecus     = ecus
         self.services = services
         self.N = len(ecus)
         self.M = len(services)
 
-        # action: choose which ECU to assign the current service to
         self.action_space = gym.spaces.Discrete(self.N)
 
+        # obs can go slightly below 0 (overloaded ECU) so low=-1
         self.observation_space = gym.spaces.Box(
-            low  =  0.0,
+            low  = -1.0,
             high =  1.0,
             shape= (self.N + 2,),
             dtype= np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
-
-        # mutable state (initialised in reset)
         self.remaining_vms: np.ndarray
-        self.ecu_assigned:  np.ndarray   # bool: has this ECU been used?
+        self.ecu_assigned:  np.ndarray
         self.ar:            float
         self._step:         int
-
-        # call reset to initialise
         self.reset()
 
     # ── reset ────────────────────────────────────────────────────────────────
@@ -95,15 +88,15 @@ class P3Env(gym.Env):
     # ── observation ──────────────────────────────────────────────────────────
     def _obs(self) -> np.ndarray:
         if self._step >= self.M:
-            service_demand_norm = 0.0
+            service_demand_norm = np.float32(0.0)
         else:
             svc = self.services[self._step]
-            service_demand_norm = svc.requirement / (np.max(self.initial_vms) + 1e-8)
+            service_demand_norm = np.float32(svc.requirement / (np.max(self.initial_vms) + 1e-8))
 
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
 
         return np.concatenate([
-            np.array([service_demand_norm], dtype=np.float32),
+            [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
             remaining_pct,
         ]).astype(np.float32)
@@ -113,31 +106,15 @@ class P3Env(gym.Env):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
 
-        # ── Constraint check: violate → penalty and terminate ────────────────
+        # ── Constraint check: ONLY record, do NOT penalize or terminate ──────
         if self.remaining_vms[action] < svc.requirement:
             self.capacity_violations += 1
-            self._step += 1
-            return self._obs(), -1.0, True, False, {
-                "ar": self.ar, "step": self._step,
-                "capacity_violations": self.capacity_violations,
-                "single_service_violations": self.single_service_violations,
-                "violation_rate": (self.capacity_violations + self.single_service_violations) / self._step,
-                "violation": "capacity",
-            }
         if self.ecu_assigned[action]:
             self.single_service_violations += 1
-            self._step += 1
-            return self._obs(), -1.0, True, False, {
-                "ar": self.ar, "step": self._step,
-                "capacity_violations": self.capacity_violations,
-                "single_service_violations": self.single_service_violations,
-                "violation_rate": (self.capacity_violations + self.single_service_violations) / self._step,
-                "violation": "duplicate",
-            }
 
-        # ── Valid assignment ──────────────────────────────────────────────────
+        # ── Assignment always happens regardless of violations ────────────────
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
-        self.remaining_vms[action] -= svc.requirement
+        self.remaining_vms[action] -= svc.requirement      # can go negative
         self.ecu_assigned[action]   = True
 
         # Incremental AR update
@@ -145,14 +122,16 @@ class P3Env(gym.Env):
         self._step += 1
 
         done   = self._step >= self.M
-        reward = float(self.ar) if done else 0.0
+        reward = float(self.ar) if done else 0.0       # sparse: only final AR
 
+        total_viol = self.capacity_violations + self.single_service_violations
         info = {
             "ar":   self.ar,
             "step": self._step,
             "capacity_violations":       self.capacity_violations,
             "single_service_violations": self.single_service_violations,
-            "violation_rate":            0.0,
+            "total_violations":          total_viol,
+            "violation_rate":            total_viol / self._step,
         }
         return self._obs(), reward, done, False, info
 
@@ -195,4 +174,5 @@ if __name__ == "__main__":
     print(f"\nFinal AR              : {info['ar']:.4f}")
     print(f"Capacity violations   : {info['capacity_violations']}")
     print(f"Dup-ECU violations    : {info['single_service_violations']}")
+    print(f"Total violations      : {info['total_violations']}")
     print(f"Violation rate        : {info['violation_rate']:.2%}")

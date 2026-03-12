@@ -2,13 +2,17 @@
 run_all.py — One-shot P3 full pipeline:
 
   1. Load a scenario from the same YAML used by problem2_single
-  2. Solve with ILP (PuLP)                   -> ilp_ar
-  3. Evaluate a random policy                -> random_ars
-  4. Train PPO on the same problem instance  -> training curve
-  5. Evaluate the trained PPO agent          -> ppo_ars
+  2. Solve with ILP (PuLP)                   -> ilp_ar  (optimal upper bound)
+  3. Evaluate a random policy                -> random_ars + violations
+  4. Train PPO (NO constraint enforcement)   -> training curve
+  5. Evaluate the trained PPO agent          -> ppo_ars + violations
   6. Produce two plots:
-       • comparison.png    — AR box plot + violation bar chart (3-way)
-       • training_curve.png — AR and violation count during training
+       - comparison.png    — AR box plot + violation bar chart (3-way)
+       - training_curve.png — AR & violation count during training
+
+P3 Design: constraints are RECORDED but NOT enforced.
+  - Episodes always run M steps (never terminate early).
+  - No penalty for violation; reward = final AR only.
 
 Run:
     python problem3_single/run_all.py
@@ -118,7 +122,8 @@ def solve_ilp(ecus: list[ECU], services: list[SVC]) -> dict:
 
 def run_episodes(ecus, services, policy_fn, n_eps: int):
     """
-    Run n_eps episodes on the fixed problem instance (same ECUs and SVCs every reset).
+    Run n_eps episodes on a fixed problem instance.
+    Episodes always complete (M steps, no early termination in P3).
     policy_fn(obs) -> int
     """
     env = P3Env(ecus, services)
@@ -322,10 +327,10 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
 
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
-    print(f"\n{'═'*60}")
-    print(f"  P3 run_all.py  —  full pipeline comparison on the same scenario")
+    print(f"\n{'='*60}")
+    print(f"  P3 run_all.py  —  RL WITHOUT constraint enforcement")
     print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
-    print(f"{'═'*60}\n")
+    print(f"{'='*60}\n")
 
     # ── 1. Load scenario ─────────────────────────────────────────────────────
     ecus, services, sc_name = load_scenario()
