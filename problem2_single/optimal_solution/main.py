@@ -1,5 +1,3 @@
-from logging import config
-
 import pulp
 import random
 from pathlib import Path
