@@ -29,6 +29,7 @@ from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 import random
 import config as C
@@ -55,15 +56,16 @@ def mask_fn(env) -> np.ndarray:
     return env.action_masks()
 
 
-def make_env(seed: int = 0) -> Monitor:
-    random.seed(seed)
-    caps, reqs = C.SCENARIOS[0]
-    ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
-    services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    env = P4Env(ecus, services, scenarios=C.SCENARIOS)
-    env = ActionMasker(env, mask_fn)
-    return Monitor(env)
-
+def make_env_fn(seed: int = 0) -> Monitor:
+    def _init():
+        random.seed(seed)
+        caps, reqs = C.SCENARIOS[0]
+        ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+        services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+        env = P4Env(ecus, services, scenarios=C.SCENARIOS)
+        env = ActionMasker(env, mask_fn)
+        return Monitor(env)
+    return _init
 
 def moving_avg(arr, w: int):
     arr = np.asarray(arr, dtype=float)
@@ -165,7 +167,8 @@ def main():
     print(f"  N={C.N}  M={C.M}  steps={C.TOTAL_STEPS:,}  device={device.upper()}")
     print(f"{'='*60}\n")
 
-    env = make_env(seed=C.SEED)
+    n_envs = 8
+    env = SubprocVecEnv([make_env_fn(seed=C.SEED+i) for i in range(n_envs)])
     cb  = P4Callback()
     model = build_model(env, device)
 

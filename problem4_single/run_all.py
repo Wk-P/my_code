@@ -35,6 +35,7 @@ from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import config as C
 from env_p4 import P4Env
@@ -167,8 +168,15 @@ def mask_fn(env):
 
 
 def train_maskppo(ecus, services):
-    env = ActionMasker(P4Env(ecus, services), mask_fn)
-    env = Monitor(env)
+    def make_env_fn(seed: int = 0) -> Monitor:
+        def _init():
+            env = ActionMasker(P4Env(ecus, services), mask_fn)
+            return Monitor(env)
+        return _init
+    
+    n_envs = 4
+    env = DummyVecEnv([make_env_fn(seed=C.SEED+i) for i in range(n_envs)])
+
     cb  = P4Callback()
     model = MaskablePPO(
         policy        = "MlpPolicy",
@@ -390,20 +398,22 @@ def main():
             "ar_last50":   round(float(np.mean(cb.episode_ars[-50:])), 6),
         },
     }
-    log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "results.json"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    base_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    base_path.mkdir(parents=True, exist_ok=True)
+    log_path = base_path / "results.json"
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  JSON saved -> {log_path}")
 
     # Plots
-    plot_training_curve(cb, ilp_ar, C.OUTDIR, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, C.OUTDIR, sc_name)
+    plot_training_curve(cb, ilp_ar, base_path, sc_name)
+    plot_comparison(ilp_ar, rand_res, ppo_res, base_path, sc_name)
 
     print("\nAll done! Output files:")
-    print(f"  {C.OUTDIR}/training_curve.png")
-    print(f"  {C.OUTDIR}/comparison.png")
-    print(f"  {C.OUTDIR}/results.json\n")
+    print(f"  {base_path}/training_curve.png")
+    print(f"  {base_path}/comparison.png")
+    print(f"  {base_path}/results.json\n")
 
 
 if __name__ == "__main__":
