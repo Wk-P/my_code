@@ -4,7 +4,8 @@ DQN Environment — RL WITHOUT action masking.
 Constraint enforcement via reward shaping:
   - If an invalid ECU is chosen (capacity insufficient OR already assigned),
     the episode terminates immediately with reward = -1 (deployment failed).
-  - On successful completion of all M placements, reward = AR.
+  - Each valid assignment gives dense reward = ru / M (normalised RU contribution).
+    Cumulative reward over a complete M-step episode equals AR.
 """
 
 import sys
@@ -26,10 +27,10 @@ class DQNEnv(gym.Env):
       [1]   current cumulative AR
       [2:]  remaining capacity fraction per ECU
 
-    Reward:
-      -1.0  constraint violated (capacity exceeded OR duplicate ECU) → episode ends
-       0.0  valid intermediate step
-       AR   successful completion of all M placements
+    Reward (dense):
+      -1.0      constraint violated (capacity exceeded OR duplicate ECU) → episode ends
+       ru / M   each valid assignment (immediate, proportional to utilisation)
+                cumulative over M steps equals the final AR
     """
 
     metadata = {"render_modes": []}
@@ -103,7 +104,10 @@ class DQNEnv(gym.Env):
         self._step += 1
 
         done   = self._step >= self.M
-        reward = float(self.ar) if done else 0.0
+        # Dense reward: distribute AR signal across every valid step.
+        # Each step contributes ru/M; cumulative total over M steps == AR.
+        # This replaces the original sparse lump-sum final reward.
+        reward = ru / self.M
 
         return self._obs(), reward, done, False, {
             "ar":              self.ar,

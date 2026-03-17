@@ -1,0 +1,459 @@
+"""
+run.py — One-shot P5 full pipeline (Lagrangian Constraint Relaxation):
+
+  1. Load scenario from YAML
+  2. Solve with ILP (PuLP)              -> ilp_ar (optimal upper bound)
+  3. Evaluate random policy (no mask)   -> random results
+  4. Train Lagrangian PPO               -> training curve  (AR + viol rate + λ)
+  5. Evaluate trained Lagrangian PPO    -> ppo results
+  6. Produce plots:
+       training_curve.png  — AR, violation rate, λ evolution during training
+       comparison.png      — 3-way: ILP vs Random vs Lagrange PPO  (AR + viol rate)
+       results.json        — full numeric summary
+
+P5 Design: constraints are SOFT, penalised by adaptive λ. No action masking.
+  - Episode always runs M steps (no early termination for violations).
+  - Reward per step: ru/M - λ * c_t
+  - Dual ascent: λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
+
+Run:
+    python problem5_lagarange/run.py
+"""
+
+import datetime
+import sys, time, json
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from pathlib import Path
+from collections import deque
+
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent))
+
+import torch
+import yaml
+import pulp
+from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv
+
+import random
+import config as C
+from problem5_lagarange.env import LagrangeEnv
+from problem2_single.objects import ECU, SVC
+
+
+def resolve_device(cfg: str) -> str:
+    if cfg != "auto":
+        return cfg
+    if torch.cuda.is_available():
+        print(f"[CUDA] {torch.cuda.get_device_name(0)}")
+        return "cuda"
+    print("[CPU] No CUDA GPU, using CPU")
+    return "cpu"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  DummyVecEnv factory (module-level → picklable)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _make_lagrange_env(seed: int) -> Monitor:
+    random.seed(seed)
+    caps, reqs = C.SCENARIOS[C.SCENARIO_IDX]
+    ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+    services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+    env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS,
+                      lambda_init=C.LAMBDA_INIT)
+    return Monitor(env)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Step 1 — Load scenario
+# ══════════════════════════════════════════════════════════════════════════════
+
+def load_scenario():
+    with open(C.YAML_CONFIG, "r") as f:
+        data = yaml.safe_load(f)
+    scenario = data["scenarios"][C.SCENARIO_IDX]
+    ecus     = [ECU(s["name"], s["capacity"])    for s in scenario["ECUs"]]
+    services = [SVC(s["name"], s["requirement"]) for s in scenario["SVCs"]]
+    N, M = len(ecus), len(services)
+    print(f"Loaded: {scenario['name']}  |  N={N} ECUs  M={M} SVCs")
+    print(f"  ECU capacities  : {[e.capacity for e in ecus]}")
+    print(f"  SVC requirements: {[s.requirement for s in services]}")
+    return ecus, services, scenario["name"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Step 2 — ILP optimal
+# ══════════════════════════════════════════════════════════════════════════════
+
+def solve_ilp(ecus, services):
+    N, M = len(ecus), len(services)
+    e_list = [e.capacity    for e in ecus]
+    n_list = [s.requirement for s in services]
+
+    prob = pulp.LpProblem("P5_ILP", pulp.LpMaximize)
+    x = pulp.LpVariable.dicts("x", (range(M), range(N)), cat="Binary")
+
+    prob += pulp.lpSum(x[i][j] * n_list[i] / e_list[j]
+                       for i in range(M) for j in range(N))
+    for i in range(M):
+        prob += pulp.lpSum(x[i][j] for j in range(N)) == 1
+    for j in range(N):
+        prob += pulp.lpSum(x[i][j] for i in range(M)) <= 1
+    for i in range(M):
+        for j in range(N):
+            if n_list[i] > e_list[j]:
+                prob += x[i][j] == 0
+    for j in range(N):
+        prob += pulp.lpSum(x[i][j] * n_list[i] for i in range(M)) <= e_list[j]
+
+    prob.solve(pulp.PULP_CBC_CMD(msg=False))
+
+    alloc = {}
+    for j in range(N):
+        svcs = [i for i in range(M) if pulp.value(x[i][j]) == 1]
+        if svcs:
+            alloc[j] = {
+                "services":    svcs,
+                "utilization": sum(n_list[i] for i in svcs) / e_list[j],
+                "capacity":    e_list[j],
+                "demand":      sum(n_list[i] for i in svcs),
+            }
+    total_util  = pulp.value(prob.objective) or 0.0
+    active_ecus = len(alloc)
+    avg_util    = total_util / active_ecus if active_ecus > 0 else 0.0
+    return {"status": pulp.LpStatus[prob.status], "avg_utilization": avg_util,
+            "allocation": alloc}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Step 3 & 5 — Episode runner
+# ══════════════════════════════════════════════════════════════════════════════
+
+def run_episodes(ecus, services, policy_fn, n_eps):
+    """policy_fn(obs) -> int.  λ is always 0 during evaluation."""
+    env = LagrangeEnv(ecus, services, lambda_init=0.0)
+    ars, viol_rates, placed_list = [], [], []
+    for _ in range(n_eps):
+        obs, _ = env.reset()
+        done = False
+        info = {}
+        while not done:
+            obs, _, done, _, info = env.step(policy_fn(obs))
+        ars.append(info.get("ar", 0.0))
+        viol_rates.append(info.get("viol_rate_ep", 0.0))
+        placed_list.append(info.get("services_placed", 0))
+    return {
+        "ars":        np.array(ars),
+        "viol_rates": np.array(viol_rates),
+        "placed":     np.array(placed_list),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Step 4 — Lagrangian PPO training
+# ══════════════════════════════════════════════════════════════════════════════
+
+class LagrangeCallback(BaseCallback):
+    """
+    Dual-ascent λ update every LAMBDA_UPDATE_WINDOW episodes.
+    Propagates updated λ to all envs in DummyVecEnv.
+    """
+    def __init__(self):
+        super().__init__()
+        self.lambda_val          = C.LAMBDA_INIT
+        self._viol_window        = deque(maxlen=C.LAMBDA_UPDATE_WINDOW)
+        self.episode_ars:        list[float] = []
+        self.episode_viol_rates: list[float] = []
+        self.episode_lambdas:    list[float] = []
+        self.timesteps_at_ep:    list[int]   = []
+
+    def _on_step(self) -> bool:
+        for info in self.locals.get("infos", []):
+            if "episode" not in info:
+                continue
+            ar        = float(info.get("ar", 0.0))
+            viol_rate = float(info.get("viol_rate_ep", 0.0))
+            self.episode_ars.append(ar)
+            self.episode_viol_rates.append(viol_rate)
+            self.episode_lambdas.append(self.lambda_val)
+            self.timesteps_at_ep.append(self.num_timesteps)
+
+            self._viol_window.append(viol_rate)
+            if len(self._viol_window) == C.LAMBDA_UPDATE_WINDOW:
+                avg_viol        = float(np.mean(self._viol_window))
+                new_lam         = self.lambda_val + C.LAMBDA_LR * (avg_viol - C.LAMBDA_TARGET)
+                self.lambda_val = float(np.clip(new_lam, 0.0, C.LAMBDA_MAX))
+                for monitor_env in self.training_env.envs:
+                    monitor_env.env.set_lambda(self.lambda_val)
+        return True
+
+
+def train_lagrange(device: str):
+    env = DummyVecEnv([lambda: _make_lagrange_env(C.SEED)])
+    cb  = LagrangeCallback()
+
+    model = PPO(
+        policy        = "MlpPolicy",
+        env           = env,
+        learning_rate = C.PPO_LR,
+        n_steps       = C.PPO_N_STEPS,
+        batch_size    = C.PPO_BATCH_SIZE,
+        n_epochs      = C.PPO_N_EPOCHS,
+        gamma         = C.PPO_GAMMA,
+        gae_lambda    = C.PPO_GAE_LAMBDA,
+        clip_range    = C.PPO_CLIP_RANGE,
+        policy_kwargs = dict(net_arch=C.PPO_NET_ARCH),
+        device        = device,
+        verbose       = 0,
+        seed          = C.SEED,
+    )
+    t0 = time.time()
+    model.learn(total_timesteps=C.TOTAL_STEPS, callback=cb)
+    elapsed = time.time() - t0
+    env.close()
+
+    n_ep        = len(cb.episode_ars)
+    last50_ar   = np.mean(cb.episode_ars[-50:])        if n_ep >= 50 else np.mean(cb.episode_ars)
+    last50_viol = np.mean(cb.episode_viol_rates[-50:]) if n_ep >= 50 else np.mean(cb.episode_viol_rates)
+    print(f"  Training done  {elapsed:.1f}s | {n_ep} episodes"
+          f" | AR(last50)={last50_ar:.4f}"
+          f" | viol(last50)={last50_viol:.4f}"
+          f" | final λ={cb.lambda_val:.4f}")
+    return model, cb
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Plotting helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def moving_avg(arr, w):
+    arr = np.asarray(arr, dtype=float)
+    if len(arr) < w:
+        return arr, 0
+    return np.convolve(arr, np.ones(w) / w, mode="valid"), w - 1
+
+
+def plot_training_curve(cb: LagrangeCallback, ilp_ar: float,
+                        outdir: Path, scenario_name: str):
+    ts  = np.array(cb.timesteps_at_ep)
+    ars = np.array(cb.episode_ars)
+    vrs = np.array(cb.episode_viol_rates)
+    lms = np.array(cb.episode_lambdas)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # ── AR ──
+    sm, off = moving_avg(ars, C.SMOOTH_W)
+    ax1.plot(ts, ars, color="seagreen", alpha=0.2, linewidth=0.8)
+    ax1.plot(ts[off:off+len(sm)], sm, color="seagreen", linewidth=2,
+             label=f"AR (smoothed w={C.SMOOTH_W})")
+    ax1.axhline(ilp_ar, color="red", linestyle="--", linewidth=1.5,
+                label=f"ILP Optimal  AR={ilp_ar:.4f}")
+    ax1.set_ylabel("Episode AR", fontsize=11)
+    ax1.set_ylim(0, 1.05)
+    ax1.legend(fontsize=9, loc="lower right")
+    ax1.set_title(
+        f"P5 Lagrangian PPO Training — {scenario_name}  ({C.TOTAL_STEPS:,} steps)",
+        fontsize=12,
+    )
+    ax1.grid(alpha=0.3)
+
+    # ── Violation rate (left) + λ (right) ──
+    sm_v, off_v = moving_avg(vrs, C.SMOOTH_W)
+    ax2.plot(ts, vrs, color="tomato", alpha=0.2, linewidth=0.8)
+    ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
+             label="Viol rate (smoothed)")
+    ax2.set_ylabel("Violation Rate / Episode", fontsize=11, color="tomato")
+    ax2.tick_params(axis="y", labelcolor="tomato")
+    ax2.set_ylim(-0.05, 1.1)
+
+    ax2b = ax2.twinx()
+    ax2b.plot(ts, lms, color="navy", linewidth=1.5, linestyle="--", alpha=0.85,
+              label="λ value")
+    ax2b.set_ylabel("λ (Lagrangian multiplier)", fontsize=11, color="navy")
+    ax2b.tick_params(axis="y", labelcolor="navy")
+    ax2b.set_ylim(bottom=0)
+
+    lines1, labels1 = ax2.get_legend_handles_labels()
+    lines2, labels2 = ax2b.get_legend_handles_labels()
+    ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc="upper right")
+    ax2.set_xlabel("Training steps", fontsize=11)
+    ax2.grid(alpha=0.3)
+
+    plt.tight_layout()
+    path = outdir / "training_curve.png"
+    plt.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved -> {path}")
+
+
+def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str):
+    colors = ["#e74c3c", "#3498db", "#e67e22"]
+    labels = ["ILP\n(Optimal)", "Random\n(no mask)", "Lagrange\nPPO"]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig.suptitle(
+        f"P2(ILP) vs Random vs P5(Lagrange PPO) — {scenario_name}",
+        fontsize=13, fontweight="bold",
+    )
+
+    # ── AR ──
+    bp = ax1.boxplot(
+        [rand_res["ars"], ppo_res["ars"]],
+        positions=[2, 3], widths=0.5, patch_artist=True,
+        medianprops=dict(color="black", linewidth=2),
+    )
+    for patch, color in zip(bp["boxes"], colors[1:]):
+        patch.set_facecolor(color); patch.set_alpha(0.7)
+
+    ax1.axhline(ilp_ar, color=colors[0], linestyle="--", linewidth=2, alpha=0.9,
+                label=f"ILP  AR={ilp_ar:.4f}")
+    ax1.plot(1, ilp_ar, marker="D", color=colors[0], markersize=10, zorder=5)
+
+    for pos, data, color in zip([2, 3], [rand_res["ars"], ppo_res["ars"]], colors[1:]):
+        mv = np.mean(data)
+        ax1.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
+                 fontweight="bold", color=color)
+
+    ax1.set_xticks([1, 2, 3]); ax1.set_xticklabels(labels, fontsize=10)
+    ax1.set_ylim(0, 1.1)
+    ax1.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
+    ax1.set_title("AR Distribution", fontsize=11)
+    ax1.legend(fontsize=9, loc="lower right")
+    ax1.grid(axis="y", alpha=0.3)
+
+    # ── Violation rate ──
+    vr_means = [0.0, np.mean(rand_res["viol_rates"]), np.mean(ppo_res["viol_rates"])]
+    vr_stds  = [0.0, np.std(rand_res["viol_rates"]),  np.std(ppo_res["viol_rates"])]
+    bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75,
+                   yerr=vr_stds, capsize=6, ecolor="black")
+    for bar, v in zip(bars, vr_means):
+        ax2.text(bar.get_x()+bar.get_width()/2, v+0.01,
+                 f"{v:.2f}", ha="center", fontsize=10, fontweight="bold")
+    ax2.set_ylim(0, 1.1)
+    ax2.set_ylabel("Violation Rate (per step, per episode)", fontsize=11)
+    ax2.set_title("Constraint Violations", fontsize=11)
+    ax2.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    path = outdir / "comparison.png"
+    plt.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved -> {path}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Main
+# ══════════════════════════════════════════════════════════════════════════════
+
+def main():
+    C.OUTDIR.mkdir(parents=True, exist_ok=True)
+    device = resolve_device(C.DEVICE)
+
+    print(f"\n{'='*60}")
+    print(f"  P5 run.py  —  Lagrangian Constraint Relaxation")
+    print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
+    print(f"  λ_init={C.LAMBDA_INIT}  lr={C.LAMBDA_LR}  target={C.LAMBDA_TARGET}  max={C.LAMBDA_MAX}")
+    print(f"{'='*60}\n")
+
+    # 1. Load scenario
+    ecus, services, sc_name = load_scenario()
+    N, M = len(ecus), len(services)
+
+    # 2. ILP
+    print("\n[1/4] Solving ILP ...")
+    ilp_result = solve_ilp(ecus, services)
+    ilp_ar = ilp_result["avg_utilization"]
+    print(f"  ILP avg AR : {ilp_ar:.4f}  (status: {ilp_result['status']})")
+    for j, info in sorted(ilp_result["allocation"].items()):
+        print(f"    ECU{j}(cap={info['capacity']}) <- SVC{info['services']}  "
+              f"util={info['utilization']:.2%}")
+
+    # 3. Random baseline (no masking)
+    print(f"\n[2/4] Random baseline ({C.EVAL_EPS} episodes, no masking) ...")
+    np.random.seed(C.SEED)
+    rand_res = run_episodes(
+        ecus, services,
+        policy_fn=lambda obs: int(np.random.randint(0, N)),
+        n_eps=C.EVAL_EPS,
+    )
+    print(f"  Random  AR mean={np.mean(rand_res['ars']):.4f}  "
+          f"viol={np.mean(rand_res['viol_rates']):.2%}")
+
+    # 4. Lagrangian PPO training
+    print(f"\n[3/4] Lagrangian PPO training ({C.TOTAL_STEPS:,} steps) ...")
+    model, cb = train_lagrange(device)
+    model.save(str(C.MODEL_PATH))
+    print(f"  Model saved -> {C.MODEL_PATH}.zip")
+
+    # 5. Lagrangian PPO evaluation
+    print(f"\n[4/4] Lagrangian PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    def ppo_policy(obs):
+        action, _ = model.predict(obs, deterministic=True)
+        return int(action)
+    ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
+    print(f"  PPO  AR mean={np.mean(ppo_res['ars']):.4f}  "
+          f"viol={np.mean(ppo_res['viol_rates']):.2%}")
+
+    # Summary table
+    print(f"\n{'='*72}")
+    print(f"  {'Method':<28} {'AR mean±std':<24} {'Viol%':<14} {'Placed'}")
+    print(f"  {'-'*28} {'-'*24} {'-'*14} {'-'*8}")
+    print(f"  {'ILP (Optimal)':<28} {ilp_ar:.4f} ± 0.0000        {'0.00%':<14} {M}/{M}")
+    print(f"  {'Random (no mask)':<28} "
+          f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
+          f"  {np.mean(rand_res['viol_rates']):.2%:<12} {M}/{M}")
+    print(f"  {'Lagrange PPO':<28} "
+          f"{np.mean(ppo_res['ars']):.4f} ± {np.std(ppo_res['ars']):.4f}   "
+          f"  {np.mean(ppo_res['viol_rates']):.2%:<12} {M}/{M}")
+    print(f"  Final λ = {cb.lambda_val:.4f}")
+    print(f"{'='*72}\n")
+
+    # Save JSON results
+    n_ep = len(cb.episode_ars)
+    log = {
+        "scenario": sc_name, "N": N, "M": M,
+        "ilp": {"ar": round(ilp_ar, 6), "violations": 0},
+        "random": {
+            "ar_mean":        round(float(np.mean(rand_res["ars"])), 6),
+            "ar_std":         round(float(np.std(rand_res["ars"])), 6),
+            "viol_rate_mean": round(float(np.mean(rand_res["viol_rates"])), 6),
+        },
+        "lagrange_ppo": {
+            "ar_mean":        round(float(np.mean(ppo_res["ars"])), 6),
+            "ar_std":         round(float(np.std(ppo_res["ars"])), 6),
+            "viol_rate_mean": round(float(np.mean(ppo_res["viol_rates"])), 6),
+        },
+        "training": {
+            "total_steps":    C.TOTAL_STEPS,
+            "n_episodes":     n_ep,
+            "ar_last50":      round(float(np.mean(cb.episode_ars[-50:])),        6) if n_ep >= 50 else None,
+            "viol_last50":    round(float(np.mean(cb.episode_viol_rates[-50:])), 6) if n_ep >= 50 else None,
+            "final_lambda":   round(float(cb.lambda_val), 6),
+        },
+    }
+    run_dir = C.OUTDIR / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with open(run_dir / "results.json", "w") as f:
+        json.dump(log, f, indent=2)
+    print(f"  JSON saved -> {run_dir / 'results.json'}")
+
+    # Plots
+    plot_training_curve(cb, ilp_ar, run_dir, sc_name)
+    plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)
+
+    print("\nAll done! Output files:")
+    print(f"  {run_dir}/training_curve.png")
+    print(f"  {run_dir}/comparison.png")
+    print(f"  {run_dir}/results.json\n")
+
+
+if __name__ == "__main__":
+    main()

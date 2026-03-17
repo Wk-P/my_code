@@ -30,21 +30,21 @@ with open(YAML_CONFIG) as f:
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 
 # ── Training ──────────────────────────────────────────────────────────────────
-TOTAL_STEPS = 200_000
+TOTAL_STEPS = 500_000
 SEED        = 42
 DEVICE      = "auto"
 
 # ── DQN hyperparameters ──────────────────────────────────────────────────────────────────
 DQN_LR                    = 1e-3
-DQN_BUFFER_SIZE           = 50_000
-DQN_LEARNING_STARTS       = 1_000
+DQN_BUFFER_SIZE           = 100_000
+DQN_LEARNING_STARTS       = 2_000
 DQN_BATCH_SIZE            = 64
 DQN_TAU                   = 1.0
 DQN_GAMMA                 = 0.99
 DQN_TRAIN_FREQ            = 4
 DQN_GRADIENT_STEPS        = 1
-DQN_TARGET_UPDATE         = 1_000
-DQN_EXPLORATION_FRACTION  = 0.3
+DQN_TARGET_UPDATE         = 500
+DQN_EXPLORATION_FRACTION  = 0.5
 DQN_EXPLORATION_FINAL_EPS = 0.05
 DQN_NET_ARCH              = [128, 128]
 
