@@ -18,7 +18,8 @@ Run:
     python problem3_single/run_all.py
 """
 
-import sys, os, time, json, random
+import datetime
+import sys, time, json
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -30,6 +31,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
+import torch
 import yaml
 import pulp
 from stable_baselines3 import PPO
@@ -38,6 +40,16 @@ from stable_baselines3.common.monitor import Monitor
 
 import config as C
 from env_p3 import P3Env
+
+
+def resolve_device(cfg: str) -> str:
+    if cfg != "auto":
+        return cfg
+    if torch.cuda.is_available():
+        print(f"[CUDA] {torch.cuda.get_device_name(0)}")
+        return "cuda"
+    print("[CPU] No CUDA GPU, using CPU")
+    return "cpu"
 from problem2_single.objects import ECU, SVC
 
 
@@ -181,7 +193,7 @@ def train_ppo(ecus, services) -> tuple[PPO, P3Callback]:
         gae_lambda    = C.PPO_GAE_LAMBDA,
         clip_range    = C.PPO_CLIP_RANGE,
         policy_kwargs = dict(net_arch=C.PPO_NET_ARCH),
-        device        = C.DEVICE,
+        device        = resolve_device(C.DEVICE),
         verbose       = 0,
         seed          = C.SEED,
     )
@@ -412,7 +424,8 @@ def main():
             "ar_last50":    round(float(np.mean(cb.episode_ars[-50:])), 6),
         }
     }
-    log_path = C.OUTDIR / "results.json"
+    log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "results.json"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  JSON saved → {log_path}")

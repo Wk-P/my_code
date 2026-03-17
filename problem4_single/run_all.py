@@ -16,6 +16,7 @@ Run:
     python problem4_single/run_all.py
 """
 
+import datetime
 import sys, time, json
 import numpy as np
 import matplotlib
@@ -27,6 +28,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
+import torch
 import yaml
 import pulp
 from sb3_contrib import MaskablePPO
@@ -37,6 +39,16 @@ from stable_baselines3.common.monitor import Monitor
 import config as C
 from env_p4 import P4Env
 from problem2_single.objects import ECU, SVC
+
+
+def resolve_device(cfg: str) -> str:
+    if cfg != "auto":
+        return cfg
+    if torch.cuda.is_available():
+        print(f"[CUDA] {torch.cuda.get_device_name(0)}")
+        return "cuda"
+    print("[CPU] No CUDA GPU, using CPU")
+    return "cpu"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -169,7 +181,7 @@ def train_maskppo(ecus, services):
         gae_lambda    = C.PPO_GAE_LAMBDA,
         clip_range    = C.PPO_CLIP_RANGE,
         policy_kwargs = dict(net_arch=C.PPO_NET_ARCH),
-        device        = C.DEVICE,
+        device        = resolve_device(C.DEVICE),
         verbose       = 0,
         seed          = C.SEED,
     )
@@ -378,7 +390,8 @@ def main():
             "ar_last50":   round(float(np.mean(cb.episode_ars[-50:])), 6),
         },
     }
-    log_path = C.OUTDIR / "results.json"
+    log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "results.json"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  JSON saved -> {log_path}")

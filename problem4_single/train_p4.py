@@ -13,6 +13,7 @@ Outputs saved to problem4_single/results/:
     training_log.json     — raw episode data
 """
 
+import datetime
 import sys, time, json
 import numpy as np
 import matplotlib
@@ -196,7 +197,8 @@ def main():
         "episode_placed": cb.episode_placed,
         "timesteps":      cb.timesteps_at_ep,
     }
-    log_path = C.OUTDIR / "training_log.json"
+    log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "training_log.json"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  Log saved  -> {log_path}")
@@ -208,4 +210,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    pass

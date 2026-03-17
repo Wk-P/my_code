@@ -34,7 +34,7 @@ with open(YAML_CONFIG) as f:
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = 200_000
 SEED        = 42
-DEVICE      = "cpu"     # MlpPolicy runs faster on CPU
+DEVICE      = "auto"    # "auto" -> use CUDA if available, else CPU
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────
 PPO_LR          = 3e-4

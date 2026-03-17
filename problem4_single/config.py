@@ -32,7 +32,7 @@ with open(YAML_CONFIG) as f:
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = 200_000
 SEED        = 42
-DEVICE      = "cpu"
+DEVICE      = "auto"
 
 # ── MaskablePPO hyperparameters ───────────────────────────────────────────────
 PPO_LR          = 3e-4
@@ -42,7 +42,7 @@ PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.999
 PPO_GAE_LAMBDA  = 0.95
 PPO_CLIP_RANGE  = 0.2
-PPO_NET_ARCH    = [256, 256]
+PPO_NET_ARCH    = dict(pi=[128, 128], vf=[256, 256])
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS  = 300

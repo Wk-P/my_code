@@ -12,6 +12,7 @@ Outputs saved to problem3_single/results/:
     evaluation_log.json   — full numerical results
 """
 
+import datetime
 import sys, json
 import numpy as np
 import matplotlib
@@ -210,7 +211,8 @@ def main():
             "dup_viol_mean": round(float(np.mean(ppo_res["dup_violations"])), 4),
         },
     }
-    log_path = C.OUTDIR / "evaluation_log.json"
+    log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "evaluation_log.json"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  Log saved -> {log_path}")
@@ -220,4 +222,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    pass
+    #  main()
