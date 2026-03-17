@@ -1,8 +1,0 @@
-{
-    "chat.disableAIFeatures": false,
-    "chat.editor.wordWrap": "on",
-    "chat.fontSize": 14,
-    "chat.renderRelatedFiles": true,
-    "chat.agent.maxRequests": 50,
-    "chat.checkpoints.showFileChanges": true
-}
