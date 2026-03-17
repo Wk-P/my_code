@@ -17,7 +17,7 @@ Run:
 """
 
 import datetime
-import sys, time, json
+import sys, time, json, functools
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -32,14 +32,24 @@ import torch
 import yaml
 import pulp
 from sb3_contrib import MaskablePPO
-from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 import config as C
 from env_p4 import P4Env
 from problem2_single.objects import ECU, SVC
+
+
+def _make_p4_env(seed: int) -> Monitor:
+    """Module-level factory (picklable for SubprocVecEnv on Windows)."""
+    import random
+    random.seed(seed)
+    caps, reqs = C.SCENARIOS[C.SCENARIO_IDX]
+    ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+    services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+    env = P4Env(ecus, services, scenarios=C.SCENARIOS)
+    return Monitor(env)
 
 
 def resolve_device(cfg: str) -> str:
@@ -163,19 +173,12 @@ class P4Callback(BaseCallback):
         return True
 
 
-def mask_fn(env):
-    return env.action_masks()
-
-
 def train_maskppo(ecus, services):
-    def make_env_fn(seed: int = 0) -> Monitor:
-        def _init():
-            env = ActionMasker(P4Env(ecus, services), mask_fn)
-            return Monitor(env)
-        return _init
-    
-    n_envs = 4
-    env = DummyVecEnv([make_env_fn(seed=C.SEED+i) for i in range(n_envs)])
+    n_envs = 6
+    env = SubprocVecEnv(
+        [functools.partial(_make_p4_env, C.SEED + i) for i in range(n_envs)],
+        start_method="spawn",
+    )
 
     cb  = P4Callback()
     model = MaskablePPO(
