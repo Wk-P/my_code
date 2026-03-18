@@ -202,12 +202,13 @@ def main():
     }
     log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "training_log.json"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    run_dir = log_path.parent
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  Log saved  → {log_path}")
 
-    # ── Plot ──────────────────────────────────────────────────────────────────
-    plot_training_curve(cb, C.OUTDIR)
+    # ── Plot ────────────────────────────────────────────────────────────────────────────
+    plot_training_curve(cb, run_dir)
 
     env.close()
     print("\nDone. Run evaluate_p3.py to compare against random baseline.\n")

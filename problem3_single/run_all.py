@@ -438,18 +438,19 @@ def main():
     }
     log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "results.json"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    run_dir = log_path.parent
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  JSON saved → {log_path}")
 
-    # ── Plots ─────────────────────────────────────────────────────────────────
-    plot_training_curve(cb, ilp_ar, C.OUTDIR, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, C.OUTDIR, sc_name)
+    # ── Plots ────────────────────────────────────────────────────────────────────────────
+    plot_training_curve(cb, ilp_ar, run_dir, sc_name)
+    plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)
 
     print("\nAll done! Output files:")
-    print(f"  {C.OUTDIR}/training_curve.png")
-    print(f"  {C.OUTDIR}/comparison.png")
-    print(f"  {C.OUTDIR}/results.json\n")
+    print(f"  {run_dir}/training_curve.png")
+    print(f"  {run_dir}/comparison.png")
+    print(f"  {run_dir}/results.json\n")
 
 
 if __name__ == "__main__":

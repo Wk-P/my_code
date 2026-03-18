@@ -36,7 +36,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
 import random
 import config as C
-from problem5_lagarange.env import LagrangeEnv
+from problem5_lagrangian.env import LagrangeEnv
 from problem2_single.objects import ECU, SVC
 
 

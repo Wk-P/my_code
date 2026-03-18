@@ -20,7 +20,7 @@ sys.path.insert(0, str(HERE.parent))
 from stable_baselines3 import PPO
 import random
 import config as C
-from problem5_lagarange.env import LagrangeEnv
+from problem5_lagrangian.env import LagrangeEnv
 from problem2_single.objects import ECU, SVC
 
 

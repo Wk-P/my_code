@@ -169,11 +169,12 @@ def main():
     }
     log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "evaluation_log.json"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    run_dir = log_path.parent
     with open(log_path, "w") as f:
         json.dump(log, f, indent=2)
     print(f"  Log saved -> {log_path}")
 
-    plot_comparison(rand_res, ppo_res, C.OUTDIR)
+    plot_comparison(rand_res, ppo_res, run_dir)
     print("Evaluation complete.\n")
 
 
