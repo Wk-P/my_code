@@ -2,7 +2,7 @@
 evaluate.py — Evaluate Lagrangian PPO vs Random (no mask).
 
 Run (after train.py or run.py):
-    python problem5_lagarange/evaluate.py
+    python problem5_ppo_lagrangian/evaluate.py
 """
 
 import datetime

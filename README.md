@@ -22,15 +22,15 @@ Target: Maximize the Average Reward (AR) while satisfying the safety constraints
               <td>Reinforcement Learning Environment</td>
           </tr>
           <tr>
-              <td><a href="./problem2_single">Problem 2</a></td>
+              <td><a href="./problem2_ilp">Problem 2</a></td>
               <td>ILP Problem</td>
           </tr>
           <tr>
-              <td><a href="./problem3_single">Problem 3</a></td>
+              <td><a href="./problem3_ppo">Problem 3</a></td>
               <td>Reinforcement Learning without Safe Constraints vs ILP</td>
           </tr>
           <tr>
-              <td><a href="./problem4_single">Problem 4</a></td>
+              <td><a href="./problem4_ppo_mask">Problem 4</a></td>
               <td>Reinforcement Learning with Safe Constraints vs ILP</td>
           </tr>
       </tbody>

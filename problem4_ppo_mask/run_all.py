@@ -13,7 +13,7 @@ run_all.py — One-shot P4 full pipeline:
 P4 Design: constraints enforced via action masking -> 0 violations guaranteed.
 
 Run:
-    python problem4_single/run_all.py
+    python problem4_ppo_mask/run_all.py
 """
 
 import datetime
@@ -21,6 +21,8 @@ import csv
 import sys, time, json, functools
 import numpy as np
 import matplotlib
+
+import timer_utils
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -148,7 +150,7 @@ def solve_ilp_all_scenarios():
             json.dump(data, f)
         tmp.replace(path)
 
-    # ─ 1. Shared cache written by problem2_single/optimal_solution/main.py ─
+    # ─ 1. Shared cache written by problem2_ilp/optimal_solution/main.py ─
     shared_cache = C.YAML_CONFIG.parent.parent / "results" / "ilp_cache.json"
     if shared_cache.exists():
         cache = _load_cache(shared_cache)
@@ -372,7 +374,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
 # ══════════════════════════════════════════════════════════════════════════════
 #  Main
 # ══════════════════════════════════════════════════════════════════════════════
-
+@timer_utils.timer
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
     print(f"\n{'='*60}")

@@ -79,6 +79,7 @@ class P3Env(gym.Env):
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
         self.remaining_vms  = self.initial_vms.copy()
         self.ecu_assigned   = np.zeros(self.N, dtype=bool)
+        self.ecu_service_idx = np.full(self.N, -1, dtype=int)  # ECU -> service index (-1 = free)
         self.ar             = 0.0
         self._step          = 0
         self.capacity_violations       = 0
@@ -106,20 +107,103 @@ class P3Env(gym.Env):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
 
-        # ── Constraint check: ONLY record, do NOT penalize or terminate ──────
-        if self.remaining_vms[action] < svc.requirement:
-            self.capacity_violations += 1
         if self.ecu_assigned[action]:
-            self.single_service_violations += 1
+            # ── Best-fit patch algorithm (see patch_algorithm_en.md) ──────────
+            ecu_n = action
+            s1    = self.services[self.ecu_service_idx[ecu_n]]
+            s2    = svc
+            cap_n = float(self.initial_vms[ecu_n])
 
-        # ── Assignment always happens regardless of violations ────────────────
-        ru = svc.requirement / (self.initial_vms[action] + 1e-8)
-        self.remaining_vms[action] -= svc.requirement      # can go negative
-        self.ecu_assigned[action]   = True
+            # Step 1: determine s_stay / s_move
+            if s2.requirement > s1.requirement:
+                s_stay, s_move = s2, s1
+                if cap_n < s2.requirement:
+                    self.capacity_violations += 1
+            else:
+                s_stay, s_move = s1, s2
 
-        # Incremental AR update
-        self.ar = (self.ar * self._step + ru) / (self._step + 1)
-        self._step += 1
+            # Step 2: find best-fit ecu_m (capacity sufficient, tightest fit)
+            best_ecu_m    = -1
+            best_remaining = float('inf')
+            for j in range(self.N):
+                if not self.ecu_assigned[j] and j != ecu_n:
+                    if self.initial_vms[j] >= s_move.requirement:
+                        leftover = float(self.remaining_vms[j]) - s_move.requirement
+                        if leftover < best_remaining:
+                            best_remaining = leftover
+                            best_ecu_m     = j
+
+            if best_ecu_m != -1:
+                # Step 3: execute relocation (normal path)
+                ecu_m = best_ecu_m
+                cap_m = float(self.initial_vms[ecu_m])
+                self.remaining_vms[ecu_n]    = cap_n - s_stay.requirement
+                self.remaining_vms[ecu_m]   -= s_move.requirement
+                self.ecu_service_idx[ecu_n]  = self.services.index(s_stay)
+                self.ecu_service_idx[ecu_m]  = self.services.index(s_move)
+                self.ecu_assigned[ecu_m]     = True
+                s1_moved = (s_move is s1)   # True: s1 relocated; False: s2 relocated
+                s2_cap   = cap_n if s_stay is s2 else cap_m
+
+            else:
+                # Step 5: fallback — enumerate all free ECUs, both arrangements
+                free_ecus = [j for j in range(self.N)
+                             if not self.ecu_assigned[j] and j != ecu_n]
+                best_ecu_m   = -1
+                best_viol    = 3        # sentinel > 2
+                best_score   = -1.0
+                best_s_on_n  = s1
+                best_s_on_m  = s2
+
+                for j in free_ecus:
+                    cap_m = float(self.initial_vms[j])
+                    for (s_on_n, s_on_m) in [(s1, s2), (s2, s1)]:
+                        viol = 0
+                        if s_on_n.requirement > cap_n: viol += 1
+                        if s_on_m.requirement > cap_m: viol += 1
+                        if viol >= 2:                  continue   # never allow both violated
+                        score = (s1.requirement + s2.requirement) / (cap_n + cap_m + 1e-8)
+                        if viol < best_viol or (viol == best_viol and score > best_score):
+                            best_viol   = viol
+                            best_score  = score
+                            best_ecu_m  = j
+                            best_s_on_n = s_on_n
+                            best_s_on_m = s_on_m
+
+                ecu_m = best_ecu_m
+                cap_m = float(self.initial_vms[ecu_m])
+                self.capacity_violations        += best_viol
+                self.remaining_vms[ecu_n]        = cap_n - best_s_on_n.requirement
+                self.remaining_vms[ecu_m]       -= best_s_on_m.requirement
+                self.ecu_service_idx[ecu_n]      = self.services.index(best_s_on_n)
+                self.ecu_service_idx[ecu_m]      = self.services.index(best_s_on_m)
+                self.ecu_assigned[ecu_m]         = True
+                s1_moved = (best_s_on_m is s1)  # True: s1 relocated to ecu_m
+                s2_cap   = cap_n if best_s_on_n is s2 else cap_m
+
+            # Step 4 / AR update:
+            # Only s2 is new this step. s1 correction only applies if s1 moved ECUs.
+            if s1_moved and self._step > 0:
+                self.ar += s1.requirement / self._step * (
+                    1.0 / (cap_m + 1e-8) - 1.0 / (cap_n + 1e-8)
+                )
+            ru_new = s2.requirement / (s2_cap + 1e-8)
+            self.ar = (self.ar * self._step + ru_new) / (self._step + 1)
+            self._step += 1
+
+        else:
+            # ── Normal assignment (ecu_n was free) ────────────────────────────
+            # Constraint check: capacity violation
+            if self.remaining_vms[action] < svc.requirement:
+                self.capacity_violations += 1
+            ru = svc.requirement / (self.initial_vms[action] + 1e-8)
+            self.remaining_vms[action]   -= svc.requirement
+            self.ecu_assigned[action]     = True
+            self.ecu_service_idx[action]  = self._step   # record service index on this ECU
+
+            # Incremental AR update
+            self.ar = (self.ar * self._step + ru) / (self._step + 1)
+            self._step += 1
 
         done   = self._step >= self.M
         reward = float(self.ar) if done else 0.0       # sparse: only final AR

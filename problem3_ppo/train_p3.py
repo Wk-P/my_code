@@ -5,9 +5,9 @@ The P3 env never terminates early: violations are recorded but not penalized.
 The only reward is the final AR at the last step.
 
 Run:
-    python problem3_single/train_p3.py
+    python problem3_ppo/train_p3.py
 
-Outputs saved to problem3_single/results/:
+Outputs saved to problem3_ppo/results/:
     ppo_p3_model.zip      — trained PPO weights
     training_curve.png    — per-episode AR and violation count over time
     training_log.json     — raw episode data

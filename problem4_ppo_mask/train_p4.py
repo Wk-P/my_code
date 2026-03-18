@@ -5,9 +5,9 @@ Action masking guarantees 0 constraint violations by construction.
 The agent can only choose ECUs that have enough capacity AND haven't been used.
 
 Run:
-    python problem4_single/train_p4.py
+    python problem4_ppo_mask/train_p4.py
 
-Outputs saved to problem4_single/results/:
+Outputs saved to problem4_ppo_mask/results/:
     maskppo_p4_model.zip  — trained MaskablePPO weights
     training_curve.png    — per-episode AR over time
     training_log.json     — raw episode data

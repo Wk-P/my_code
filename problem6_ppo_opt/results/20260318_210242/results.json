@@ -209,18 +209,18 @@
     "violations": 0
   },
   "random": {
-    "ar_mean": 0.494966,
-    "ar_std": 0.110835,
-    "viol_mean": 5.5133
+    "ar_mean": 0.493845,
+    "ar_std": 0.085948,
+    "viol_mean": 0.7367
   },
   "ppo": {
-    "ar_mean": 0.551246,
-    "ar_std": 0.227112,
-    "viol_mean": 15.35
+    "ar_mean": 0.513902,
+    "ar_std": 0.080745,
+    "viol_mean": 1.4733
   },
   "training": {
     "total_steps": 200000,
     "n_episodes": 20070,
-    "ar_last50": 0.543112
+    "ar_last50": 0.514256
   }
 }

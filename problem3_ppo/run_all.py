@@ -1,7 +1,7 @@
 """
 run_all.py — One-shot P3 full pipeline:
 
-  1. Load a scenario from the same YAML used by problem2_single
+  1. Load a scenario from the same YAML used by problem2_ilp
   2. Solve with ILP (PuLP)                   -> ilp_ar  (optimal upper bound)
   3. Evaluate a random policy                -> random_ars + violations
   4. Train PPO (NO constraint enforcement)   -> training curve
@@ -15,7 +15,7 @@ P3 Design: constraints are RECORDED but NOT enforced.
   - No penalty for violation; reward = final AR only.
 
 Run:
-    python problem3_single/run_all.py
+    python problem3_ppo/run_all.py
 """
 
 import datetime
@@ -23,6 +23,8 @@ import csv
 import sys, time, json
 import numpy as np
 import matplotlib
+
+import timer_utils
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -88,7 +90,7 @@ def solve_ilp(ecus: list[ECU], services: list[SVC]) -> dict:
     prob = pulp.LpProblem("P3_ILP", pulp.LpMaximize)
     x = pulp.LpVariable.dicts("x", (range(M), range(N)), cat="Binary")
 
-    # Objective: maximise total utilisation (consistent with problem2_single ILP)
+    # Objective: maximise total utilisation (consistent with problem2_ilp ILP)
     prob += pulp.lpSum(x[i][j] * n_list[i] / e_list[j]
                        for i in range(M) for j in range(N))
 
@@ -148,7 +150,7 @@ def solve_ilp_all_scenarios():
             json.dump(data, f)
         tmp.replace(path)
 
-    # ─ 1. Shared cache written by problem2_single/optimal_solution/main.py ─
+    # ─ 1. Shared cache written by problem2_ilp/optimal_solution/main.py ─
     shared_cache = C.YAML_CONFIG.parent.parent / "results" / "ilp_cache.json"
     if shared_cache.exists():
         cache = _load_cache(shared_cache)
@@ -394,7 +396,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
 # ══════════════════════════════════════════════════════════════════════════════
 #  Main
 # ══════════════════════════════════════════════════════════════════════════════
-
+@timer_utils.timer
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
     print(f"\n{'='*60}")

@@ -10,7 +10,7 @@ Training dynamics:
   End   (λ stable): agent balances AR and feasibility at equilibrium.
 
 Run:
-    python problem5_lagarange/train.py
+    python problem5_ppo_lagrangian/train.py
 """
 
 import datetime

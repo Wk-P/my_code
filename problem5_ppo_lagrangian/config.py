@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 
 # ── Scenario ──────────────────────────────────────────────────────────────────
-YAML_CONFIG  = ROOT / ".." / "problem2_single" / "config" / "config_20260305_183222.yaml"
+YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_20260305_183222.yaml"
 SCENARIO_IDX = 0
 
 with open(YAML_CONFIG) as f:

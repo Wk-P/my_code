@@ -2,7 +2,7 @@
 evaluate_p4.py — Evaluate MaskablePPO vs Random (masked) vs ILP.
 
 Run (after train_p4.py):
-    python problem4_single/evaluate_p4.py
+    python problem4_ppo_mask/evaluate_p4.py
 """
 
 import datetime

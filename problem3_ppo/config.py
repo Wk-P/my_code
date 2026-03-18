@@ -7,8 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 
-# ── Scenario source (same YAML config file as problem2_single) ──────────────
-YAML_CONFIG  = ROOT / ".." / "problem2_single" / "config" / "config_20260305_183222.yaml"
+# ── Scenario source (same YAML config file as problem2_ilp) ──────────────
+YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_20260305_183222.yaml"
 SCENARIO_IDX = 0   # 0-indexed: 0 = Scenario 1, 1 = Scenario 2 ...
 # N and M are inferred automatically from the YAML file
 

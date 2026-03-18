@@ -17,7 +17,7 @@ P5 Design: constraints are SOFT, penalised by adaptive λ. No action masking.
   - Dual ascent: λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
 
 Run:
-    python problem5_lagarange/run.py
+    python problem5_ppo_lagrangian/run.py
 """
 
 import datetime
@@ -30,6 +30,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
+import timer_utils
 from collections import deque
 
 HERE = Path(__file__).parent
@@ -154,7 +155,7 @@ def solve_ilp_all_scenarios():
             json.dump(data, f)
         tmp.replace(path)
 
-    # ─ 1. Shared cache written by problem2_single/optimal_solution/main.py ─
+    # ─ 1. Shared cache written by problem2_ilp/optimal_solution/main.py ─
     shared_cache = C.YAML_CONFIG.parent.parent / "results" / "ilp_cache.json"
     if shared_cache.exists():
         cache = _load_cache(shared_cache)
@@ -412,7 +413,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
 # ══════════════════════════════════════════════════════════════════════════════
 #  Main
 # ══════════════════════════════════════════════════════════════════════════════
-
+@timer_utils.timer
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
     device = resolve_device(C.DEVICE)

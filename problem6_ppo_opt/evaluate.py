@@ -5,9 +5,9 @@ P3 env: NO constraint enforcement.
 Episodes always run to completion (M steps). Violations are recorded.
 
 Run (after train_p3.py):
-    python problem3_single/evaluate_p3.py
+    python problem3_ppo/evaluate_p3.py
 
-Outputs saved to problem3_single/results/:
+Outputs saved to problem3_ppo/results/:
     comparison_bar.png    — AR & violations bar chart (Random vs PPO)
     evaluation_log.json   — full numerical results
 """
@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE))
 from stable_baselines3 import PPO
 import random
 import config as C
-from env_p3 import P3Env
+from problem6_ppo_opt.env import P3Env
 from problem2_ilp.objects import ECU, SVC
 
 
