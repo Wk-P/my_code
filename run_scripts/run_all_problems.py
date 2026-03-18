@@ -8,6 +8,8 @@ BASE_PATH = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_PATH))
 import timer_utils
 
+print(f"Base path: {BASE_PATH}")
+
 RUN_LIST = [
     "problem3_ppo/run_all.py",
     "problem4_ppo_mask/run_all.py",
@@ -35,6 +37,9 @@ for run_script in RUN_LIST:
         print(f"Error: {run_path} does not exist. Please check the RUN_LIST.")
         exit(1)
 print("All run scripts exist. Starting execution...\n")
+
+
+
 
 @timer_utils.timer
 def main():

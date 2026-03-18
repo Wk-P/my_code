@@ -85,12 +85,18 @@ class my_env(gym.Env):
             self.remaining_vms[action] -= service.required_vms
             
             # Incremental update for AR
+            prev_ar = self.ar
             self.ar = (self.ar * self._current_step + ru) / (self._current_step + 1)
             self._current_step += 1
 
             last_step = (self._current_step >= self.M)
-            # Original reward mechanism: only give AR at the last step (maintain backward compatibility)
-            reward = float(self.ar) if last_step else 0.0
+            # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
+            if self.ar > prev_ar:
+                reward = 1.0
+            elif self.ar < prev_ar:
+                reward = -1.0
+            else:
+                reward = 0.0
             done   = last_step
         else:
             # Insufficient capacity -> penalty and terminate

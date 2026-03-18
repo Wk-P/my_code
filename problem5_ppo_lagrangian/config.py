@@ -40,7 +40,7 @@ DEVICE      = "cpu"
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────
 PPO_LR         = 3e-4
-PPO_N_STEPS    = 2048
+PPO_N_STEPS    = 256
 PPO_BATCH_SIZE = 256
 PPO_N_EPOCHS   = 10
 PPO_GAMMA      = 0.99

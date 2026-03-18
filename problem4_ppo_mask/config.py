@@ -36,7 +36,7 @@ DEVICE      = "auto"
 
 # ── MaskablePPO hyperparameters ───────────────────────────────────────────────
 PPO_LR          = 3e-4
-PPO_N_STEPS     = 1024
+PPO_N_STEPS     = 256
 PPO_BATCH_SIZE  = 128
 PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.999

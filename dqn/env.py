@@ -4,8 +4,8 @@ DQN Environment — RL WITHOUT action masking.
 Constraint enforcement via reward shaping:
   - If an invalid ECU is chosen (capacity insufficient OR already assigned),
     the episode terminates immediately with reward = -1 (deployment failed).
-  - Each valid assignment gives dense reward = ru / M (normalised RU contribution).
-    Cumulative reward over a complete M-step episode equals AR.
+  - Each valid assignment gives reward = +1 if AR increased vs. previous step,
+    else 0.  This gives a clear improvement signal without magnitude bias.
 """
 
 import sys
@@ -27,10 +27,10 @@ class DQNEnv(gym.Env):
       [1]   current cumulative AR
       [2:]  remaining capacity fraction per ECU
 
-    Reward (dense):
-      -1.0      constraint violated (capacity exceeded OR duplicate ECU) → episode ends
-       ru / M   each valid assignment (immediate, proportional to utilisation)
-                cumulative over M steps equals the final AR
+    Reward:
+      -1.0   constraint violated (capacity exceeded OR duplicate ECU) → episode ends
+      +1.0   valid assignment that raises AR above previous step's AR
+       0.0   valid assignment that does not raise AR
     """
 
     metadata = {"render_modes": []}
@@ -90,7 +90,7 @@ class DQNEnv(gym.Env):
         # Constraint check: capacity violation OR duplicate ECU → fail immediately
         if self.remaining_vms[action] < svc.requirement or self.ecu_assigned[action]:
             return self._obs(), -1.0, True, False, {
-                "ar":              0.0,
+                "ar":              self.ar,
                 "services_placed": self._step,
                 "violated":        True,
             }
@@ -100,14 +100,18 @@ class DQNEnv(gym.Env):
         self.remaining_vms[action] -= svc.requirement
         self.ecu_assigned[action]   = True
 
+        prev_ar = self.ar
         self.ar = (self.ar * self._step + ru) / (self._step + 1)
         self._step += 1
 
         done   = self._step >= self.M
-        # Dense reward: distribute AR signal across every valid step.
-        # Each step contributes ru/M; cumulative total over M steps == AR.
-        # This replaces the original sparse lump-sum final reward.
-        reward = ru / self.M
+        # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
+        if self.ar > prev_ar:
+            reward = 1.0
+        elif self.ar < prev_ar:
+            reward = -1.0
+        else:
+            reward = 0.0
 
         return self._obs(), reward, done, False, {
             "ar":              self.ar,

@@ -11,10 +11,10 @@ Violation at step t (c_t):
   c_t = 1.0  if capacity insufficient OR ECU already assigned, else 0.0
 
 Reward per step:
-  r_t = ru / M  -  lambda_val * c_t
-  where ru = svc.requirement / ecu.initial_capacity
+  r_t = improvement_signal  -  lambda_val * c_t
+  where improvement_signal = +1.0 if AR increased vs. previous step, else 0.0
 
-Cumulative reward over a complete M-step episode with 0 violations equals AR.
+The improvement signal replaces the old ru/M dense reward.
 remaining_vms can go negative (overloaded ECU).
 """
 
@@ -36,9 +36,10 @@ class LagrangeEnv(gym.Env):
       [2:]  remaining capacity fraction per ECU (can be < 0 if overloaded)
 
     Reward per step:
-      r_t = ru / M  -  lambda_val * c_t
+      r_t = improvement_signal  -  lambda_val * c_t
+      improvement_signal = +1.0 if AR increased vs. previous step, else 0.0
       c_t = 1.0 if capacity insufficient OR ECU already used, else 0.0
-    
+
     Lagrangian multiplier λ is updated externally by the training callback via dual ascent:
     λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
     """
@@ -119,6 +120,7 @@ class LagrangeEnv(gym.Env):
         self.remaining_vms[action] -= svc.requirement   # may go negative
         self.ecu_assigned[action]   = True
 
+        prev_ar = self.ar
         self.ar = (self.ar * self._step + ru) / (self._step + 1)
         self._step += 1
         if violated:
@@ -126,8 +128,15 @@ class LagrangeEnv(gym.Env):
 
         done = self._step >= self.M
 
-        # ── Lagrangian reward: AR contribution − λ·violation ─────────────────
-        reward = float(ru / self.M - self.lambda_val * c_t)
+        # ── Lagrangian reward: AR direction signal − λ·violation ─────────────
+        # +1 if AR improved, -1 if AR dropped, 0 if unchanged; minus constraint penalty.
+        if self.ar > prev_ar:
+            improvement = 1.0
+        elif self.ar < prev_ar:
+            improvement = -1.0
+        else:
+            improvement = 0.0
+        reward = float(improvement - self.lambda_val * c_t)
 
         return self._obs(), reward, done, False, {
             "ar":              self.ar,

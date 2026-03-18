@@ -1,0 +1,1 @@
+/home/soar009/github/my_code/.venv/bin/python /home/soar009/github/my_code/run_scripts/run_all_problems.py && /home/soar009/github/my_code/.venv/bin/python /home/soar009/github/my_code/run_scripts/copy_files.py && /home/soar009/github/my_code/.venv/bin/python /home/soar009/github/my_code/run_scripts/results_combined/combined.py 

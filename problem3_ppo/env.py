@@ -33,8 +33,9 @@ class P3Env(gym.Env):
       • remaining_vms can go negative (overloaded)
 
     Reward:
-      • 0.0  for every intermediate step
-      • final AR at step M-1 (always reached, never terminates early)
+      • +1.0 if AR increased vs. previous step
+      •  0.0 otherwise
+      (no terminal lump-sum; signal is dense and comparison-based)
 
     Observation  (shape: N+2):
       [0]   current service demand, normalised by max initial capacity
@@ -118,11 +119,18 @@ class P3Env(gym.Env):
         self.ecu_assigned[action]   = True
 
         # Incremental AR update
+        prev_ar = self.ar
         self.ar = (self.ar * self._step + ru) / (self._step + 1)
         self._step += 1
 
         done   = self._step >= self.M
-        reward = float(self.ar) if done else 0.0       # sparse: only final AR
+        # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
+        if self.ar > prev_ar:
+            reward = 1.0
+        elif self.ar < prev_ar:
+            reward = -1.0
+        else:
+            reward = 0.0
 
         total_viol = self.capacity_violations + self.single_service_violations
         info = {

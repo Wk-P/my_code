@@ -32,8 +32,8 @@ class P4Env(gym.Env):
       [2:]  remaining capacity fraction per ECU
 
     Reward:
-      0.0   for intermediate steps
-      AR    at the final step (or when no valid action remains)
+      +1.0  if AR increased vs. previous step
+       0.0  otherwise (including terminal step with no improvement)
     """
 
     metadata = {"render_modes": []}
@@ -118,6 +118,7 @@ class P4Env(gym.Env):
         self.remaining_vms[action] -= svc.requirement
         self.ecu_assigned[action]   = True
 
+        prev_ar = self.ar
         self.ar = (self.ar * self._step + ru) / (self._step + 1)
         self._step += 1
 
@@ -127,7 +128,13 @@ class P4Env(gym.Env):
         if not done and not np.any(self.action_masks()):
             done = True   # no valid ECU for next service → early stop
 
-        reward = float(self.ar) if done else 0.0
+        # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
+        if self.ar > prev_ar:
+            reward = 1.0
+        elif self.ar < prev_ar:
+            reward = -1.0
+        else:
+            reward = 0.0
 
         info = {
             "ar":       self.ar,

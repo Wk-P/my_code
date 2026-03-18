@@ -42,6 +42,11 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 import config as C
 from problem4_ppo_mask.env import P4Env
 from problem2_ilp.objects import ECU, SVC
+from sb3_contrib.common.wrappers import ActionMasker
+
+
+def _mask_fn(env) -> np.ndarray:
+    return env.action_masks()
 
 
 def _make_p4_env(seed: int) -> Monitor:
@@ -52,6 +57,7 @@ def _make_p4_env(seed: int) -> Monitor:
     ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
     env = P4Env(ecus, services, scenarios=C.SCENARIOS)
+    env = ActionMasker(env, _mask_fn)
     return Monitor(env)
 
 
