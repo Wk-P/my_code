@@ -1,10 +1,10 @@
 """
-P3 Environment — RL WITHOUT constraint enforcement.
+P6 Environment — RL WITH best-fit patch optimization.
 
 Design intent (matches docs.md):
-  • Constraint violations are RECORDED but NOT penalized.
+  • When assigning to an already-occupied ECU, a best-fit patch algorithm
+    is applied to relocate one service to a better-fitting free ECU.
   • Episode NEVER terminates early — always runs M steps.
-  • Infeasible assignments still happen (remaining_vms can go negative).
   • Reward: sparse final AR at step M-1, 0.0 for intermediate steps.
   • Scenarios: reset() randomly picks one of the provided scenarios.
 """
@@ -20,17 +20,16 @@ from problem2_ilp.objects import ECU, SVC
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  P3 Environment — NO constraint enforcement
+#  P6 Environment — Best-fit patch optimization
 # ─────────────────────────────────────────────────────────────────────────────
 
-class P3Env(gym.Env):
+class P6Env(gym.Env):
     """
     Each episode assigns M services to N ECUs, one service per step.
 
-    Constraints are NOT enforced:
-      • capacity violation   → only recorded, assignment still happens
-      • duplicate ECU usage  → only recorded, assignment still happens
-      • remaining_vms can go negative (overloaded)
+    When the selected ECU is already occupied, a best-fit patch algorithm
+    is applied: one service is relocated to the tightest-fitting free ECU
+    to minimise waste and reduce constraint violations.
 
     Reward:
       • 0.0  for every intermediate step
@@ -39,7 +38,7 @@ class P3Env(gym.Env):
     Observation  (shape: N+2):
       [0]   current service demand, normalised by max initial capacity
       [1]   current cumulative AR
-      [2:]  remaining capacity fraction per ECU (can be negative if overloaded)
+      [2:]  remaining capacity fraction per ECU
     """
 
     metadata = {"render_modes": []}
@@ -243,7 +242,7 @@ if __name__ == "__main__":
     print("ECU capacities :", [e.capacity for e in ecus])
     print("Service demands:", [s.requirement for s in services])
 
-    env = P3Env(ecus, services)
+    env = P6Env(ecus, services)
     obs, _ = env.reset()
     print(f"\nObs shape : {obs.shape}  (expected {N+2})")
     print(f"Obs       : {obs}")

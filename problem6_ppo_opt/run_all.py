@@ -1,21 +1,23 @@
 """
-run_all.py — One-shot P3 full pipeline:
+run_all.py — One-shot P6 full pipeline:
 
   1. Load a scenario from the same YAML used by problem2_ilp
   2. Solve with ILP (PuLP)                   -> ilp_ar  (optimal upper bound)
   3. Evaluate a random policy                -> random_ars + violations
-  4. Train PPO (NO constraint enforcement)   -> training curve
+  4. Train PPO (best-fit patch optimization) -> training curve
   5. Evaluate the trained PPO agent          -> ppo_ars + violations
   6. Produce two plots:
        - comparison.png    — AR box plot + violation bar chart (3-way)
        - training_curve.png — AR & violation count during training
 
-P3 Design: constraints are RECORDED but NOT enforced.
+P6 Design: best-fit patch algorithm.
+  - When selected ECU is occupied, one service is relocated to the
+    tightest-fitting free ECU to minimise waste.
   - Episodes always run M steps (never terminate early).
-  - No penalty for violation; reward = final AR only.
+  - Reward = final AR only.
 
 Run:
-    python problem3_ppo/run_all.py
+    python problem6_ppo_opt/run_all.py
 """
 
 import datetime
@@ -23,16 +25,16 @@ import csv
 import sys, time, json
 import numpy as np
 import matplotlib
-
-import timer_utils
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# ── path setup ──────────────────────────────────────────────────────────────
+# ── path setup ────────────────────────────────────────────────────────────────────────────
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
+
+import timer_utils
 
 import torch
 import yaml
@@ -42,7 +44,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 
 import config as C
-from problem6_ppo_opt.env import P3Env
+from problem6_ppo_opt.env import P6Env
 
 
 def resolve_device(cfg: str) -> str:
@@ -87,7 +89,7 @@ def solve_ilp(ecus: list[ECU], services: list[SVC]) -> dict:
     e_list = [e.capacity   for e in ecus]
     n_list = [s.requirement for s in services]
 
-    prob = pulp.LpProblem("P3_ILP", pulp.LpMaximize)
+    prob = pulp.LpProblem("P6_ILP", pulp.LpMaximize)
     x = pulp.LpVariable.dicts("x", (range(M), range(N)), cat="Binary")
 
     # Objective: maximise total utilisation (consistent with problem2_ilp ILP)
@@ -195,10 +197,10 @@ def solve_ilp_all_scenarios():
 def run_episodes(ecus, services, policy_fn, n_eps: int):
     """
     Run n_eps episodes on a fixed problem instance.
-    Episodes always complete (M steps, no early termination in P3).
+    Episodes always complete (M steps, no early termination in P6).
     policy_fn(obs) -> int
     """
-    env = P3Env(ecus, services, scenarios=C.SCENARIOS)
+    env = P6Env(ecus, services, scenarios=C.SCENARIOS)
     ars, cap_viols, dup_viols = [], [], []
 
     for _ in range(n_eps):
@@ -223,7 +225,7 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
 #  Step 4 — PPO training
 # ══════════════════════════════════════════════════════════════════════════════
 
-class P3Callback(BaseCallback):
+class P6Callback(BaseCallback):
     def __init__(self):
         super().__init__()
         self.episode_ars        : list[float] = []
@@ -239,9 +241,9 @@ class P3Callback(BaseCallback):
         return True
 
 
-def train_ppo(ecus, services) -> tuple[PPO, P3Callback]:
-    env   = Monitor(P3Env(ecus, services, scenarios=C.SCENARIOS))
-    cb    = P3Callback()
+def train_ppo(ecus, services) -> tuple[PPO, P6Callback]:
+    env   = Monitor(P6Env(ecus, services, scenarios=C.SCENARIOS))
+    cb    = P6Callback()
     model = PPO(
         policy        = "MlpPolicy",
         env           = env,
@@ -279,7 +281,7 @@ def moving_avg(arr, w):
     return np.convolve(arr, np.ones(w) / w, mode="valid"), w - 1
 
 
-def plot_training_curve(cb: P3Callback, ilp_ar: float, outdir: Path, scenario_name: str):
+def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_name: str):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     ts = np.array(cb.timesteps_at_ep)
     N  = len(cb.episode_ars)
@@ -318,10 +320,10 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     M_steps = len(rand_res["ars"])   # not needed but keep for label
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    fig.suptitle(f"P2(ILP) vs Random vs P3(PPO) — {scenario_name}", fontsize=13, fontweight="bold")
+    fig.suptitle(f"P2(ILP) vs Random vs P6(PPO) — {scenario_name}", fontsize=13, fontweight="bold")
 
     colors = ["#e74c3c", "#3498db", "#2ecc71"]
-    labels = ["ILP\n(Optimal)", "Random\nBaseline", "PPO\n(P3, no constraint)"]
+    labels = ["ILP\n(Optimal)", "Random\nBaseline", "PPO\n(P6, best-fit)"]
 
     # ── Left: AR box plot ─────────────────────────────────────────────────────
     ax = axes[0]
@@ -351,7 +353,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     for pos, data, color in zip([2, 3], [rand_ars, ppo_ars], colors[1:]):
         mv = np.mean(data)
         ax.text(pos, mv + 0.02, f"μ={mv:.3f}", ha="center", va="bottom",
-                fontsize=9, fontweight="bold", color=color)
+                fontsize=9, fontweight="bold", color="black")
 
     ax.set_xticks([1, 2, 3])
     ax.set_xticklabels(labels, fontsize=10)
@@ -380,7 +382,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width() / 2,
                  v + max(vr_means) * 0.02 + 0.01,
-                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold")
+                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
 
     ax2.set_ylabel("Avg Constraint Violations per Episode", fontsize=11)
     ax2.set_title("Constraint Violations", fontsize=11)
@@ -400,7 +402,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
     print(f"\n{'='*60}")
-    print(f"  P3 run_all.py  —  RL WITHOUT constraint enforcement")
+    print(f"  P6 run_all.py  —  RL WITH best-fit patch optimization")
     print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
 
@@ -453,7 +455,7 @@ def main():
     print(f"  {'Random Baseline':<24} "
           f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
           f"  {r_v:<10.2f}")
-    print(f"  {'PPO (P3, no constr)':<24} "
+    print(f"  {'PPO (P6, best-fit)':<24} "
           f"{np.mean(ppo_res['ars']):.4f} ± {np.std(ppo_res['ars']):.4f}   "
           f"  {p_v:<10.2f}")
     print(f"{'='*62}\n")
@@ -498,7 +500,7 @@ def main():
         writer.writerow(["ILP (Optimal)",       round(ilp_ar, 6), 0.0,                          0.0])
         writer.writerow(["Random Baseline",      round(float(np.mean(rand_res["ars"])), 6),
                          round(float(np.std(rand_res["ars"])),  6), round(float(r_v), 4)])
-        writer.writerow(["PPO (P3, no constr)",  round(float(np.mean(ppo_res["ars"])),  6),
+        writer.writerow(["PPO (P6, best-fit)",  round(float(np.mean(ppo_res["ars"])),  6),
                          round(float(np.std(ppo_res["ars"])),   6), round(float(p_v), 4)])
     print(f"  CSV  saved → {csv_path}")
     plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)

@@ -21,8 +21,6 @@ import csv
 import sys, time, json, functools
 import numpy as np
 import matplotlib
-
-import timer_utils
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -30,6 +28,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
+
+import timer_utils
 
 import torch
 import yaml
@@ -40,7 +40,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
 import config as C
-from env_p4 import P4Env
+from problem4_ppo_mask.env import P4Env
 from problem2_ilp.objects import ECU, SVC
 
 
@@ -340,7 +340,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
     for pos, data, color in zip([2, 3], [rand_res["ars"], ppo_res["ars"]], colors[1:]):
         mv = np.mean(data)
         ax.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
-                fontweight="bold", color=color)
+                fontweight="bold", color="black")
 
     ax.set_xticks([1, 2, 3]); ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 1.1)
@@ -357,7 +357,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
                    yerr=pl_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, pl_means):
         ax2.text(bar.get_x() + bar.get_width()/2, v + 0.1,
-                 f"{v:.1f}", ha="center", fontsize=10, fontweight="bold")
+                 f"{v:.1f}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.axhline(C.M, color="gray", linestyle=":", alpha=0.4)
     ax2.set_ylim(0, C.M + 2)
     ax2.set_ylabel("Services Placed per Episode", fontsize=11)

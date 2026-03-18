@@ -1,13 +1,13 @@
 """
-evaluate_p3.py — Evaluate the trained PPO agent and compare with random baseline.
+evaluate.py — Evaluate the trained PPO agent and compare with random baseline.
 
-P3 env: NO constraint enforcement.
+P6 env: best-fit patch optimization.
 Episodes always run to completion (M steps). Violations are recorded.
 
-Run (after train_p3.py):
-    python problem3_ppo/evaluate_p3.py
+Run (after train.py):
+    python problem6_ppo_opt/evaluate.py
 
-Outputs saved to problem3_ppo/results/:
+Outputs saved to problem6_ppo_opt/results/:
     comparison_bar.png    — AR & violations bar chart (Random vs PPO)
     evaluation_log.json   — full numerical results
 """
@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE))
 from stable_baselines3 import PPO
 import random
 import config as C
-from problem6_ppo_opt.env import P3Env
+from problem6_ppo_opt.env import P6Env
 from problem2_ilp.objects import ECU, SVC
 
 
@@ -34,19 +34,19 @@ from problem2_ilp.objects import ECU, SVC
 #  Build environment
 # ─────────────────────────────────────────────────────────────────────────────
 
-def make_raw_env(seed: int = C.SEED) -> P3Env:
+def make_raw_env(seed: int = C.SEED) -> P6Env:
     random.seed(seed)
     caps, reqs = C.SCENARIOS[0]
     ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    return P3Env(ecus, services, scenarios=C.SCENARIOS)
+    return P6Env(ecus, services, scenarios=C.SCENARIOS)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Run evaluation episodes
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_episodes(env: P3Env, policy, n_eps: int):
+def run_episodes(env: P6Env, policy, n_eps: int):
     """
     Run n_eps episodes. Episodes always complete (M steps, no early termination).
     Returns dict:
@@ -98,12 +98,12 @@ def print_table(random_res, ppo_res):
 
     print(f"\n{'='*65}")
     print(f"  Evaluation Results  ({C.EVAL_EPS} episodes, N={C.N}, M={C.M})")
-    print(f"  P3 = RL WITHOUT constraint enforcement")
+    print(f"  P6 = RL WITH best-fit patch optimization")
     print(f"{'='*65}")
     print(f"  {'Method':<24} {'AR (mean +/- std)':<24} {'Viol/ep'}")
     print(f"  {'-'*24} {'-'*24} {'-'*10}")
     print(f"  {'Random Baseline':<24} {r_ar:<24} {r_viol}")
-    print(f"  {'PPO (P3, no constr)':<24} {p_ar:<24} {p_viol}")
+    print(f"  {'PPO (P6, best-fit)':<24} {p_ar:<24} {p_viol}")
     print(f"{'='*65}\n")
 
 
@@ -121,7 +121,7 @@ def plot_comparison(random_res, ppo_res, outdir: Path):
     p_viol = ppo_res["total_violations"]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
-    fig.suptitle(f"P3 Evaluation  |  N={C.N}  M={C.M}  ({C.EVAL_EPS} episodes)", fontsize=13)
+    fig.suptitle(f"P6 Evaluation  |  N={C.N}  M={C.M}  ({C.EVAL_EPS} episodes)", fontsize=13)
 
     # ── Left: AR box plot ─────────────────────────────────────────────────────
     bp = ax1.boxplot(
@@ -136,7 +136,7 @@ def plot_comparison(random_res, ppo_res, outdir: Path):
     for i, data in enumerate([r_ar, p_ar]):
         mean_v = np.mean(data)
         ax1.text(i + 1, mean_v + 0.03, f"mu={mean_v:.3f}",
-                 ha="center", va="bottom", fontsize=9, fontweight="bold", color=colors[i])
+                 ha="center", va="bottom", fontsize=9, fontweight="bold", color="black")
     ax1.set_ylim(0, 1.05)
     ax1.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax1.set_title("AR Distribution", fontsize=11)
@@ -149,7 +149,7 @@ def plot_comparison(random_res, ppo_res, outdir: Path):
                    yerr=vr_stds, capsize=6, ecolor="black")
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width() / 2, v + 0.1,
-                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold")
+                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylabel("Avg Constraint Violations per Episode", fontsize=11)
     ax2.set_title("Constraint Violations", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
@@ -171,7 +171,7 @@ def main():
     model_zip = Path(str(C.MODEL_PATH) + ".zip")
     if not model_zip.exists():
         print(f"[ERROR] Model not found: {model_zip}")
-        print("  Run train_p3.py first.")
+        print("  Run train.py first.")
         return
 
     print(f"\nLoading model from {model_zip} ...")

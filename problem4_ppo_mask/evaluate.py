@@ -19,7 +19,7 @@ sys.path.insert(0, str(HERE))
 from sb3_contrib import MaskablePPO
 import random
 import config as C
-from env_p4 import P4Env
+from problem4_ppo_mask.env import P4Env
 from problem2_ilp.objects import ECU, SVC
 
 
@@ -101,7 +101,7 @@ def plot_comparison(rand_res, ppo_res, outdir: Path):
     for i, data in enumerate([rand_res["ars"], ppo_res["ars"]]):
         mv = np.mean(data)
         ax1.text(i+1, mv+0.03, f"mu={mv:.3f}", ha="center", fontsize=9,
-                 fontweight="bold", color=colors[i])
+                 fontweight="bold", color="black")
     ax1.set_ylim(0, 1.05)
     ax1.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax1.set_title("AR Distribution (0 violations)", fontsize=11)
@@ -114,7 +114,7 @@ def plot_comparison(rand_res, ppo_res, outdir: Path):
                    yerr=pl_stds, capsize=6, ecolor="black")
     for bar, v in zip(bars, pl_means):
         ax2.text(bar.get_x()+bar.get_width()/2, v+0.1,
-                 f"{v:.1f}", ha="center", fontsize=10, fontweight="bold")
+                 f"{v:.1f}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, C.M + 1)
     ax2.axhline(C.M, color="red", linestyle="--", alpha=0.5, label=f"M={C.M}")
     ax2.set_ylabel("Services Placed per Episode", fontsize=11)

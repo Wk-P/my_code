@@ -97,7 +97,7 @@ def plot_comparison(rand_res, dqn_res, outdir: Path):
     for i, data in enumerate([rand_res["ars"], dqn_res["ars"]]):
         mv = np.mean(data)
         ax1.text(i+1, mv+0.03, f"mu={mv:.3f}", ha="center", fontsize=9,
-                 fontweight="bold", color=colors[i])
+                 fontweight="bold", color="black")
     ax1.set_ylim(0, 1.05)
     ax1.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax1.set_title("AR Distribution (valid episodes only)", fontsize=11)
@@ -110,7 +110,7 @@ def plot_comparison(rand_res, dqn_res, outdir: Path):
                    yerr=vr_stds, capsize=6, ecolor="black")
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x()+bar.get_width()/2, v+0.02,
-                 f"{v:.2f}", ha="center", fontsize=10, fontweight="bold")
+                 f"{v:.2f}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, 1.1)
     ax2.set_ylabel("Violation Rate per Episode", fontsize=11)
     ax2.set_title("Constraint Violations", fontsize=11)

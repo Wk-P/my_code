@@ -30,12 +30,13 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
-import timer_utils
 from collections import deque
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
+
+import timer_utils
 
 import torch
 import yaml
@@ -381,7 +382,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     for pos, data, color in zip([2, 3], [rand_res["ars"], ppo_res["ars"]], colors[1:]):
         mv = np.mean(data)
         ax1.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
-                 fontweight="bold", color=color)
+                 fontweight="bold", color="black")
 
     ax1.set_xticks([1, 2, 3]); ax1.set_xticklabels(labels, fontsize=10)
     ax1.set_ylim(0, 1.1)
@@ -397,7 +398,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
                    yerr=vr_stds, capsize=6, ecolor="black")
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x()+bar.get_width()/2, v+0.01,
-                 f"{v:.2f}", ha="center", fontsize=10, fontweight="bold")
+                 f"{v:.2f}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, 1.1)
     ax2.set_ylabel("Violation Rate (per step, per episode)", fontsize=11)
     ax2.set_title("Constraint Violations", fontsize=11)

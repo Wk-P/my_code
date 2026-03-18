@@ -1,5 +1,5 @@
 """
-Hyperparameter & path configuration for Problem 3.
+Hyperparameter & path configuration for Problem 6.
 Edit ONLY this file to change problem size, training length, etc.
 """
 

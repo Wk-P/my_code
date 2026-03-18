@@ -23,16 +23,16 @@ import csv
 import sys, time, json
 import numpy as np
 import matplotlib
-
-import timer_utils
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# ── path setup ──────────────────────────────────────────────────────────────
+# ── path setup ────────────────────────────────────────────────────────────────────────────
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
+
+import timer_utils
 
 import torch
 import yaml
@@ -42,7 +42,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 
 import config as C
-from env_p3 import P3Env
+from problem3_ppo.env import P3Env
 
 
 def resolve_device(cfg: str) -> str:
@@ -351,7 +351,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     for pos, data, color in zip([2, 3], [rand_ars, ppo_ars], colors[1:]):
         mv = np.mean(data)
         ax.text(pos, mv + 0.02, f"μ={mv:.3f}", ha="center", va="bottom",
-                fontsize=9, fontweight="bold", color=color)
+                fontsize=9, fontweight="bold", color="black")
 
     ax.set_xticks([1, 2, 3])
     ax.set_xticklabels(labels, fontsize=10)
@@ -380,7 +380,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width() / 2,
                  v + max(vr_means) * 0.02 + 0.01,
-                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold")
+                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
 
     ax2.set_ylabel("Avg Constraint Violations per Episode", fontsize=11)
     ax2.set_title("Constraint Violations", fontsize=11)

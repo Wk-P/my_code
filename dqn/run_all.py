@@ -23,8 +23,6 @@ import csv
 import sys, time, json
 import numpy as np
 import matplotlib
-
-import timer_utils
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -32,6 +30,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
+
+import timer_utils
 
 import torch
 import yaml
@@ -334,7 +334,7 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, outdir, scenario_name):
     for pos, data, color in zip([2, 3], [rand_res["ars"], dqn_res["ars"]], colors[1:]):
         mv = np.mean(data)
         ax.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
-                fontweight="bold", color=color)
+                fontweight="bold", color="black")
 
     ax.set_xticks([1, 2, 3]); ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 1.1)
@@ -351,7 +351,7 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, outdir, scenario_name):
                    yerr=vr_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width()/2, v + 0.02,
-                 f"{v:.2f}", ha="center", fontsize=10, fontweight="bold")
+                 f"{v:.2f}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, 1.1)
     ax2.set_ylabel("Violation Rate per Episode", fontsize=11)
     ax2.set_title("Constraint Violations", fontsize=11)

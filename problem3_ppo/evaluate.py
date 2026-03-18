@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE))
 from stable_baselines3 import PPO
 import random
 import config as C
-from env_p3 import P3Env
+from problem3_ppo.env import P3Env
 from problem2_ilp.objects import ECU, SVC
 
 
@@ -136,7 +136,7 @@ def plot_comparison(random_res, ppo_res, outdir: Path):
     for i, data in enumerate([r_ar, p_ar]):
         mean_v = np.mean(data)
         ax1.text(i + 1, mean_v + 0.03, f"mu={mean_v:.3f}",
-                 ha="center", va="bottom", fontsize=9, fontweight="bold", color=colors[i])
+                 ha="center", va="bottom", fontsize=9, fontweight="bold", color="black")
     ax1.set_ylim(0, 1.05)
     ax1.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax1.set_title("AR Distribution", fontsize=11)
@@ -149,7 +149,7 @@ def plot_comparison(random_res, ppo_res, outdir: Path):
                    yerr=vr_stds, capsize=6, ecolor="black")
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width() / 2, v + 0.1,
-                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold")
+                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylabel("Avg Constraint Violations per Episode", fontsize=11)
     ax2.set_title("Constraint Violations", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)

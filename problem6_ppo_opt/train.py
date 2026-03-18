@@ -1,14 +1,15 @@
 """
-train_p3.py — Train a PPO agent on the P3 environment (NO constraint enforcement).
+train.py — Train a PPO agent on the P6 environment (best-fit patch optimization).
 
-The P3 env never terminates early: violations are recorded but not penalized.
+The P6 env never terminates early: the best-fit patch algorithm relocates
+services when needed and AR is updated accordingly at each step.
 The only reward is the final AR at the last step.
 
 Run:
-    python problem3_ppo/train_p3.py
+    python problem6_ppo_opt/train.py
 
-Outputs saved to problem3_ppo/results/:
-    ppo_p3_model.zip      — trained PPO weights
+Outputs saved to problem6_ppo_opt/results/:
+    ppo_p6_model.zip      — trained PPO weights
     training_curve.png    — per-episode AR and violation count over time
     training_log.json     — raw episode data
 """
@@ -31,7 +32,7 @@ from stable_baselines3.common.monitor import Monitor
 
 import random
 import config as C
-from problem6_ppo_opt.env import P3Env
+from problem6_ppo_opt.env import P6Env
 from problem2_ilp.objects import ECU, SVC
 
 
@@ -55,7 +56,7 @@ def make_env(seed: int = 0) -> Monitor:
     caps, reqs = C.SCENARIOS[0]
     ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    return Monitor(P3Env(ecus, services, scenarios=C.SCENARIOS))
+    return Monitor(P6Env(ecus, services, scenarios=C.SCENARIOS))
 
 
 def moving_avg(arr, w: int):
@@ -70,7 +71,7 @@ def moving_avg(arr, w: int):
 #  Callback — records AR and violations each episode
 # ─────────────────────────────────────────────────────────────────────────────
 
-class P3Callback(BaseCallback):
+class P6Callback(BaseCallback):
     """
     Episode always runs to completion (M steps).
     At done=True, Monitor injects info["episode"]; we also read total_violations.
@@ -119,7 +120,7 @@ def build_ppo(env: Monitor, device: str) -> PPO:
 #  Save training curve
 # ─────────────────────────────────────────────────────────────────────────────
 
-def plot_training_curve(cb: P3Callback, outdir: Path):
+def plot_training_curve(cb: P6Callback, outdir: Path):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
     ts = np.array(cb.timesteps_at_ep)
@@ -132,7 +133,7 @@ def plot_training_curve(cb: P3Callback, outdir: Path):
     ax1.set_ylabel("Episode AR", fontsize=11)
     ax1.set_ylim(0, 1)
     ax1.legend(fontsize=9)
-    ax1.set_title(f"P3 PPO Training  |  N={C.N}  M={C.M}  steps={C.TOTAL_STEPS:,}", fontsize=12)
+    ax1.set_title(f"P6 PPO Training  |  N={C.N}  M={C.M}  steps={C.TOTAL_STEPS:,}", fontsize=12)
     ax1.grid(alpha=0.3)
 
     # ── Violation count curve ─────────────────────────────────────────────────
@@ -161,13 +162,13 @@ def main():
     device = resolve_device(C.DEVICE)
 
     print(f"\n{'='*60}")
-    print(f"  Problem 3 — PPO (NO constraint enforcement)")
-    print(f"  Violations are recorded but NOT penalized.")
+    print(f"  Problem 6 — PPO (best-fit patch optimization)")
+    print(f"  Best-fit patch: relocates services to tightest-fitting free ECU.")
     print(f"  N={C.N}  M={C.M}  steps={C.TOTAL_STEPS:,}  device={device.upper()}")
     print(f"{'='*60}\n")
 
     env = make_env(seed=C.SEED)
-    cb  = P3Callback()
+    cb  = P6Callback()
     model = build_ppo(env, device)
 
     print("Training …")
@@ -211,7 +212,7 @@ def main():
     plot_training_curve(cb, run_dir)
 
     env.close()
-    print("\nDone. Run evaluate_p3.py to compare against random baseline.\n")
+    print("\nDone. Run evaluate.py to compare against random baseline.\n")
 
 
 if __name__ == "__main__":

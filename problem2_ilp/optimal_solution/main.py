@@ -243,7 +243,7 @@ def _generate_summary_statistics(results, output_dir):
     ax2.text(1.42, mean_y, textstr,
              fontsize=12, va='center',
              bbox=dict(boxstyle='round,pad=0.5', facecolor='#ecf0f1',
-                       edgecolor='#bdc3c7', alpha=0.9))
+                       edgecolor='#bdc3c7', alpha=0.9), color='black')
 
     # ── Table: spanning full bottom row ─────────────────────────────────────
     ax_table = fig.add_subplot(gs[1, :])
