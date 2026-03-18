@@ -1,5 +1,6 @@
 import pulp
 import random
+import json
 from pathlib import Path
 
 
@@ -346,9 +347,28 @@ def main(**kwargs):
         # Single scenario (backward compatibility)
         scenarios = [config_data]
 
-    # Process each scenario
-    results = []
-    for idx, scenario in enumerate(scenarios):
+    # ── Shared ILP cache (used by p3/p4/dqn/p5 to avoid recomputation) ──────
+    shared_cache_path = output_base_dir / "ilp_cache.json"
+    cache_key = f"{config_path.name}__n{len(scenarios)}"
+
+    # Load partial or full cache if available
+    results: list = []
+    if shared_cache_path.exists():
+        with open(shared_cache_path) as f:
+            cache = json.load(f)
+        if cache.get("key") == cache_key:
+            results = cache.get("results", [])
+            already = len(results)
+            if already == len(scenarios):
+                print(f"[cache] All {already} ILP results loaded from {shared_cache_path.name}")
+                _generate_summary_statistics(results, output_dir)
+                return results
+            print(f"[cache] Resuming from scenario {already + 1} "
+                  f"({already}/{len(scenarios)} already cached)")
+
+    # Process each scenario (skip already-cached ones)
+    start_idx = len(results)
+    for idx, scenario in enumerate(scenarios[start_idx:], start=start_idx):
         scenario_name = scenario.get('name', f'Scenario {idx+1}')
         
         print(f"\n{'='*60}")
@@ -374,8 +394,13 @@ def main(**kwargs):
         results.append(result)
         print_result(result, scenario_name)
 
+        # Save incrementally so interruptions don't lose progress
+        with open(shared_cache_path, "w") as f:
+            json.dump({"key": cache_key, "results": results}, f)
+
     print(f"\n{'='*60}")
     print(f"All scenarios processed. Total: {len(results)}")
+    print(f"Shared ILP cache saved to: {shared_cache_path}")
     print(f"Output saved to: {output_dir.resolve()}")
     print(f"{'='*60}")
     

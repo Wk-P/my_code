@@ -38,6 +38,9 @@ class LagrangeEnv(gym.Env):
     Reward per step:
       r_t = ru / M  -  lambda_val * c_t
       c_t = 1.0 if capacity insufficient OR ECU already used, else 0.0
+    
+    Lagrangian multiplier λ is updated externally by the training callback via dual ascent:
+    λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
     """
 
     metadata = {"render_modes": []}

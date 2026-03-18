@@ -21,6 +21,7 @@ Run:
 """
 
 import datetime
+import csv
 import os
 import functools
 import sys, time, json
@@ -135,15 +136,49 @@ def solve_ilp(ecus, services):
 
 
 def solve_ilp_all_scenarios():
-    """Run ILP for every scenario in C.SCENARIOS; return (mean_ar, per_scenario_results)."""
-    ars, results = [], []
-    for idx, (caps, reqs) in enumerate(C.SCENARIOS):
+    """Return (mean_ar, per_scenario_results) for all scenarios.
+    Priority: 1) shared p2 cache  2) own local cache  3) compute from scratch.
+    """
+    cache_key = f"{C.YAML_CONFIG.name}__n{len(C.SCENARIOS)}"
+
+    # ─ 1. Shared cache written by problem2_single/optimal_solution/main.py ─
+    shared_cache = C.YAML_CONFIG.parent.parent / "results" / "ilp_cache.json"
+    if shared_cache.exists():
+        with open(shared_cache) as f:
+            cache = json.load(f)
+        if cache.get("key") == cache_key and len(cache.get("results", [])) == len(C.SCENARIOS):
+            print(f"    [cache] Loaded ILP results from shared p2 cache")
+            results = cache["results"]
+            ars = [r["avg_utilization"] for r in results]
+            return float(np.mean(ars)), results
+
+    # ─ 2. Own local incremental cache ─
+    C.OUTDIR.mkdir(parents=True, exist_ok=True)
+    cache_path = C.OUTDIR / "ilp_cache.json"
+    results: list = []
+    if cache_path.exists():
+        with open(cache_path) as f:
+            cache = json.load(f)
+        if cache.get("key") == cache_key:
+            results = cache.get("results", [])
+            if len(results) == len(C.SCENARIOS):
+                print(f"    [cache] Loaded ILP results from {cache_path}")
+                ars = [r["avg_utilization"] for r in results]
+                return float(np.mean(ars)), results
+            print(f"    [cache] Resuming from scenario {len(results)+1}")
+
+    # ─ 3. Compute remaining, save after each ─
+    for idx, (caps, reqs) in enumerate(C.SCENARIOS[len(results):], start=len(results)):
         ecus_sc = [ECU(f"ECU{i}", c) for i, c in enumerate(caps)]
         svcs_sc = [SVC(f"SVC{i}", r) for i, r in enumerate(reqs)]
         res = solve_ilp(ecus_sc, svcs_sc)
-        ars.append(res["avg_utilization"])
         results.append(res)
         print(f"    Scenario {idx+1}: AR={res['avg_utilization']:.4f}  ({res['status']})")
+        with open(cache_path, "w") as f:
+            json.dump({"key": cache_key, "results": results}, f)
+
+    print(f"    [cache] Saved to {cache_path}")
+    ars = [r["avg_utilization"] for r in results]
     return float(np.mean(ars)), results
 
 
@@ -464,6 +499,20 @@ def main():
         json.dump(log, f, indent=2)
     print(f"  JSON saved -> {run_dir / 'results.json'}")
 
+    # Save CSV summary
+    csv_path = run_dir / "summary.csv"
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["method", "ar_mean", "ar_std", "viol_rate", "placed"])
+        writer.writerow(["ILP (Optimal)",    round(ilp_ar, 6), 0.0, 0.0, f"{M}/{M}"])
+        writer.writerow(["Random (no mask)", round(float(np.mean(rand_res["ars"])), 6),
+                         round(float(np.std(rand_res["ars"])), 6),
+                         round(float(np.mean(rand_res["viol_rates"])), 6), f"{M}/{M}"])
+        writer.writerow(["Lagrange PPO",     round(float(np.mean(ppo_res["ars"])),  6),
+                         round(float(np.std(ppo_res["ars"])),  6),
+                         round(float(np.mean(ppo_res["viol_rates"])), 6), f"{M}/{M}"])
+    print(f"  CSV  saved -> {csv_path}")
+
     # Plots
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
     plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)
@@ -471,7 +520,8 @@ def main():
     print("\nAll done! Output files:")
     print(f"  {run_dir}/training_curve.png")
     print(f"  {run_dir}/comparison.png")
-    print(f"  {run_dir}/results.json\n")
+    print(f"  {run_dir}/results.json")
+    print(f"  {run_dir}/summary.csv\n")
 
 
 if __name__ == "__main__":
