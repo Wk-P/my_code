@@ -39,3 +39,11 @@ Target: Maximize the Average Reward (AR) while satisfying the safety constraints
 # Multiple Constraints Version
 
 ...
+
+# Branch and Version
+
+- Branch: `main`
+  This branch should will run on the cuda 13.0+ because reqruirements.txt have the torch 2.10.0+cu130
+
+- Branch: `linux-cuda12.2`
+  This branch will run on CPU, torch version is 2.10.0+cpu, and can run on cuda 12.2 but not tested yet. The requirements.txt in this branch have the torch 2.10.0+cpu
