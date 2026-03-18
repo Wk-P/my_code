@@ -14,6 +14,8 @@ Run:
 """
 
 import datetime
+import os
+import functools
 import sys, time, json
 import numpy as np
 import matplotlib
@@ -30,7 +32,7 @@ sys.path.insert(0, str(HERE.parent))
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
 import random
 import config as C
@@ -52,16 +54,15 @@ def resolve_device(cfg: str) -> str:
     return "cpu"
 
 
-def make_env_fn(seed: int = 0):
-    def _init():
-        random.seed(seed)
-        caps, reqs = C.SCENARIOS[C.SCENARIO_IDX]
-        ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
-        services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-        env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS,
-                          lambda_init=C.LAMBDA_INIT)
-        return Monitor(env)
-    return _init
+# 模块级工厂函数（必须可 pickle，SubprocVecEnv 需要在子进程中 spawn）
+def _make_train_env(seed: int) -> Monitor:
+    random.seed(seed)
+    caps, reqs = C.SCENARIOS[C.SCENARIO_IDX]
+    ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+    services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+    env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS,
+                      lambda_init=C.LAMBDA_INIT)
+    return Monitor(env)
 
 
 def moving_avg(arr, w: int):
@@ -115,9 +116,8 @@ class LagrangeCallback(BaseCallback):
                 avg_viol        = float(np.mean(self._viol_window))
                 new_lam         = self.lambda_val + C.LAMBDA_LR * (avg_viol - C.LAMBDA_TARGET)
                 self.lambda_val = float(np.clip(new_lam, 0.0, C.LAMBDA_MAX))
-                # Propagate λ to all envs (DummyVecEnv)
-                for monitor_env in self.training_env.envs:
-                    monitor_env.env.set_lambda(self.lambda_val)
+                # 兼容 DummyVecEnv 和 SubprocVecEnv
+                self.training_env.env_method("set_lambda", self.lambda_val)
 
         return True
 
@@ -126,7 +126,7 @@ class LagrangeCallback(BaseCallback):
 #  Build model
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_model(env: DummyVecEnv, device: str) -> PPO:
+def build_model(env, device: str) -> PPO:
     return PPO(
         policy        = "MlpPolicy",
         env           = env,
@@ -211,15 +211,18 @@ def main():
     print(f"\n{'='*60}")
     print(f"  Problem 5 — Lagrangian PPO")
     print(f"  Constraints: soft, penalised by λ (no action masking).")
+    n_envs = os.cpu_count() or 1
     print(f"  N={C.N}  M={C.M}  steps={C.TOTAL_STEPS:,}  device={device.upper()}")
     print(f"  λ_init={C.LAMBDA_INIT}  lr={C.LAMBDA_LR}  target={C.LAMBDA_TARGET}  max={C.LAMBDA_MAX}")
+    print(f"  CPU cores detected: {os.cpu_count()}  →  parallel envs: {n_envs}")
     print(f"{'='*60}\n")
 
-    env = DummyVecEnv([make_env_fn(seed=C.SEED)])
+    env_fns = [functools.partial(_make_train_env, C.SEED + i) for i in range(n_envs)]
+    env = SubprocVecEnv(env_fns) if n_envs > 1 else DummyVecEnv(env_fns)
     cb  = LagrangeCallback()
     model = build_model(env, device)
 
-    print("Training ...")
+    print(f"Training ({n_envs} parallel envs) ...")
     t0 = time.time()
     model.learn(total_timesteps=C.TOTAL_STEPS, callback=cb)
     elapsed = time.time() - t0

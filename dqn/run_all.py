@@ -118,13 +118,26 @@ def solve_ilp(ecus, services):
     }
 
 
+def solve_ilp_all_scenarios():
+    """Run ILP for every scenario in C.SCENARIOS; return (mean_ar, per_scenario_results)."""
+    ars, results = [], []
+    for idx, (caps, reqs) in enumerate(C.SCENARIOS):
+        ecus_sc = [ECU(f"ECU{i}", c) for i, c in enumerate(caps)]
+        svcs_sc = [SVC(f"SVC{i}", r) for i, r in enumerate(reqs)]
+        res = solve_ilp(ecus_sc, svcs_sc)
+        ars.append(res["avg_utilization"])
+        results.append(res)
+        print(f"    Scenario {idx+1}: AR={res['avg_utilization']:.4f}  ({res['status']})")
+    return float(np.mean(ars)), results
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  Step 3 & 5 — Episode runner
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs) -> int   (no mask)"""
-    env = DQNEnv(ecus, services)
+    env = DQNEnv(ecus, services, scenarios=C.SCENARIOS)
     ars, placed_list, viol_list = [], [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
@@ -322,15 +335,10 @@ def main():
     ecus, services, sc_name = load_scenario()
     N, M = len(ecus), len(services)
 
-    # 2. ILP
-    print("\n[1/4] Solving ILP ...")
-    ilp_result = solve_ilp(ecus, services)
-    ilp_ar = ilp_result["avg_utilization"]
-    print(f"  Status       : {ilp_result['status']}")
-    print(f"  ILP avg AR   : {ilp_ar:.4f}")
-    for j, info in sorted(ilp_result["allocation"].items()):
-        print(f"    ECU{j}(cap={info['capacity']}) <- SVC{info['services']}  "
-              f"util={info['utilization']:.2%}")
+    # 2. ILP (all scenarios)
+    print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios()
+    print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
 
     # 3. Random baseline (no masking)
     print(f"\n[2/4] Random baseline ({C.EVAL_EPS} episodes, NO masking) ...")
@@ -379,7 +387,11 @@ def main():
     # Save JSON
     log = {
         "scenario": sc_name, "N": N, "M": M,
-        "ilp": {"ar": round(ilp_ar, 6), "violations": 0},
+        "ilp": {
+            "ar": round(ilp_ar, 6),
+            "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
+            "violations": 0,
+        },
         "random": {
             "ar_mean":     round(float(np.mean(rand_res["ars"])), 6),
             "ar_std":      round(float(np.std(rand_res["ars"])), 6),

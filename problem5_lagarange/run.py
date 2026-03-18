@@ -21,6 +21,8 @@ Run:
 """
 
 import datetime
+import os
+import functools
 import sys, time, json
 import numpy as np
 import matplotlib
@@ -39,7 +41,7 @@ import pulp
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
 import random
 import config as C
@@ -132,13 +134,26 @@ def solve_ilp(ecus, services):
             "allocation": alloc}
 
 
+def solve_ilp_all_scenarios():
+    """Run ILP for every scenario in C.SCENARIOS; return (mean_ar, per_scenario_results)."""
+    ars, results = [], []
+    for idx, (caps, reqs) in enumerate(C.SCENARIOS):
+        ecus_sc = [ECU(f"ECU{i}", c) for i, c in enumerate(caps)]
+        svcs_sc = [SVC(f"SVC{i}", r) for i, r in enumerate(reqs)]
+        res = solve_ilp(ecus_sc, svcs_sc)
+        ars.append(res["avg_utilization"])
+        results.append(res)
+        print(f"    Scenario {idx+1}: AR={res['avg_utilization']:.4f}  ({res['status']})")
+    return float(np.mean(ars)), results
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  Step 3 & 5 — Episode runner
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs) -> int.  λ is always 0 during evaluation."""
-    env = LagrangeEnv(ecus, services, lambda_init=0.0)
+    env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS, lambda_init=0.0)
     ars, viol_rates, placed_list = [], [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
@@ -190,13 +205,13 @@ class LagrangeCallback(BaseCallback):
                 avg_viol        = float(np.mean(self._viol_window))
                 new_lam         = self.lambda_val + C.LAMBDA_LR * (avg_viol - C.LAMBDA_TARGET)
                 self.lambda_val = float(np.clip(new_lam, 0.0, C.LAMBDA_MAX))
-                for monitor_env in self.training_env.envs:
-                    monitor_env.env.set_lambda(self.lambda_val)
+                self.training_env.env_method("set_lambda", self.lambda_val)
         return True
 
 
-def train_lagrange(device: str):
-    env = DummyVecEnv([lambda: _make_lagrange_env(C.SEED)])
+def train_lagrange(device: str, n_envs: int = 1):
+    env_fns = [functools.partial(_make_lagrange_env, C.SEED + i) for i in range(n_envs)]
+    env = SubprocVecEnv(env_fns) if n_envs > 1 else DummyVecEnv(env_fns)
     cb  = LagrangeCallback()
 
     model = PPO(
@@ -215,7 +230,7 @@ def train_lagrange(device: str):
         seed          = C.SEED,
     )
     t0 = time.time()
-    model.learn(total_timesteps=C.TOTAL_STEPS, callback=cb)
+    model.learn(total_timesteps=C.TOTAL_STEPS, callback=cb, progress_bar=False)
     elapsed = time.time() - t0
     env.close()
 
@@ -359,22 +374,20 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"  P5 run.py  —  Lagrangian Constraint Relaxation")
+    n_envs = os.cpu_count() or 1
     print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
     print(f"  λ_init={C.LAMBDA_INIT}  lr={C.LAMBDA_LR}  target={C.LAMBDA_TARGET}  max={C.LAMBDA_MAX}")
+    print(f"  CPU cores detected: {os.cpu_count()}  →  parallel envs: {n_envs}")
     print(f"{'='*60}\n")
 
     # 1. Load scenario
     ecus, services, sc_name = load_scenario()
     N, M = len(ecus), len(services)
 
-    # 2. ILP
-    print("\n[1/4] Solving ILP ...")
-    ilp_result = solve_ilp(ecus, services)
-    ilp_ar = ilp_result["avg_utilization"]
-    print(f"  ILP avg AR : {ilp_ar:.4f}  (status: {ilp_result['status']})")
-    for j, info in sorted(ilp_result["allocation"].items()):
-        print(f"    ECU{j}(cap={info['capacity']}) <- SVC{info['services']}  "
-              f"util={info['utilization']:.2%}")
+    # 2. ILP (all scenarios)
+    print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios()
+    print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
 
     # 3. Random baseline (no masking)
     print(f"\n[2/4] Random baseline ({C.EVAL_EPS} episodes, no masking) ...")
@@ -388,8 +401,8 @@ def main():
           f"viol={np.mean(rand_res['viol_rates']):.2%}")
 
     # 4. Lagrangian PPO training
-    print(f"\n[3/4] Lagrangian PPO training ({C.TOTAL_STEPS:,} steps) ...")
-    model, cb = train_lagrange(device)
+    print(f"\n[3/4] Lagrangian PPO training ({C.TOTAL_STEPS:,} steps, {n_envs} envs) ...")
+    model, cb = train_lagrange(device, n_envs)
     model.save(str(C.MODEL_PATH))
     print(f"  Model saved -> {C.MODEL_PATH}.zip")
 
@@ -403,16 +416,18 @@ def main():
           f"viol={np.mean(ppo_res['viol_rates']):.2%}")
 
     # Summary table
+    rand_viol_str = f"{np.mean(rand_res['viol_rates']):.2%}"
+    ppo_viol_str  = f"{np.mean(ppo_res['viol_rates']):.2%}"
     print(f"\n{'='*72}")
     print(f"  {'Method':<28} {'AR mean±std':<24} {'Viol%':<14} {'Placed'}")
     print(f"  {'-'*28} {'-'*24} {'-'*14} {'-'*8}")
     print(f"  {'ILP (Optimal)':<28} {ilp_ar:.4f} ± 0.0000        {'0.00%':<14} {M}/{M}")
     print(f"  {'Random (no mask)':<28} "
           f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
-          f"  {np.mean(rand_res['viol_rates']):.2%:<12} {M}/{M}")
+          f"  {rand_viol_str:<12} {M}/{M}")
     print(f"  {'Lagrange PPO':<28} "
           f"{np.mean(ppo_res['ars']):.4f} ± {np.std(ppo_res['ars']):.4f}   "
-          f"  {np.mean(ppo_res['viol_rates']):.2%:<12} {M}/{M}")
+          f"  {ppo_viol_str:<12} {M}/{M}")
     print(f"  Final λ = {cb.lambda_val:.4f}")
     print(f"{'='*72}\n")
 
@@ -420,7 +435,11 @@ def main():
     n_ep = len(cb.episode_ars)
     log = {
         "scenario": sc_name, "N": N, "M": M,
-        "ilp": {"ar": round(ilp_ar, 6), "violations": 0},
+        "ilp": {
+            "ar": round(ilp_ar, 6),
+            "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
+            "violations": 0,
+        },
         "random": {
             "ar_mean":        round(float(np.mean(rand_res["ars"])), 6),
             "ar_std":         round(float(np.std(rand_res["ars"])), 6),
