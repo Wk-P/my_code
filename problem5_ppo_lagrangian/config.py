@@ -34,7 +34,7 @@ with open(YAML_CONFIG) as f:
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 
 # ── Training ──────────────────────────────────────────────────────────────────
-TOTAL_STEPS = 300_000
+TOTAL_STEPS = 100_000
 SEED        = 42
 DEVICE      = "cpu"
 
