@@ -36,7 +36,7 @@ with open(YAML_CONFIG) as f:
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = 300_000
 SEED        = 42
-DEVICE      = "auto"
+DEVICE      = "cpu"
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────
 PPO_LR         = 3e-4
