@@ -33,7 +33,7 @@ from stable_baselines3.common.monitor import Monitor
 import random
 import config as C
 from dqn.env import DQNEnv
-from problem2_single.objects import ECU, SVC
+from problem2_ilp.objects import ECU, SVC
 
 
 # ─────────────────────────────────────────────────────────────────────────────

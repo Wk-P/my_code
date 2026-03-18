@@ -21,7 +21,7 @@ from stable_baselines3 import DQN
 import random
 import config as C
 from dqn.env import DQNEnv
-from problem2_single.objects import ECU, SVC
+from problem2_ilp.objects import ECU, SVC
 
 
 def make_raw_env(seed: int = C.SEED) -> DQNEnv:
