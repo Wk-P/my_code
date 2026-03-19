@@ -129,14 +129,8 @@ class LagrangeEnv(gym.Env):
         done = self._step >= self.M
 
         # ── Lagrangian reward: AR direction signal − λ·violation ─────────────
-        # +1 if AR improved, -1 if AR dropped, 0 if unchanged; minus constraint penalty.
-        if self.ar > prev_ar:
-            improvement = 1.0
-        elif self.ar < prev_ar:
-            improvement = -1.0
-        else:
-            improvement = 0.0
-        reward = float(improvement - self.lambda_val * c_t)
+        delta_ar = self.ar - prev_ar
+        reward = delta_ar - self.lambda_val * c_t
 
         return self._obs(), reward, done, False, {
             "ar":              self.ar,

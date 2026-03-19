@@ -208,12 +208,8 @@ class P6Env(gym.Env):
 
         done   = self._step >= self.M
         # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
-        if self.ar > prev_ar:
-            reward = 1.0
-        elif self.ar < prev_ar:
-            reward = -1.0
-        else:
-            reward = 0.0
+        delta = self.ar - prev_ar
+        reward = delta * 0.5 + (-1.0 if delta < 0 else 1.0)
 
         total_viol = self.capacity_violations + self.single_service_violations
         info = {
