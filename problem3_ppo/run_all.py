@@ -501,6 +501,7 @@ def main():
         writer.writerow(["PPO (P3, no constr)",  round(float(np.mean(ppo_res["ars"])),  6),
                          round(float(np.std(ppo_res["ars"])),   6), round(float(p_v), 4)])
     print(f"  CSV  saved → {csv_path}")
+    plot_training_curve(cb, ilp_ar, run_dir, sc_name)
     plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)
 
     print("\nAll done! Output files:")
