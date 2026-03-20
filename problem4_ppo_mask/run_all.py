@@ -18,6 +18,7 @@ Run:
 
 import datetime
 import csv
+import argparse
 import sys, time, json, functools
 import numpy as np
 import matplotlib
@@ -44,6 +45,17 @@ import config as C
 from problem4_ppo_mask.env import P4Env
 from problem2_ilp.objects import ECU, SVC
 from sb3_contrib.common.wrappers import ActionMasker
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run full P4 pipeline.")
+    parser.add_argument(
+        "--total-timesteps",
+        type=int,
+        default=None,
+        help="Override C.TOTAL_STEPS for quick smoke tests.",
+    )
+    return parser.parse_args()
 
 
 def _mask_fn(env) -> np.ndarray:
@@ -307,7 +319,7 @@ def moving_avg(arr, w):
 
 
 def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     ts = np.array(cb.timesteps_at_ep)
 
     sm, off = moving_avg(cb.episode_ars, C.SMOOTH_W)
@@ -319,20 +331,28 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     ax1.set_ylabel("Episode AR", fontsize=11)
     ax1.set_ylim(0, 1.05)
     ax1.legend(fontsize=9)
-    ax1.set_title(f"P4 MaskablePPO Training — {scenario_name}  ({C.TOTAL_STEPS:,} steps)",
+    ax1.set_title(f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)",
                   fontsize=12)
     ax1.grid(alpha=0.3)
 
-    sm_p, off_p = moving_avg(cb.episode_placed, C.SMOOTH_W)
-    ax2.plot(ts, cb.episode_placed, color="royalblue", alpha=0.2, linewidth=0.8)
-    ax2.plot(ts[off_p:off_p+len(sm_p)], sm_p, color="royalblue", linewidth=2,
-             label="services placed/ep")
-    ax2.axhline(C.M, color="red", linestyle="--", alpha=0.5, label=f"M={C.M}")
-    ax2.set_ylabel("Services Placed", fontsize=11)
-    ax2.set_xlabel("Training steps", fontsize=11)
-    ax2.set_ylim(0, C.M + 1)
+    zero_viol = np.zeros_like(ts, dtype=float)
+    ax2.plot(ts, zero_viol, color="tomato", alpha=0.4, linewidth=1.5,
+             label="Violation rate (always 0 with masking)")
+    ax2.set_ylabel("Violation Rate", fontsize=11)
+    ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3)
+
+    sm_p, off_p = moving_avg(cb.episode_placed, C.SMOOTH_W)
+    ax3.plot(ts, cb.episode_placed, color="royalblue", alpha=0.2, linewidth=0.8)
+    ax3.plot(ts[off_p:off_p+len(sm_p)], sm_p, color="royalblue", linewidth=2,
+             label="services placed/ep")
+    ax3.axhline(C.M, color="red", linestyle="--", alpha=0.5, label=f"M={C.M}")
+    ax3.set_ylabel("Services Placed", fontsize=11)
+    ax3.set_xlabel("Training steps", fontsize=11)
+    ax3.set_ylim(0, C.M + 1)
+    ax3.legend(fontsize=9)
+    ax3.grid(alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "training_curve.png"
@@ -345,11 +365,10 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
     colors = ["#e74c3c", "#3498db", "#2ecc71"]
     labels = ["ILP\n(Optimal)", "Random\n(masked)", "MaskablePPO\n(P4)"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle(f"P2(ILP) vs Random(masked) vs P4(MaskablePPO) — {scenario_name}",
                  fontsize=13, fontweight="bold")
 
-    # AR
     ax = axes[0]
     bp = ax.boxplot(
         [rand_res["ars"], ppo_res["ars"]],
@@ -375,20 +394,30 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
     ax.legend(fontsize=9, loc="lower right")
     ax.grid(axis="y", alpha=0.3)
 
-    # Services placed
     ax2 = axes[1]
+    vr_means = [0.0, 0.0, 0.0]
+    bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75)
+    for bar, v in zip(bars, vr_means):
+        ax2.text(bar.get_x() + bar.get_width()/2, v + 0.02,
+                 f"{v:.2%}", ha="center", fontsize=10, fontweight="bold", color="black")
+    ax2.set_ylim(0, 1.05)
+    ax2.set_ylabel("Violation Rate", fontsize=11)
+    ax2.set_title("Violation Rate", fontsize=11)
+    ax2.grid(axis="y", alpha=0.3)
+
+    ax3 = axes[2]
     pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(ppo_res["placed"])]
     pl_stds  = [0.0, np.std(rand_res["placed"]), np.std(ppo_res["placed"])]
-    bars = ax2.bar(labels, pl_means, color=colors, alpha=0.75,
+    bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
                    yerr=pl_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, pl_means):
-        ax2.text(bar.get_x() + bar.get_width()/2, v + 0.1,
+        ax3.text(bar.get_x() + bar.get_width()/2, v + 0.1,
                  f"{v:.1f}", ha="center", fontsize=10, fontweight="bold", color="black")
-    ax2.axhline(C.M, color="gray", linestyle=":", alpha=0.4)
-    ax2.set_ylim(0, C.M + 2)
-    ax2.set_ylabel("Services Placed per Episode", fontsize=11)
-    ax2.set_title("Placement Completeness", fontsize=11)
-    ax2.grid(axis="y", alpha=0.3)
+    ax3.axhline(C.M, color="gray", linestyle=":", alpha=0.4)
+    ax3.set_ylim(0, C.M + 2)
+    ax3.set_ylabel("Services Placed per Episode", fontsize=11)
+    ax3.set_title("Placement Completeness", fontsize=11)
+    ax3.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "comparison.png"
@@ -403,6 +432,10 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
 @timer_utils.timer
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
+    args = parse_args()
+    if args.total_timesteps is not None:
+        C.TOTAL_STEPS = int(args.total_timesteps)
+        print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
     print(f"  P4 run_all.py  —  RL WITH action masking (0 violations)")
     print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
@@ -498,14 +531,14 @@ def main():
     csv_path = base_path / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "violations"])
-        writer.writerow(["ILP (Optimal)",     round(ilp_ar, 6), 0.0, M, 0])
+            writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
+            writer.writerow(["ILP (Optimal)",     round(ilp_ar, 6), 0.0, M, 0.0])
         writer.writerow(["Random (masked)",   round(float(np.mean(rand_res["ars"])), 6),
                          round(float(np.std(rand_res["ars"])), 6),
-                         round(float(np.mean(rand_res["placed"])), 2), 0])
+                             round(float(np.mean(rand_res["placed"])), 2), 0.0])
         writer.writerow(["MaskablePPO (P4)",  round(float(np.mean(ppo_res["ars"])),  6),
                          round(float(np.std(ppo_res["ars"])),  6),
-                         round(float(np.mean(ppo_res["placed"])), 2), 0])
+                             round(float(np.mean(ppo_res["placed"])), 2), 0.0])
     print(f"  CSV  saved -> {csv_path}")
 
     # Plots

@@ -12,9 +12,10 @@ run.py — One-shot P5 full pipeline (Lagrangian Constraint Relaxation):
        results.json        — full numeric summary
 
 P5 Design: constraints are SOFT, penalised by adaptive λ. No action masking.
-  - Episode always runs M steps (no early termination for violations).
-  - Reward per step: ru/M - λ * c_t
-  - Dual ascent: λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
+    - Episode always runs M steps (no early termination for violations).
+    - Reward per step: n_i / e_j - λ * c_t
+    - λ is included in the observation to reduce non-stationarity.
+    - Dual ascent: λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
 
 Run:
     python problem5_ppo_lagrangian/run.py
@@ -23,6 +24,7 @@ Run:
 import datetime
 import csv
 import os
+import argparse
 import functools
 import sys, time, json
 import numpy as np
@@ -53,6 +55,17 @@ from problem5_ppo_lagrangian.env import LagrangeEnv
 from problem2_ilp.objects import ECU, SVC
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run full P5 pipeline.")
+    parser.add_argument(
+        "--total-timesteps",
+        type=int,
+        default=None,
+        help="Override C.TOTAL_STEPS for quick smoke tests.",
+    )
+    return parser.parse_args()
+
+
 def resolve_device(cfg: str) -> str:
     if cfg != "auto":
         return cfg
@@ -73,7 +86,8 @@ def _make_lagrange_env(seed: int) -> Monitor:
     ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
     env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS,
-                      lambda_init=C.LAMBDA_INIT)
+                      lambda_init=C.LAMBDA_INIT,
+                      lambda_max=C.LAMBDA_MAX)
     return Monitor(env)
 
 
@@ -199,9 +213,10 @@ def solve_ilp_all_scenarios():
 #  Step 3 & 5 — Episode runner
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_episodes(ecus, services, policy_fn, n_eps):
-    """policy_fn(obs) -> int.  λ is always 0 during evaluation."""
-    env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS, lambda_init=0.0)
+def run_episodes(ecus, services, policy_fn, n_eps, lambda_eval: float = 0.0):
+    """policy_fn(obs) -> int. Evaluation uses a fixed λ value in the observation."""
+    env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS,
+                      lambda_init=lambda_eval, lambda_max=C.LAMBDA_MAX)
     ars, viol_rates, viols, placed_list = [], [], [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
@@ -236,6 +251,7 @@ class LagrangeCallback(BaseCallback):
         self._viol_window        = deque(maxlen=C.LAMBDA_UPDATE_WINDOW)
         self.episode_ars:        list[float] = []
         self.episode_viol_rates: list[float] = []
+        self.episode_placed:     list[int]   = []
         self.episode_lambdas:    list[float] = []
         self.timesteps_at_ep:    list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
@@ -252,6 +268,7 @@ class LagrangeCallback(BaseCallback):
             viol_rate = float(info.get("viol_rate_ep", 0.0))
             self.episode_ars.append(ar)
             self.episode_viol_rates.append(viol_rate)
+            self.episode_placed.append(int(info.get("services_placed", 0)))
             self.episode_lambdas.append(self.lambda_val)
             self.timesteps_at_ep.append(self.num_timesteps)
 
@@ -329,9 +346,9 @@ def plot_training_curve(cb: LagrangeCallback, ilp_ar: float,
     ts  = np.array(cb.timesteps_at_ep)
     ars = np.array(cb.episode_ars)
     vrs = np.array(cb.episode_viol_rates)
-    lms = np.array(cb.episode_lambdas)
+    pls = np.array(cb.episode_placed)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
 
     # ── AR ──
     sm, off = moving_avg(ars, C.SMOOTH_W)
@@ -344,32 +361,30 @@ def plot_training_curve(cb: LagrangeCallback, ilp_ar: float,
     ax1.set_ylim(0, 1.05)
     ax1.legend(fontsize=9, loc="lower right")
     ax1.set_title(
-        f"P5 Lagrangian PPO Training — {scenario_name}  ({C.TOTAL_STEPS:,} steps)",
+        f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)",
         fontsize=12,
     )
     ax1.grid(alpha=0.3)
 
-    # ── Violation rate (left) + λ (right) ──
     sm_v, off_v = moving_avg(vrs, C.SMOOTH_W)
     ax2.plot(ts, vrs, color="tomato", alpha=0.2, linewidth=0.8)
     ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
              label="Viol rate (smoothed)")
-    ax2.set_ylabel("Violation Rate / Episode", fontsize=11, color="tomato")
-    ax2.tick_params(axis="y", labelcolor="tomato")
+    ax2.set_ylabel("Violation Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.1)
-
-    ax2b = ax2.twinx()
-    ax2b.plot(ts, lms, color="navy", linewidth=1.5, linestyle="--", alpha=0.85,
-              label="λ value")
-    ax2b.set_ylabel("λ (Lagrangian multiplier)", fontsize=11, color="navy")
-    ax2b.tick_params(axis="y", labelcolor="navy")
-    ax2b.set_ylim(bottom=0)
-
-    lines1, labels1 = ax2.get_legend_handles_labels()
-    lines2, labels2 = ax2b.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc="upper right")
-    ax2.set_xlabel("Training steps", fontsize=11)
+    ax2.legend(fontsize=9, loc="upper right")
     ax2.grid(alpha=0.3)
+
+    sm_p, off_p = moving_avg(pls, C.SMOOTH_W)
+    ax3.plot(ts, pls, color="royalblue", alpha=0.2, linewidth=0.8)
+    ax3.plot(ts[off_p:off_p+len(sm_p)], sm_p, color="royalblue", linewidth=2,
+             label="Services placed (smoothed)")
+    ax3.axhline(C.M, color="gray", linestyle=":", alpha=0.6, label=f"M={C.M}")
+    ax3.set_ylabel("Services Placed", fontsize=11)
+    ax3.set_xlabel("Training steps", fontsize=11)
+    ax3.set_ylim(0, C.M + 1)
+    ax3.legend(fontsize=9, loc="lower right")
+    ax3.grid(alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "training_curve.png"
@@ -382,7 +397,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     colors = ["#e74c3c", "#3498db", "#e67e22"]
     labels = ["ILP\n(Optimal)", "Random\n(no mask)", "Lagrange\nPPO"]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle(
         f"P2(ILP) vs Random vs P5(Lagrange PPO) — {scenario_name}",
         fontsize=13, fontweight="bold",
@@ -413,7 +428,6 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     ax1.legend(fontsize=9, loc="lower right")
     ax1.grid(axis="y", alpha=0.3)
 
-    # ── Violation rate ──
     vr_means = [0.0, np.mean(rand_res["viol_rates"]), np.mean(ppo_res["viol_rates"])]
     vr_stds  = [0.0, np.std(rand_res["viol_rates"]),  np.std(ppo_res["viol_rates"])]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75,
@@ -422,9 +436,21 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
         ax2.text(bar.get_x()+bar.get_width()/2, v+0.01,
                  f"{v:.2f}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, 1.1)
-    ax2.set_ylabel("Violation Rate (per step, per episode)", fontsize=11)
-    ax2.set_title("Constraint Violations", fontsize=11)
+    ax2.set_ylabel("Violation Rate", fontsize=11)
+    ax2.set_title("Violation Rate", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
+
+    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(ppo_res["placed"])]
+    pl_stds  = [0.0, np.std(rand_res["placed"]), np.std(ppo_res["placed"])]
+    bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
+                   yerr=pl_stds, capsize=6, ecolor="black")
+    for bar, v in zip(bars, pl_means):
+        ax3.text(bar.get_x()+bar.get_width()/2, v+0.05,
+                 f"{v:.1f}", ha="center", fontsize=10, fontweight="bold", color="black")
+    ax3.set_ylim(0, C.M + 1)
+    ax3.set_ylabel("Services Placed", fontsize=11)
+    ax3.set_title("Placement Completeness", fontsize=11)
+    ax3.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "comparison.png"
@@ -439,6 +465,10 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
 @timer_utils.timer
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
+    args = parse_args()
+    if args.total_timesteps is not None:
+        C.TOTAL_STEPS = int(args.total_timesteps)
+        print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     device = resolve_device(C.DEVICE)
 
     print(f"\n{'='*60}")
@@ -465,6 +495,7 @@ def main():
         ecus, services,
         policy_fn=lambda obs: int(np.random.randint(0, N)),
         n_eps=C.EVAL_EPS,
+        lambda_eval=0.0,
     )
     print(f"  Random  AR mean={np.mean(rand_res['ars']):.4f}  "
           f"viol={np.mean(rand_res['viol_rates']):.2%}")
@@ -480,7 +511,7 @@ def main():
     def ppo_policy(obs):
         action, _ = model.predict(obs, deterministic=True)
         return int(action)
-    ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
+    ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS, lambda_eval=cb.lambda_val)
     print(f"  PPO  AR mean={np.mean(ppo_res['ars']):.4f}  "
           f"viol={np.mean(ppo_res['viol_rates']):.2%}")
 
@@ -525,6 +556,7 @@ def main():
             "ar_last50":      round(float(np.mean(cb.episode_ars[-50:])),        6) if n_ep >= 50 else None,
             "viol_last50":    round(float(np.mean(cb.episode_viol_rates[-50:])), 6) if n_ep >= 50 else None,
             "final_lambda":   round(float(cb.lambda_val), 6),
+            "eval_lambda":    round(float(cb.lambda_val), 6),
         },
     }
     run_dir = C.OUTDIR / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -537,14 +569,22 @@ def main():
     csv_path = run_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "viol_per_ep", "placed"])
-        writer.writerow(["ILP (Optimal)",    round(ilp_ar, 6), 0.0, 0.0, f"{M}/{M}"])
-        writer.writerow(["Random (no mask)", round(float(np.mean(rand_res["ars"])), 6),
-                         round(float(np.std(rand_res["ars"])), 6),
-                         round(float(np.mean(rand_res["viols"])), 4), f"{M}/{M}"])
-        writer.writerow(["Lagrange PPO",     round(float(np.mean(ppo_res["ars"])),  6),
-                         round(float(np.std(ppo_res["ars"])),  6),
-                         round(float(np.mean(ppo_res["viols"])), 4), f"{M}/{M}"])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0])
+        writer.writerow([
+            "Random (no mask)",
+            round(float(np.mean(rand_res["ars"])), 6),
+            round(float(np.std(rand_res["ars"])), 6),
+            round(float(np.mean(rand_res["placed"])), 2),
+            round(float(np.mean(rand_res["viols"])), 4),
+        ])
+        writer.writerow([
+            "Lagrange PPO",
+            round(float(np.mean(ppo_res["ars"])), 6),
+            round(float(np.std(ppo_res["ars"])), 6),
+            round(float(np.mean(ppo_res["placed"])), 2),
+            round(float(np.mean(ppo_res["viols"])), 4),
+        ])
     print(f"  CSV  saved -> {csv_path}")
 
     # Plots

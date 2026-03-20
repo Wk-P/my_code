@@ -2,19 +2,21 @@
 P5 Environment — Lagrangian Constraint Relaxation.
 
 Constraints are SOFT:
-  - Violations are NOT blocking; episode always runs M steps.
-  - Each violated step incurs per-step penalty: lambda_val * c_t.
-  - lambda_val (Lagrangian multiplier) is updated externally by the training
-    callback via dual ascent: λ ← clip(λ + lr*(avg_viol - target), 0, λ_max).
+    - Violations are NOT blocking; episode always runs M steps.
+    - Each violated step incurs per-step penalty: lambda_val * c_t.
+    - lambda_val (Lagrangian multiplier) is updated externally by the training
+        callback via dual ascent: λ ← clip(λ + lr*(avg_viol - target), 0, λ_max).
 
 Violation at step t (c_t):
-  c_t = 1.0  if capacity insufficient OR ECU already assigned, else 0.0
+    c_t = 1.0  if capacity insufficient OR ECU already assigned, else 0.0
 
 Reward per step:
-  r_t = improvement_signal  -  lambda_val * c_t
-  where improvement_signal = +1.0 if AR increased vs. previous step, else 0.0
+    r_t = feasible_utilisation_delta  -  lambda_val * c_t
+    where feasible_utilisation_delta counts only the extra utilisable load up to
+    the ECU capacity, so overloaded placements no longer earn extra positive reward.
 
-The improvement signal replaces the old ru/M dense reward.
+Observation now includes the normalised λ value to reduce non-stationarity
+from the policy's perspective.
 remaining_vms can go negative (overloaded ECU).
 """
 
@@ -30,15 +32,17 @@ from problem2_ilp.objects import ECU, SVC
 
 class LagrangeEnv(gym.Env):
     """
-    Observation (shape: N+2):
+                Observation (shape: 3N+3):
       [0]   current service demand, normalised by max initial capacity
       [1]   current cumulative AR
-      [2:]  remaining capacity fraction per ECU (can be < 0 if overloaded)
+            [2]   current λ value, normalised by λ_max
+            [3:3+N]      remaining capacity fraction per ECU (can be < 0 if overloaded)
+            [3+N:3+2N]   ECU occupied flag per ECU (1 = already assigned)
+                        [3+2N:3+3N]  valid-action flag for current service (1 = feasible now)
 
-    Reward per step:
-      r_t = improvement_signal  -  lambda_val * c_t
-      improvement_signal = +1.0 if AR increased vs. previous step, else 0.0
-      c_t = 1.0 if capacity insufficient OR ECU already used, else 0.0
+        Reward per step:
+        r_t = feasible_utilisation_delta  -  lambda_val * c_t
+            c_t = 1.0 if capacity insufficient OR ECU already used, else 0.0
 
     Lagrangian multiplier λ is updated externally by the training callback via dual ascent:
     λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
@@ -47,7 +51,8 @@ class LagrangeEnv(gym.Env):
     metadata = {"render_modes": []}
 
     def __init__(self, ecus: list[ECU], services: list[SVC],
-                 scenarios=None, lambda_init: float = 0.0):
+                 scenarios=None, lambda_init: float = 0.0,
+                 lambda_max: float = 10.0):
         super().__init__()
         self._scenarios = scenarios
         self.ecus       = ecus
@@ -55,11 +60,12 @@ class LagrangeEnv(gym.Env):
         self.N          = len(ecus)
         self.M          = len(services)
         self.lambda_val = float(lambda_init)
+        self.lambda_max = max(float(lambda_max), 1e-8)
 
         self.action_space = gym.spaces.Discrete(self.N)
         # remaining_pct can be negative when overloaded
         self.observation_space = gym.spaces.Box(
-            low=-2.0, high=1.0, shape=(self.N + 2,), dtype=np.float32,
+            low=-2.0, high=1.0, shape=(3 * self.N + 3,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -98,16 +104,42 @@ class LagrangeEnv(gym.Env):
             service_demand_norm = np.float32(
                 svc.requirement / (np.max(self.initial_vms) + 1e-8)
             )
+        lambda_norm = np.float32(self.lambda_val / self.lambda_max)
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
+        assigned_flag = self.ecu_assigned.astype(np.float32)
+        if self._step >= self.M:
+            valid_flag = np.zeros(self.N, dtype=np.float32)
+        else:
+            valid_flag = ((~self.ecu_assigned) & (self.remaining_vms >= svc.requirement)).astype(np.float32)
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
+            np.array([lambda_norm], dtype=np.float32),
             remaining_pct,
+            assigned_flag,
+            valid_flag,
         ]).astype(np.float32)
+
+    def _compute_feasible_total_util(self) -> float:
+        loads = self.initial_vms - self.remaining_vms
+        feasible_loads = np.minimum(loads, self.initial_vms)
+        active_mask = self.ecu_assigned.astype(bool)
+        if not np.any(active_mask):
+            return 0.0
+        return float(np.sum(feasible_loads[active_mask] / (self.initial_vms[active_mask] + 1e-8)))
+
+    def _compute_ar(self) -> float:
+        active_mask = self.ecu_assigned.astype(bool)
+        active_ecus = int(np.sum(active_mask))
+        if active_ecus == 0:
+            return 0.0
+        total_util = self._compute_feasible_total_util()
+        return total_util / active_ecus
 
     # ── step ──────────────────────────────────────────────────────────────────
     def step(self, action: int):
         svc = self.services[self._step]
+        prev_total_util = self._compute_feasible_total_util()
 
         # ── Violation check (soft — assignment always proceeds) ───────────────
         cap_violated = bool(self.remaining_vms[action] < svc.requirement)
@@ -120,17 +152,15 @@ class LagrangeEnv(gym.Env):
         self.remaining_vms[action] -= svc.requirement   # may go negative
         self.ecu_assigned[action]   = True
 
-        prev_ar = self.ar
-        self.ar = (self.ar * self._step + ru) / (self._step + 1)
+        self.ar = self._compute_ar()
         self._step += 1
         if violated:
             self.episode_violations += 1
 
         done = self._step >= self.M
 
-        # ── Lagrangian reward: AR direction signal − λ·violation ─────────────
-        delta_ar = self.ar - prev_ar
-        reward = delta_ar - self.lambda_val * c_t
+        feasible_delta = self._compute_feasible_total_util() - prev_total_util
+        reward = float(feasible_delta - self.lambda_val * c_t)
 
         return self._obs(), reward, done, False, {
             "ar":              self.ar,

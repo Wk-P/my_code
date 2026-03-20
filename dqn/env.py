@@ -1,11 +1,13 @@
 """
 DQN Environment — RL WITHOUT action masking.
 
-Constraint enforcement via reward shaping:
-  - If an invalid ECU is chosen (capacity insufficient OR already assigned),
-    the episode terminates immediately with reward = -1 (deployment failed).
-  - Each valid assignment gives reward = +1 if AR increased vs. previous step,
-    else 0.  This gives a clear improvement signal without magnitude bias.
+Constraint handling and reward shaping:
+    - If an invalid ECU is chosen (capacity insufficient OR already assigned),
+        the episode terminates immediately with a penalty proportional to the
+        number of services still left unplaced.
+    - Each valid assignment receives its exact utilisation contribution
+        n_i / e_j. This aligns the return with the ILP objective instead of only
+        rewarding local AR direction changes.
 """
 
 import sys
@@ -22,15 +24,17 @@ class DQNEnv(gym.Env):
     """
     Service Deployment Environment WITHOUT action masking.
 
-    Observation (shape: N+2):
+        Observation (shape: 3N+2):
       [0]   current service demand, normalised
       [1]   current cumulative AR
-      [2:]  remaining capacity fraction per ECU
+            [2:2+N]      remaining capacity fraction per ECU
+            [2+N:2+2N]   ECU occupied flag per ECU (1 = already assigned)
+            [2+2N:2+3N]  valid-action flag for current service (1 = feasible now)
 
-    Reward:
-      -1.0   constraint violated (capacity exceeded OR duplicate ECU) → episode ends
-      +1.0   valid assignment that raises AR above previous step's AR
-       0.0   valid assignment that does not raise AR
+        Reward:
+            -k     constraint violated (capacity exceeded OR duplicate ECU), where
+                         k is the number of services still left unplaced
+            +ru    valid assignment contribution, ru = requirement / ecu_capacity
     """
 
     metadata = {"render_modes": []}
@@ -45,7 +49,7 @@ class DQNEnv(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
-            low=0.0, high=1.0, shape=(self.N + 2,), dtype=np.float32,
+            low=0.0, high=1.0, shape=(3 * self.N + 2,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -77,10 +81,17 @@ class DQNEnv(gym.Env):
             svc = self.services[self._step]
             service_demand_norm = np.float32(svc.requirement / (np.max(self.initial_vms) + 1e-8))
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
+        assigned_flag = self.ecu_assigned.astype(np.float32)
+        if self._step >= self.M:
+            valid_flag = np.zeros(self.N, dtype=np.float32)
+        else:
+            valid_flag = ((~self.ecu_assigned) & (self.remaining_vms >= svc.requirement)).astype(np.float32)
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
             remaining_pct,
+            assigned_flag,
+            valid_flag,
         ]).astype(np.float32)
 
     # ── step ─────────────────────────────────────────────────────────────────
@@ -89,7 +100,8 @@ class DQNEnv(gym.Env):
 
         # Constraint check: capacity violation OR duplicate ECU → fail immediately
         if self.remaining_vms[action] < svc.requirement or self.ecu_assigned[action]:
-            return self._obs(), -1.0, True, False, {
+            remaining_services = self.M - self._step
+            return self._obs(), -float(remaining_services), True, False, {
                 "ar":              self.ar,
                 "services_placed": self._step,
                 "violated":        True,
@@ -106,9 +118,7 @@ class DQNEnv(gym.Env):
 
         done   = self._step >= self.M
 
-        # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
-        delta = self.ar - prev_ar
-        reward = self.ar * 0.5 + (-1.0 if delta < 0 else 1.0)
+        reward = float(ru)
 
         return self._obs(), reward, done, False, {
             "ar":              self.ar,
@@ -142,7 +152,7 @@ if __name__ == "__main__":
 
     env = DQNEnv(ecus, services)
     obs, _ = env.reset()
-    print(f"\nObs shape : {obs.shape}  (expected {N+2})")
+    print(f"\nObs shape : {obs.shape}  (expected {3 * N + 2})")
 
     print("\n-- Valid greedy policy run --")
     done = False

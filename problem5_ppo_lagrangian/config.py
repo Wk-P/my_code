@@ -2,11 +2,12 @@
 Configuration for Problem 5: Lagrangian Constraint Relaxation.
 
 P5 = PPO with adaptive Lagrangian multiplier λ.
-  - No action masking; constraints are penalised, not blocked.
-  - Episode always runs M steps; remaining_vms can go negative.
-  - Reward per step: ru/M - λ * c_t
-  - λ updated via dual ascent every LAMBDA_UPDATE_WINDOW episodes:
-        λ ← clip(λ + LAMBDA_LR * (avg_viol_rate - LAMBDA_TARGET), 0, LAMBDA_MAX)
+    - No action masking; constraints are penalised, not blocked.
+    - Episode always runs M steps; remaining_vms can go negative.
+    - Reward per step: n_i / e_j - λ * c_t
+    - λ is exposed in the observation (normalised by LAMBDA_MAX).
+    - λ updated via dual ascent every LAMBDA_UPDATE_WINDOW episodes:
+                λ ← clip(λ + LAMBDA_LR * (avg_viol_rate - LAMBDA_TARGET), 0, LAMBDA_MAX)
 """
 
 from pathlib import Path

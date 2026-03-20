@@ -40,26 +40,34 @@ def read_csv(path: Path):
     with open(path, "r") as f:
         reader = csv.DictReader(f)
         return list(reader)
+
+
+def pick_metric(row: dict, *keys: str, default: float = 0.0) -> float:
+    for key in keys:
+        value = row.get(key)
+        if value in (None, ""):
+            continue
+        return float(value)
+    return default
     
 
 def plot_combined_results(data_list, ilp_data, output_path: Path):
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    (ax1, ax2), (ax3, ax4) = axes
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
+    ax1, ax2, ax3 = axes
 
     problem_names  = ["P3\nPPO", "P4\nPPO-Mask", "P5\nPPO-Lagrange", "P6\nPPO-Opt", "DQN"]
     pal_ilp    = "#e74c3c"
     pal_random = "#95a5a6"
     pal_method = ["#3498db", "#2ecc71", "#f39c12", "#9b59b6", "#e67e22"]
-    pal_method_2 = ["#3498db" for _ in range(len(pal_method))]   # same colors as pal_method, but DQN is orange
+    pal_method_2 = pal_method
     x  = np.arange(len(problem_names))
     bw = 0.26  # bar width
 
     # ── Parse each problem's three rows ────────────────────────────────────────
     ilp_ar, random_ar, method_ar   = [], [], []
     random_std, method_std         = [], []
+    ilp_placed, random_placed, method_placed = [], [], []
     random_viol, method_viol       = [], []
-    placed_mean_list               = []
-
     for data in data_list:
         def _row(kw):
             return next((r for r in data if kw.lower() in r["method"].lower()), {})
@@ -68,29 +76,17 @@ def plot_combined_results(data_list, ilp_data, output_path: Path):
         mth  = next((r for r in data
                      if "ILP" not in r["method"] and "Random" not in r["method"]), {})
 
-        ilp_ar.append(float(ilp.get("ar_mean", 0)))
-        random_ar.append(float(rand.get("ar_mean", 0)))
-        method_ar.append(float(mth.get("ar_mean", 0)))
-        random_std.append(float(rand.get("ar_std", 0)))
-        method_std.append(float(mth.get("ar_std", 0)))
+        ilp_ar.append(pick_metric(ilp, "ar_mean"))
+        random_ar.append(pick_metric(rand, "ar_mean"))
+        method_ar.append(pick_metric(mth, "ar_mean"))
+        random_std.append(pick_metric(rand, "ar_std"))
+        method_std.append(pick_metric(mth, "ar_std"))
+        ilp_placed.append(pick_metric(ilp, "placed_mean"))
+        random_placed.append(pick_metric(rand, "placed_mean"))
+        method_placed.append(pick_metric(mth, "placed_mean"))
 
-        # viol_per_ep / violations → count；统一列名
-        if "viol_per_ep" in rand:
-            random_viol.append(float(rand["viol_per_ep"]))
-            method_viol.append(float(mth.get("viol_per_ep", 0)))
-        elif "violations" in rand:
-            random_viol.append(float(rand["violations"]))
-            method_viol.append(float(mth.get("violations", 0)))
-        else:
-            random_viol.append(0.0)
-            method_viol.append(0.0)
-
-        placed_mean_list.append(float(mth.get("placed_mean", 10)))
-    
-    # AR: show one unified average random baseline across all problems
-    random_ar = [np.mean(random_ar) for _ in random_ar]
-    random_std = [np.mean(random_std) for _ in random_std]
-    # violations: keep per-problem values (count vs rate have different units, must NOT average)
+        random_viol.append(pick_metric(rand, "viol_rate", "viol_per_ep", "violations"))
+        method_viol.append(pick_metric(mth, "viol_rate", "viol_per_ep", "violations"))
 
     # ══════════════════════════════════════════════════════════════════════════
     # ax1 — AR mean: ILP / Random / Method grouped bar
@@ -116,66 +112,38 @@ def plot_combined_results(data_list, ilp_data, output_path: Path):
     ax1.grid(axis="y", alpha=0.3, zorder=0)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # ax2 — Constraint violations per episode (全统一单轴 count)
+    # ax2 — Constraint violation rate
     # ══════════════════════════════════════════════════════════════════════════
     for xi in range(len(problem_names)):
         ax2.bar(xi - bw/2, random_viol[xi], bw, color=pal_random, alpha=0.8,
                 label="Random" if xi == 0 else "_", zorder=3)
         ax2.bar(xi + bw/2, method_viol[xi], bw, color=pal_method_2[xi], alpha=0.8,
                 label="PPO / DQN" if xi == 0 else "_", zorder=3)
-        ax2.text(xi + bw/2, method_viol[xi] + 0.03,
+        ax2.text(xi + bw/2, method_viol[xi] + 0.015,
                  f"{method_viol[xi]:.2f}", ha="center", fontsize=8,
                  fontweight="bold", color=pal_method_2[xi])
 
     ax2.set_xticks(x); ax2.set_xticklabels(problem_names)
-    ax2.set_ylabel("Violations / Episode")
-    ax2.set_title("Constraint Violations per Episode", fontweight="bold")
+    ax2.set_ylabel("Violation Rate")
+    ax2.set_title("Constraint Violation Rate", fontweight="bold")
     ax2.legend(fontsize=9, loc="upper right")
     ax2.grid(axis="y", alpha=0.3, zorder=0)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # ax3 — AR variability (std): Random vs Method
+    # ax3 — Placement completeness
     # ══════════════════════════════════════════════════════════════════════════
-    ax3.bar(x - bw/2, random_std, bw, color=pal_random, alpha=0.85, label="Random", zorder=3)
-    for xi, (s, color) in enumerate(zip(method_std, pal_method_2)):
-        ax3.bar(xi + bw/2, s, bw, color=color, alpha=0.85,
-                label="PPO/DQN" if xi == 0 else "_", zorder=3)
+    ax3.bar(x - bw, ilp_placed, bw, color=pal_ilp, alpha=0.85, label="ILP (Optimal)", zorder=3)
+    ax3.bar(x, random_placed, bw, color=pal_random, alpha=0.85, label="Random", zorder=3)
+    for xi, (placed, color) in enumerate(zip(method_placed, pal_method_2)):
+        ax3.bar(xi + bw, placed, bw, color=color, alpha=0.85,
+                label="PPO / DQN" if xi == 0 else "_", zorder=3)
+        ax3.text(xi + bw, placed + 0.12, f"{placed:.1f}",
+                 ha="center", fontsize=8, fontweight="bold", color=color)
     ax3.set_xticks(x); ax3.set_xticklabels(problem_names)
-    ax3.set_ylabel("AR Standard Deviation (lower = more stable)")
-    ax3.set_title("AR Variability: Random vs Method", fontweight="bold")
+    ax3.set_ylabel("Services Placed")
+    ax3.set_title("Placement Completeness", fontweight="bold")
     ax3.legend(fontsize=9)
     ax3.grid(axis="y", alpha=0.3, zorder=0)
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # ax4 — ΔAR vs Random Baseline  +  gap to ILP
-    # ══════════════════════════════════════════════════════════════════════════
-    delta_random = [m - r for m, r in zip(method_ar, random_ar)]
-    delta_ilp    = [m - i for m, i in zip(method_ar, ilp_ar)]
-
-    bars_dr = ax4.bar(x - bw/2, delta_random, bw, alpha=0.85, zorder=3, label="vs Random")
-    bars_di = ax4.bar(x + bw/2, delta_ilp,    bw, alpha=0.85, zorder=3, label="vs ILP")
-
-    for bar, color in zip(bars_dr, pal_method_2):
-        bar.set_facecolor(color)
-    for bar in bars_di:
-        bar.set_facecolor("#e74c3c")
-
-    for xi, (dr, di) in enumerate(zip(delta_random, delta_ilp)):
-        pad = 0.003
-        ax4.text(xi - bw/2, dr + (pad if dr >= 0 else -pad*3),
-                 f"{dr:+.3f}", ha="center", fontsize=8, fontweight="bold",
-                 va="bottom" if dr >= 0 else "top", color=pal_method_2[xi])
-        ax4.text(xi + bw/2, di + (pad if di >= 0 else -pad*3),
-                 f"{di:+.3f}", ha="center", fontsize=8, fontweight="bold",
-                 va="bottom" if di >= 0 else "top", color="#e74c3c")
-
-    ax4.axhline(0, color="black", linewidth=0.8)
-    ax4.set_xticks(x); ax4.set_xticklabels(problem_names)
-    ax4.set_ylim(-0.25, 0.25)
-    ax4.set_ylabel("ΔAR")
-    ax4.set_title("AR Delta: Method vs Random / Method vs ILP", fontweight="bold")
-    ax4.legend(fontsize=9)
-    ax4.grid(axis="y", alpha=0.3, zorder=0)
 
     # ── Overall title & layout ─────────────────────────────────────────────────
     fig.suptitle("Combined Results: P3–P6 PPO Variants + DQN vs ILP Optimal",
@@ -189,6 +157,8 @@ def plot_combined_results(data_list, ilp_data, output_path: Path):
 def main():
     combined_data = []
     for path in PATH_LIST:
+        if not path.exists():
+            raise FileNotFoundError(f"Missing combined input CSV: {path}")
         data = read_csv(path)
         combined_data.append(data)
     

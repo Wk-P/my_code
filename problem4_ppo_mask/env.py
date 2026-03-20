@@ -2,10 +2,12 @@
 P4 Environment — RL WITH constraint enforcement via Action Masking.
 
 Key difference from P3:
-  - action_masks() returns a boolean array: True = valid ECU, False = invalid.
-  - Invalid = capacity insufficient OR ECU already assigned.
-  - Agent can ONLY choose from valid actions → 0 constraint violations guaranteed.
-  - If no valid action exists (infeasible), episode terminates with reward = current AR.
+    - action_masks() returns a boolean array: True = valid ECU, False = invalid.
+    - Invalid = capacity insufficient OR ECU already assigned.
+    - Agent can ONLY choose from valid actions → 0 constraint violations guaranteed.
+    - Reward is the exact utilisation contribution n_i / e_j.
+    - If the next service becomes infeasible, the episode terminates early with an
+        extra penalty for the remaining unplaced services.
 """
 
 import sys
@@ -31,9 +33,9 @@ class P4Env(gym.Env):
       [1]   current cumulative AR
       [2:]  remaining capacity fraction per ECU
 
-    Reward:
-      +1.0  if AR increased vs. previous step
-       0.0  otherwise (including terminal step with no improvement)
+        Reward:
+            +ru    valid assignment contribution, ru = requirement / ecu_capacity
+            -k     early termination penalty when k services remain unplaced
     """
 
     metadata = {"render_modes": []}
@@ -105,12 +107,12 @@ class P4Env(gym.Env):
 
         # With action masking this should never happen, but defend just in case
         if self.remaining_vms[action] < svc.requirement or self.ecu_assigned[action]:
-            # Infeasible action somehow got through → terminate with current AR
-            self._step += 1
+            remaining_services = self.M - self._step
             done = True
-            return self._obs(), float(self.ar), done, False, {
+            return self._obs(), -float(remaining_services), done, False, {
                 "ar": self.ar, "step": self._step,
                 "feasible": False,
+                "services_placed": self._step,
             }
 
         # ── Valid assignment ──────────────────────────────────────────────────
@@ -128,9 +130,11 @@ class P4Env(gym.Env):
         if not done and not np.any(self.action_masks()):
             done = True   # no valid ECU for next service → early stop
 
-        # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
-        delta = self.ar - prev_ar
-        reward = delta * 0.5 + (-1.0 if delta < 0 else 1.0)
+        reward = float(ru)
+
+        remaining_services = self.M - self._step
+        if done and remaining_services > 0:
+            reward -= float(remaining_services)
 
         info = {
             "ar":       self.ar,

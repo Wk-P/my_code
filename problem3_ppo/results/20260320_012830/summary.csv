@@ -1,4 +1,0 @@
-method,ar_mean,ar_std,viol_per_ep
-ILP (Optimal),0.540177,0.0,0.0
-Random Baseline,0.498501,0.108454,5.6633
-"PPO (P3, no constr)",0.608008,0.178517,11.3067

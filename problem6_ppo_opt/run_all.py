@@ -14,7 +14,7 @@ P6 Design: best-fit patch algorithm.
   - When selected ECU is occupied, one service is relocated to the
     tightest-fitting free ECU to minimise waste.
   - Episodes always run M steps (never terminate early).
-  - Reward = final AR only.
+    - Reward = exact increase in total utilisation after each action.
 
 Run:
     python problem6_ppo_opt/run_all.py
@@ -22,6 +22,7 @@ Run:
 
 import datetime
 import csv
+import argparse
 import functools
 import sys, time, json
 import numpy as np
@@ -48,6 +49,17 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 
 import config as C
 from problem6_ppo_opt.env import P6Env
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run full P6 pipeline.")
+    parser.add_argument(
+        "--total-timesteps",
+        type=int,
+        default=None,
+        help="Override C.TOTAL_STEPS for quick smoke tests.",
+    )
+    return parser.parse_args()
 
 
 def resolve_device(cfg: str) -> str:
@@ -213,7 +225,7 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
     policy_fn(obs) -> int
     """
     env = P6Env(ecus, services, scenarios=C.SCENARIOS)
-    ars, cap_viols, dup_viols = [], [], []
+    ars, cap_viols, dup_viols, viol_rates, placed_list = [], [], [], [], []
 
     for _ in range(n_eps):
         obs, _ = env.reset()
@@ -224,12 +236,16 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
         ars.append(info["ar"])
         cap_viols.append(info["capacity_violations"])
         dup_viols.append(info["single_service_violations"])
+        viol_rates.append(float(info.get("violation_rate", 0.0)))
+        placed_list.append(int(info.get("services_placed", 0)))
 
     return {
         "ars":        np.array(ars),
         "cap_viols":  np.array(cap_viols),
         "dup_viols":  np.array(dup_viols),
         "tot_viols":  np.array(cap_viols) + np.array(dup_viols),
+        "viol_rates": np.array(viol_rates),
+        "placed":     np.array(placed_list),
     }
 
 
@@ -241,7 +257,8 @@ class P6Callback(BaseCallback):
     def __init__(self):
         super().__init__()
         self.episode_ars        : list[float] = []
-        self.episode_violations : list[int]   = []
+        self.episode_viol_rates : list[float] = []
+        self.episode_placed     : list[int]   = []
         self.timesteps_at_ep    : list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
@@ -253,7 +270,8 @@ class P6Callback(BaseCallback):
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self.episode_ars.append(float(info.get("ar", 0.0)))
-                self.episode_violations.append(int(info.get("total_violations", 0)))
+                self.episode_viol_rates.append(float(info.get("violation_rate", 0.0)))
+                self.episode_placed.append(int(info.get("services_placed", 0)))
                 self.timesteps_at_ep.append(self.num_timesteps)
 
         if self.num_timesteps >= self._next_progress_step:
@@ -317,32 +335,42 @@ def moving_avg(arr, w):
 
 
 def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_name: str):
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     ts = np.array(cb.timesteps_at_ep)
-    N  = len(cb.episode_ars)
 
     # ── AR ────────────────────────────────────────────────────────────────────
     sm, off = moving_avg(cb.episode_ars, C.SMOOTH_W)
     ax1.plot(ts, cb.episode_ars, color="steelblue", alpha=0.2, linewidth=0.8)
     ax1.plot(ts[off:off+len(sm)], sm, color="steelblue", linewidth=2,
-             label=f"PPO (smoothed w={C.SMOOTH_W})")
+             label=f"Method AR (smoothed w={C.SMOOTH_W})")
     ax1.axhline(ilp_ar, color="red", linestyle="--", linewidth=1.5,
                 label=f"ILP Optimal  AR={ilp_ar:.4f}")
     ax1.set_ylabel("Episode AR", fontsize=11)
     ax1.set_ylim(0, 1.05)
     ax1.legend(fontsize=9)
-    ax1.set_title(f"PPO Training Curve — {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
+    ax1.set_title(f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
     ax1.grid(alpha=0.3)
 
     # ── Violations ────────────────────────────────────────────────────────────
-    sm_v, off_v = moving_avg(cb.episode_violations, C.SMOOTH_W)
-    ax2.plot(ts, cb.episode_violations, color="tomato", alpha=0.2, linewidth=0.8)
+    sm_v, off_v = moving_avg(cb.episode_viol_rates, C.SMOOTH_W)
+    ax2.plot(ts, cb.episode_viol_rates, color="tomato", alpha=0.2, linewidth=0.8)
     ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
-             label=f"violations/ep (smoothed)")
-    ax2.set_ylabel("Constraint Violations / Episode", fontsize=11)
-    ax2.set_xlabel("Training steps", fontsize=11)
+             label="Violation rate (smoothed)")
+    ax2.set_ylabel("Violation Rate", fontsize=11)
+    ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3)
+
+    sm_p, off_p = moving_avg(cb.episode_placed, C.SMOOTH_W)
+    ax3.plot(ts, cb.episode_placed, color="royalblue", alpha=0.2, linewidth=0.8)
+    ax3.plot(ts[off_p:off_p+len(sm_p)], sm_p, color="royalblue", linewidth=2,
+             label="Services placed (smoothed)")
+    ax3.axhline(C.M, color="gray", linestyle=":", alpha=0.6, label=f"M={C.M}")
+    ax3.set_ylabel("Services Placed", fontsize=11)
+    ax3.set_xlabel("Training steps", fontsize=11)
+    ax3.set_ylim(0, C.M + 1)
+    ax3.legend(fontsize=9)
+    ax3.grid(alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "training_curve.png"
@@ -352,17 +380,13 @@ def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_na
 
 
 def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str):
-    M_steps = len(rand_res["ars"])   # not needed but keep for label
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle(f"P2(ILP) vs Random vs P6(PPO) — {scenario_name}", fontsize=13, fontweight="bold")
 
     colors = ["#e74c3c", "#3498db", "#2ecc71"]
     labels = ["ILP\n(Optimal)", "Random\nBaseline", "PPO\n(P6, best-fit)"]
 
-    # ── Left: AR box plot ─────────────────────────────────────────────────────
     ax = axes[0]
-    # ILP is a single deterministic value — shown as a dashed horizontal line
     rand_ars = rand_res["ars"]
     ppo_ars  = ppo_res["ars"]
 
@@ -379,12 +403,10 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
         patch.set_facecolor(color)
         patch.set_alpha(0.7)
 
-    # ILP: dashed red line + diamond marker
     ax.axhline(ilp_ar, color=colors[0], linestyle="--", linewidth=2, alpha=0.9,
                label=f"ILP  AR={ilp_ar:.4f}")
     ax.plot(1, ilp_ar, marker="D", color=colors[0], markersize=10, zorder=5)
 
-    # annotate mean values
     for pos, data, color in zip([2, 3], [rand_ars, ppo_ars], colors[1:]):
         mv = np.mean(data)
         ax.text(pos, mv + 0.02, f"μ={mv:.3f}", ha="center", va="bottom",
@@ -398,30 +420,42 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     ax.legend(fontsize=9, loc="lower right")
     ax.grid(axis="y", alpha=0.3)
 
-    # ── Right: Violation rate bar ─────────────────────────────────────────────
     ax2 = axes[1]
-    N_svc = ppo_res["ars"].shape[0]   # just number of eval episodes
-    # ILP violation rate = 0 (guaranteed by hard constraints)
     vr_means = [
         0.0,
-        np.mean(rand_res["tot_viols"]),
-        np.mean(ppo_res["tot_viols"]),
+        np.mean(rand_res["viol_rates"]),
+        np.mean(ppo_res["viol_rates"]),
     ]
     vr_stds = [
         0.0,
-        np.std(rand_res["tot_viols"]),
-        np.std(ppo_res["tot_viols"]),
+        np.std(rand_res["viol_rates"]),
+        np.std(ppo_res["viol_rates"]),
     ]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75,
                    yerr=vr_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width() / 2,
                  v + max(vr_means) * 0.02 + 0.01,
-                 f"{v:.2f}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
+                 f"{v:.2%}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
 
-    ax2.set_ylabel("Avg Constraint Violations per Episode", fontsize=11)
-    ax2.set_title("Constraint Violations", fontsize=11)
+    ax2.set_ylim(0, 1.05)
+    ax2.set_ylabel("Violation Rate", fontsize=11)
+    ax2.set_title("Violation Rate", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
+
+    ax3 = axes[2]
+    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(ppo_res["placed"])]
+    pl_stds = [0.0, np.std(rand_res["placed"]), np.std(ppo_res["placed"])]
+    bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
+                   yerr=pl_stds, capsize=5, ecolor="black")
+    for bar, v in zip(bars, pl_means):
+        ax3.text(bar.get_x() + bar.get_width() / 2,
+                 v + 0.05,
+                 f"{v:.1f}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
+    ax3.set_ylim(0, C.M + 1)
+    ax3.set_ylabel("Services Placed", fontsize=11)
+    ax3.set_title("Placement Completeness", fontsize=11)
+    ax3.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "comparison.png"
@@ -436,6 +470,10 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
 @timer_utils.timer
 def main():
     C.OUTDIR.mkdir(parents=True, exist_ok=True)
+    args = parse_args()
+    if args.total_timesteps is not None:
+        C.TOTAL_STEPS = int(args.total_timesteps)
+        print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
     print(f"  P6 run_all.py  —  RL WITH best-fit patch optimization")
     print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
@@ -461,7 +499,7 @@ def main():
     )
     print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
           f"std={np.std(rand_res['ars']):.4f}")
-    print(f"  Violations/ep mean={np.mean(rand_res['tot_viols']):.2f}")
+    print(f"  Viol rate mean={np.mean(rand_res['viol_rates']):.2%}")
 
     # ── 4. PPO training ──────────────────────────────────────────────────────
     print(f"\n[3/4] PPO training ({C.TOTAL_STEPS:,} steps) ...")
@@ -477,22 +515,22 @@ def main():
     ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
     print(f"  PPO AR  mean={np.mean(ppo_res['ars']):.4f}  "
           f"std={np.std(ppo_res['ars']):.4f}")
-    print(f"  Violations/ep mean={np.mean(ppo_res['tot_viols']):.2f}")
+    print(f"  Viol rate mean={np.mean(ppo_res['viol_rates']):.2%}")
 
     # ── Summary table ─────────────────────────────────────────────────────────
     M_total = M
     print(f"\n{'='*62}")
-    print(f"  {'Method':<24} {'AR (mean±std)':<22} {'Viol/ep':<10}")
+    print(f"  {'Method':<24} {'AR (mean±std)':<22} {'ViolRate':<10}")
     print(f"  {'-'*24} {'-'*22} {'-'*10}")
     print(f"  {'ILP (Optimal)':<24} {ilp_ar:.4f} ± 0.0000       {'0':<10}")
-    r_v = np.mean(rand_res['tot_viols'])
-    p_v = np.mean(ppo_res['tot_viols'])
+    r_v = np.mean(rand_res['viol_rates'])
+    p_v = np.mean(ppo_res['viol_rates'])
     print(f"  {'Random Baseline':<24} "
           f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
-          f"  {r_v:<10.2f}")
+          f"  {r_v:<10.2%}")
     print(f"  {'PPO (P6, best-fit)':<24} "
           f"{np.mean(ppo_res['ars']):.4f} ± {np.std(ppo_res['ars']):.4f}   "
-          f"  {p_v:<10.2f}")
+          f"  {p_v:<10.2%}")
     print(f"{'='*62}\n")
 
     # ── Save JSON ─────────────────────────────────────────────────────────────
@@ -507,17 +545,18 @@ def main():
         "random": {
             "ar_mean":   round(float(np.mean(rand_res["ars"])), 6),
             "ar_std":    round(float(np.std(rand_res["ars"])),  6),
-            "viol_mean": round(float(r_v), 4),
+            "viol_rate_mean": round(float(r_v), 6),
         },
         "ppo": {
             "ar_mean":   round(float(np.mean(ppo_res["ars"])), 6),
             "ar_std":    round(float(np.std(ppo_res["ars"])),  6),
-            "viol_mean": round(float(p_v), 4),
+            "viol_rate_mean": round(float(p_v), 6),
         },
         "training": {
             "total_steps":  C.TOTAL_STEPS,
             "n_episodes":   len(cb.episode_ars),
             "ar_last50":    round(float(np.mean(cb.episode_ars[-50:])), 6),
+            "viol_rate_last50": round(float(np.mean(cb.episode_viol_rates[-50:])), 6),
         }
     }
     log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "results.json"
@@ -531,12 +570,12 @@ def main():
     csv_path = run_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "viol_per_ep"])
-        writer.writerow(["ILP (Optimal)",       round(ilp_ar, 6), 0.0,                          0.0])
+            writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
+            writer.writerow(["ILP (Optimal)",       round(ilp_ar, 6), 0.0,                          M, 0.0])
         writer.writerow(["Random Baseline",      round(float(np.mean(rand_res["ars"])), 6),
-                         round(float(np.std(rand_res["ars"])),  6), round(float(r_v), 4)])
+                             round(float(np.std(rand_res["ars"])),  6), round(float(np.mean(rand_res["placed"])), 2), round(float(r_v), 4)])
         writer.writerow(["PPO (P6, best-fit)",  round(float(np.mean(ppo_res["ars"])),  6),
-                         round(float(np.std(ppo_res["ars"])),   6), round(float(p_v), 4)])
+                             round(float(np.std(ppo_res["ars"])),   6), round(float(np.mean(ppo_res["placed"])), 2), round(float(p_v), 4)])
     print(f"  CSV  saved → {csv_path}")
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
     plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)

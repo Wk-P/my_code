@@ -438,7 +438,7 @@ if __name__ == "__main__":
     # Verify file exists
     if not config_path.exists():
         print(f"Error: Config file not found: {config_path}")
-        sys.exit(1)
+        raise SystemExit(1)
     
     print(f"\nUsing config file: {config_path.name}\n")
     main(config_path=str(config_path))

@@ -2,11 +2,12 @@
 P6 Environment — RL WITH best-fit patch optimization.
 
 Design intent (matches docs.md):
-  • When assigning to an already-occupied ECU, a best-fit patch algorithm
-    is applied to relocate one service to a better-fitting free ECU.
-  • Episode NEVER terminates early — always runs M steps.
-  • Reward: sparse final AR at step M-1, 0.0 for intermediate steps.
-  • Scenarios: reset() randomly picks one of the provided scenarios.
+    • When assigning to an already-occupied ECU, a best-fit patch algorithm
+        is applied to relocate one service to a better-fitting free ECU.
+    • Episode NEVER terminates early — always runs M steps.
+    • Reward equals the exact increase in total utilisation after each action.
+    • Observation explicitly includes the currently loaded fraction of each ECU.
+    • Scenarios: reset() randomly picks one of the provided scenarios.
 """
 
 import sys
@@ -31,15 +32,14 @@ class P6Env(gym.Env):
     is applied: one service is relocated to the tightest-fitting free ECU
     to minimise waste and reduce constraint violations.
 
-    Reward:
-      • +1.0 if AR increased vs. previous step
-      •  0.0 otherwise
-      (no terminal lump-sum; signal is dense and comparison-based)
+        Reward:
+            • increase in total utilisation after this action
 
-    Observation  (shape: N+2):
+        Observation  (shape: 2N+2):
       [0]   current service demand, normalised by max initial capacity
       [1]   current cumulative AR
-      [2:]  remaining capacity fraction per ECU
+            [2:2+N]      remaining capacity fraction per ECU
+            [2+N:2+2N]   current assigned load fraction per ECU
     """
 
     metadata = {"render_modes": []}
@@ -54,16 +54,17 @@ class P6Env(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
 
-        # obs can go slightly below 0 (overloaded ECU) so low=-1
+        # remaining capacity can go below 0; load fraction can exceed 1
         self.observation_space = gym.spaces.Box(
             low  = -1.0,
-            high =  1.0,
-            shape= (self.N + 2,),
+            high =  2.0,
+            shape= (2 * self.N + 2,),
             dtype= np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
         self.remaining_vms: np.ndarray
+        self.ecu_loads:     np.ndarray
         self.ecu_assigned:  np.ndarray
         self.ar:            float
         self._step:         int
@@ -78,6 +79,7 @@ class P6Env(gym.Env):
             self.services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
         self.remaining_vms  = self.initial_vms.copy()
+        self.ecu_loads      = np.zeros(self.N, dtype=np.float32)
         self.ecu_assigned   = np.zeros(self.N, dtype=bool)
         self.ecu_service_idx = np.full(self.N, -1, dtype=int)  # ECU -> service index (-1 = free)
         self.ar             = 0.0
@@ -95,18 +97,32 @@ class P6Env(gym.Env):
             service_demand_norm = np.float32(svc.requirement / (np.max(self.initial_vms) + 1e-8))
 
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
+        load_pct = self.ecu_loads / (self.initial_vms + np.float32(1e-8))
 
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
             remaining_pct,
+            load_pct,
         ]).astype(np.float32)
+
+    def _compute_total_util(self) -> float:
+        active_mask = self.ecu_assigned.astype(bool)
+        if not np.any(active_mask):
+            return 0.0
+        return float(np.sum(self.ecu_loads[active_mask] / (self.initial_vms[active_mask] + 1e-8)))
+
+    def _compute_ar(self) -> float:
+        active_ecus = int(np.sum(self.ecu_assigned))
+        if active_ecus == 0:
+            return 0.0
+        return self._compute_total_util() / active_ecus
 
     # ── step ─────────────────────────────────────────────────────────────────
     def step(self, action: int):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
-        prev_ar = self.ar
+        prev_total_util = self._compute_total_util()
 
         if self.ecu_assigned[action]:
             # ── Best-fit patch algorithm (see patch_algorithm_en.md) ──────────
@@ -138,13 +154,13 @@ class P6Env(gym.Env):
                 # Step 3: execute relocation (normal path)
                 ecu_m = best_ecu_m
                 cap_m = float(self.initial_vms[ecu_m])
+                self.ecu_loads[ecu_n]        = float(s_stay.requirement)
+                self.ecu_loads[ecu_m]        = float(s_move.requirement)
                 self.remaining_vms[ecu_n]    = cap_n - s_stay.requirement
-                self.remaining_vms[ecu_m]   -= s_move.requirement
+                self.remaining_vms[ecu_m]    = cap_m - s_move.requirement
                 self.ecu_service_idx[ecu_n]  = self.services.index(s_stay)
                 self.ecu_service_idx[ecu_m]  = self.services.index(s_move)
                 self.ecu_assigned[ecu_m]     = True
-                s1_moved = (s_move is s1)   # True: s1 relocated; False: s2 relocated
-                s2_cap   = cap_n if s_stay is s2 else cap_m
 
             else:
                 # Step 5: fallback — enumerate all free ECUs, both arrangements
@@ -174,22 +190,13 @@ class P6Env(gym.Env):
                 ecu_m = best_ecu_m
                 cap_m = float(self.initial_vms[ecu_m])
                 self.capacity_violations        += best_viol
+                self.ecu_loads[ecu_n]            = float(best_s_on_n.requirement)
+                self.ecu_loads[ecu_m]            = float(best_s_on_m.requirement)
                 self.remaining_vms[ecu_n]        = cap_n - best_s_on_n.requirement
-                self.remaining_vms[ecu_m]       -= best_s_on_m.requirement
+                self.remaining_vms[ecu_m]        = cap_m - best_s_on_m.requirement
                 self.ecu_service_idx[ecu_n]      = self.services.index(best_s_on_n)
                 self.ecu_service_idx[ecu_m]      = self.services.index(best_s_on_m)
                 self.ecu_assigned[ecu_m]         = True
-                s1_moved = (best_s_on_m is s1)  # True: s1 relocated to ecu_m
-                s2_cap   = cap_n if best_s_on_n is s2 else cap_m
-
-            # Step 4 / AR update:
-            # Only s2 is new this step. s1 correction only applies if s1 moved ECUs.
-            if s1_moved and self._step > 0:
-                self.ar += s1.requirement / self._step * (
-                    1.0 / (cap_m + 1e-8) - 1.0 / (cap_n + 1e-8)
-                )
-            ru_new = s2.requirement / (s2_cap + 1e-8)
-            self.ar = (self.ar * self._step + ru_new) / (self._step + 1)
             self._step += 1
 
         else:
@@ -197,24 +204,21 @@ class P6Env(gym.Env):
             # Constraint check: capacity violation
             if self.remaining_vms[action] < svc.requirement:
                 self.capacity_violations += 1
-            ru = svc.requirement / (self.initial_vms[action] + 1e-8)
+            self.ecu_loads[action]        = float(svc.requirement)
             self.remaining_vms[action]   -= svc.requirement
             self.ecu_assigned[action]     = True
             self.ecu_service_idx[action]  = self._step   # record service index on this ECU
-
-            # Incremental AR update
-            self.ar = (self.ar * self._step + ru) / (self._step + 1)
             self._step += 1
 
+        self.ar = self._compute_ar()
         done   = self._step >= self.M
-        # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
-        delta = self.ar - prev_ar
-        reward = delta * 0.5 + (-1.0 if delta < 0 else 1.0)
+        reward = self._compute_total_util() - prev_total_util
 
         total_viol = self.capacity_violations + self.single_service_violations
         info = {
             "ar":   self.ar,
             "step": self._step,
+            "services_placed":         self._step,
             "capacity_violations":       self.capacity_violations,
             "single_service_violations": self.single_service_violations,
             "total_violations":          total_viol,

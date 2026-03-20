@@ -132,6 +132,7 @@ class P3Env(gym.Env):
         info = {
             "ar":   self.ar,
             "step": self._step,
+            "services_placed":         self._step,
             "capacity_violations":       self.capacity_violations,
             "single_service_violations": self.single_service_violations,
             "total_violations":          total_viol,

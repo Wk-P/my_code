@@ -1,5 +1,5 @@
 from pathlib import Path
-from subprocess import run
+from shutil import copy2
 import sys
 
 BASE_PATH = Path(__file__).parent.parent
@@ -15,16 +15,35 @@ def auto_copy_file_to_results(source_path: Path, target_path: Path, source_filen
     This helps in later aggregation and comparison of results across problems.
     auto choose the latest output folder name , folder name format: yyyymmdd_hhmmss
     """
-    latest_folder = max((source_path / "results").iterdir(), key=lambda p: p.stat().st_mtime)
-    source_path = source_path / "results" / latest_folder / source_filename
+    results_dir = source_path / "results"
+    timestamp_dirs = [
+        path for path in results_dir.iterdir()
+        if path.is_dir() and len(path.name) == 15 and path.name[8] == "_"
+    ]
+
+    if not timestamp_dirs:
+        print(f"Warning: No timestamped result folders found under {results_dir}. Skipping copy.")
+        return
+
+    latest_folder = None
+    for candidate in sorted(timestamp_dirs, key=lambda path: path.name, reverse=True):
+        candidate_file = candidate / source_filename
+        if candidate_file.exists():
+            latest_folder = candidate
+            source_path = candidate_file
+            break
+
+    if latest_folder is None:
+        print(
+            f"Warning: No timestamped result folder under {results_dir} contains {source_filename}. "
+            "Skipping copy."
+        )
+        return
+
     target_path = target_path / target_filename
     
-    if not source_path.exists():
-        print(f"Warning: Expected output file {source_path} does not exist. Skipping copy.")
-        return
-    
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    source_path.rename(target_path)
+    copy2(source_path, target_path)
     print(f"Copied {source_path} to {target_path}")
 
 

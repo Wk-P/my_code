@@ -7,12 +7,12 @@ run_all.py — One-shot DQN full pipeline:
   4. Train DQN (no action masking)     -> training curve
   5. Evaluate trained DQN              -> dqn_ars + violations
   6. Produce plots:
-       - comparison.png     — AR box plot + violation rate bar (3-way)
-       - training_curve.png — reward & violation rate during training
+    - comparison.png     — AR box plot + violation rate bar (3-way)
+    - training_curve.png — AR & violation rate during training
 
 DQN Design: NO action masking.
-  - Constraint violations → reward = -1, episode terminates immediately.
-  - Agent learns to avoid violations through reward shaping.
+    - Constraint violations terminate the episode with an unfinished-services penalty.
+    - Valid assignments earn their exact utilisation contribution n_i / e_j.
 
 Run:
     python dqn/run_all.py
@@ -20,6 +20,7 @@ Run:
 
 import datetime
 import csv
+import argparse
 import functools
 import sys, time, json
 import numpy as np
@@ -46,6 +47,17 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 import config as C
 from dqn.env import DQNEnv
 from problem2_ilp.objects import ECU, SVC
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run full DQN pipeline.")
+    parser.add_argument(
+        "--total-timesteps",
+        type=int,
+        default=None,
+        help="Override C.TOTAL_STEPS for quick smoke tests.",
+    )
+    return parser.parse_args()
 
 
 def _make_dqn_env(seed: int) -> Monitor:
@@ -222,6 +234,7 @@ class DQNCallback(BaseCallback):
     def __init__(self):
         super().__init__()
         self.episode_rewards:  list[float] = []
+        self.episode_ars:      list[float] = []
         self.episode_placed:   list[int]   = []
         self.episode_violated: list[int]   = []
         self.timesteps_at_ep:  list[int]   = []
@@ -235,6 +248,7 @@ class DQNCallback(BaseCallback):
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self.episode_rewards.append(float(info["episode"]["r"]))
+                self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
                 self.episode_violated.append(1 if info.get("violated", False) else 0)
                 self.timesteps_at_ep.append(self.num_timesteps)
@@ -288,9 +302,11 @@ def train_dqn(ecus, services):
 
     n_ep     = len(cb.episode_rewards)
     last50_r = np.mean(cb.episode_rewards[-50:]) if n_ep >= 50 else np.mean(cb.episode_rewards)
+    last50_ar = np.mean(cb.episode_ars[-50:]) if n_ep >= 50 else np.mean(cb.episode_ars)
     last50_v = np.mean(cb.episode_violated[-50:]) if n_ep >= 50 else np.mean(cb.episode_violated)
     print(f"  Training done  {elapsed:.1f}s | {n_ep} eps "
-          f"| reward(last50)={last50_r:.4f} | viol_rate(last50)={last50_v:.2%}")
+            f"| reward(last50)={last50_r:.4f} | AR(last50)={last50_ar:.4f}"
+            f" | viol_rate(last50)={last50_v:.2%}")
     return model, cb
 
 
@@ -306,19 +322,19 @@ def moving_avg(arr, w):
 
 
 def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     ts = np.array(cb.timesteps_at_ep)
 
-    sm, off = moving_avg(cb.episode_rewards, C.SMOOTH_W)
-    ax1.plot(ts, cb.episode_rewards, color="seagreen", alpha=0.2, linewidth=0.8)
+    sm, off = moving_avg(cb.episode_ars, C.SMOOTH_W)
+    ax1.plot(ts, cb.episode_ars, color="seagreen", alpha=0.2, linewidth=0.8)
     ax1.plot(ts[off:off+len(sm)], sm, color="seagreen", linewidth=2,
-             label=f"DQN reward (smoothed w={C.SMOOTH_W})")
+             label=f"DQN AR (smoothed w={C.SMOOTH_W})")
     ax1.axhline(ilp_ar, color="red", linestyle="--", linewidth=1.5,
                 label=f"ILP Optimal  AR={ilp_ar:.4f}")
-    ax1.set_ylabel("Episode Reward", fontsize=11)
-    ax1.set_ylim(-1.1, 1.05)
+    ax1.set_ylabel("Episode AR", fontsize=11)
+    ax1.set_ylim(0.0, 1.05)
     ax1.legend(fontsize=9)
-    ax1.set_title(f"DQN Training \u2014 {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
+    ax1.set_title(f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
     ax1.grid(alpha=0.3)
 
     viol_rate = np.array(cb.episode_violated, dtype=float)
@@ -327,10 +343,20 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
              label="violation rate (smoothed)")
     ax2.set_ylabel("Violation Rate", fontsize=11)
-    ax2.set_xlabel("Training steps", fontsize=11)
     ax2.set_ylim(-0.05, 1.1)
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3)
+
+    sm_p, off_p = moving_avg(cb.episode_placed, C.SMOOTH_W)
+    ax3.plot(ts, cb.episode_placed, color="royalblue", alpha=0.2, linewidth=0.8)
+    ax3.plot(ts[off_p:off_p+len(sm_p)], sm_p, color="royalblue", linewidth=2,
+             label="Services placed (smoothed)")
+    ax3.axhline(C.M, color="gray", linestyle=":", alpha=0.6, label=f"M={C.M}")
+    ax3.set_ylabel("Services Placed", fontsize=11)
+    ax3.set_xlabel("Training steps", fontsize=11)
+    ax3.set_ylim(0, C.M + 1)
+    ax3.legend(fontsize=9)
+    ax3.grid(alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "training_curve.png"
@@ -343,7 +369,7 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, outdir, scenario_name):
     colors = ["#e74c3c", "#3498db", "#2ecc71"]
     labels = ["ILP\n(Optimal)", "Random\n(no mask)", "DQN\n(no mask)"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle(f"ILP vs Random vs DQN \u2014 {scenario_name}", fontsize=13, fontweight="bold")
 
     # AR box plot
@@ -368,11 +394,10 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, outdir, scenario_name):
     ax.set_xticks([1, 2, 3]); ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 1.1)
     ax.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
-    ax.set_title("AR Distribution (valid episodes only)", fontsize=11)
+    ax.set_title("Episode-end AR Distribution", fontsize=11)
     ax.legend(fontsize=9, loc="lower right")
     ax.grid(axis="y", alpha=0.3)
 
-    # Violation rate bar
     ax2 = axes[1]
     vr_means = [0.0, np.mean(rand_res["viols"]), np.mean(dqn_res["viols"])]
     vr_stds  = [0.0, np.std(rand_res["viols"]),  np.std(dqn_res["viols"])]
@@ -382,9 +407,22 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, outdir, scenario_name):
         ax2.text(bar.get_x() + bar.get_width()/2, v + 0.02,
                  f"{v:.2f}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, 1.1)
-    ax2.set_ylabel("Violation Rate per Episode", fontsize=11)
-    ax2.set_title("Constraint Violations", fontsize=11)
+    ax2.set_ylabel("Violation Rate", fontsize=11)
+    ax2.set_title("Violation Rate", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
+
+    ax3 = axes[2]
+    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(dqn_res["placed"])]
+    pl_stds = [0.0, np.std(rand_res["placed"]), np.std(dqn_res["placed"])]
+    bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
+                   yerr=pl_stds, capsize=5, ecolor="black")
+    for bar, v in zip(bars, pl_means):
+        ax3.text(bar.get_x() + bar.get_width()/2, v + 0.05,
+                 f"{v:.1f}", ha="center", fontsize=10, fontweight="bold", color="black")
+    ax3.set_ylim(0, C.M + 1)
+    ax3.set_ylabel("Services Placed", fontsize=11)
+    ax3.set_title("Placement Completeness", fontsize=11)
+    ax3.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     path = outdir / "comparison.png"
@@ -399,6 +437,11 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, outdir, scenario_name):
 
 @timer_utils.timer
 def main():
+    args = parse_args()
+    if args.total_timesteps is not None:
+        C.TOTAL_STEPS = int(args.total_timesteps)
+        print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
+
     base_dir = C.OUTDIR / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -484,6 +527,7 @@ def main():
         "training": {
             "total_steps":      C.TOTAL_STEPS,
             "n_episodes":       len(cb.episode_rewards),
+            "ar_last50":        round(float(np.mean(cb.episode_ars[-50:])), 6),
             "reward_last50":    round(float(np.mean(cb.episode_rewards[-50:])), 6),
             "viol_rate_last50": round(float(np.mean(cb.episode_violated[-50:])), 4),
         },
@@ -497,7 +541,7 @@ def main():
     csv_path = base_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_per_ep"])
+            writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
         writer.writerow(["ILP (Optimal)",    round(ilp_ar, 6), 0.0, M, 0.0])
         writer.writerow(["Random (no mask)", round(float(np.mean(rand_res["ars"])), 6),
                          round(float(np.std(rand_res["ars"])), 6),
