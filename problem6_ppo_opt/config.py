@@ -4,8 +4,12 @@ Edit ONLY this file to change problem size, training length, etc.
 """
 
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).parent
+sys.path.insert(0, str(ROOT.parent))
+
+from training_steps_config import get_total_steps
 
 # ── Scenario source (same YAML config file as problem2_ilp) ──────────────
 YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_20260305_183222.yaml"
@@ -32,7 +36,7 @@ with open(YAML_CONFIG) as f:
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 
 # ── Training ──────────────────────────────────────────────────────────────────
-TOTAL_STEPS = 10_000_000
+TOTAL_STEPS = get_total_steps("problem6_ppo_opt")
 SEED        = 42
 DEVICE      = "auto"    # "auto" -> use CUDA if available, else CPU
 N_ENVS      = 40

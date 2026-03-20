@@ -11,8 +11,12 @@ P5 = PPO with adaptive Lagrangian multiplier λ.
 """
 
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).parent
+sys.path.insert(0, str(ROOT.parent))
+
+from training_steps_config import get_total_steps
 
 # ── Scenario ──────────────────────────────────────────────────────────────────
 YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_20260305_183222.yaml"
@@ -35,7 +39,7 @@ with open(YAML_CONFIG) as f:
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 
 # ── Training ──────────────────────────────────────────────────────────────────
-TOTAL_STEPS = 10_000_000
+TOTAL_STEPS = get_total_steps("problem5_ppo_lagrangian")
 SEED        = 42
 DEVICE      = "cpu"
 N_ENVS      = 40

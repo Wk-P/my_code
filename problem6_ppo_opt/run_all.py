@@ -570,12 +570,22 @@ def main():
     csv_path = run_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-            writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
-            writer.writerow(["ILP (Optimal)",       round(ilp_ar, 6), 0.0,                          M, 0.0])
-        writer.writerow(["Random Baseline",      round(float(np.mean(rand_res["ars"])), 6),
-                             round(float(np.std(rand_res["ars"])),  6), round(float(np.mean(rand_res["placed"])), 2), round(float(r_v), 4)])
-        writer.writerow(["PPO (P6, best-fit)",  round(float(np.mean(ppo_res["ars"])),  6),
-                             round(float(np.std(ppo_res["ars"])),   6), round(float(np.mean(ppo_res["placed"])), 2), round(float(p_v), 4)])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0])
+        writer.writerow([
+            "Random Baseline",
+            round(float(np.mean(rand_res["ars"])), 6),
+            round(float(np.std(rand_res["ars"])), 6),
+            round(float(np.mean(rand_res["placed"])), 2),
+            round(float(r_v), 4),
+        ])
+        writer.writerow([
+            "PPO (P6, best-fit)",
+            round(float(np.mean(ppo_res["ars"])), 6),
+            round(float(np.std(ppo_res["ars"])), 6),
+            round(float(np.mean(ppo_res["placed"])), 2),
+            round(float(p_v), 4),
+        ])
     print(f"  CSV  saved → {csv_path}")
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
     plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)
