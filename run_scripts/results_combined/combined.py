@@ -1,4 +1,3 @@
-from os import read
 from pathlib import Path
 import sys, time, csv
 import numpy as np
@@ -60,7 +59,6 @@ def plot_combined_results(data_list, ilp_data, output_path: Path):
     random_std, method_std         = [], []
     random_viol, method_viol       = [], []
     placed_mean_list               = []
-    dqn_flags                      = []   # True → DQN (viol_rate), False → PPO (viol_per_ep)
 
     for data in data_list:
         def _row(kw):
@@ -76,16 +74,23 @@ def plot_combined_results(data_list, ilp_data, output_path: Path):
         random_std.append(float(rand.get("ar_std", 0)))
         method_std.append(float(mth.get("ar_std", 0)))
 
+        # viol_per_ep / violations → count；统一列名
         if "viol_per_ep" in rand:
             random_viol.append(float(rand["viol_per_ep"]))
             method_viol.append(float(mth.get("viol_per_ep", 0)))
-            dqn_flags.append(False)
+        elif "violations" in rand:
+            random_viol.append(float(rand["violations"]))
+            method_viol.append(float(mth.get("violations", 0)))
         else:
-            random_viol.append(float(rand.get("viol_rate", 0)))
-            method_viol.append(float(mth.get("viol_rate", 0)))
-            dqn_flags.append(True)
+            random_viol.append(0.0)
+            method_viol.append(0.0)
 
         placed_mean_list.append(float(mth.get("placed_mean", 10)))
+    
+    # AR: show one unified average random baseline across all problems
+    random_ar = [np.mean(random_ar) for _ in random_ar]
+    random_std = [np.mean(random_std) for _ in random_std]
+    # violations: keep per-problem values (count vs rate have different units, must NOT average)
 
     # ══════════════════════════════════════════════════════════════════════════
     # ax1 — AR mean: ILP / Random / Method grouped bar
@@ -111,39 +116,22 @@ def plot_combined_results(data_list, ilp_data, output_path: Path):
     ax1.grid(axis="y", alpha=0.3, zorder=0)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # ax2 — Constraint violations
-    #   P3-P6: viol_per_ep (count, left axis)
-    #   DQN:   viol_rate   (0-1, right twin axis)
+    # ax2 — Constraint violations per episode (全统一单轴 count)
     # ══════════════════════════════════════════════════════════════════════════
-    ppo_x  = [i for i, d in enumerate(dqn_flags) if not d]
-    dqn_x  = [i for i, d in enumerate(dqn_flags) if d]
-
-    for xi in ppo_x:
+    for xi in range(len(problem_names)):
         ax2.bar(xi - bw/2, random_viol[xi], bw, color=pal_random, alpha=0.8,
-                label="Random" if xi == ppo_x[0] else "_", zorder=3)
-        ax2.bar(xi + bw/2, method_viol[xi], bw, color=pal_method_2, alpha=0.8,
-                label="PPO" if xi == ppo_x[0] else "_", zorder=3)
+                label="Random" if xi == 0 else "_", zorder=3)
+        ax2.bar(xi + bw/2, method_viol[xi], bw, color=pal_method_2[xi], alpha=0.8,
+                label="PPO / DQN" if xi == 0 else "_", zorder=3)
+        ax2.text(xi + bw/2, method_viol[xi] + 0.03,
+                 f"{method_viol[xi]:.2f}", ha="center", fontsize=8,
+                 fontweight="bold", color=pal_method_2[xi])
 
     ax2.set_xticks(x); ax2.set_xticklabels(problem_names)
-    ax2.set_ylabel("Violations / Episode  (P3–P6)", color="#2c3e50")
+    ax2.set_ylabel("Violations / Episode")
     ax2.set_title("Constraint Violations per Episode", fontweight="bold")
+    ax2.legend(fontsize=9, loc="upper right")
     ax2.grid(axis="y", alpha=0.3, zorder=0)
-
-    # DQN twin axis (viol_rate)
-    ax2b = ax2.twinx()
-    for xi in dqn_x:
-        ax2b.bar(xi - bw/2, random_viol[xi], bw, color=pal_random, alpha=0.8,
-                 label="Random (rate)" if xi == dqn_x[0] else "_", zorder=3, hatch="//")
-        ax2b.bar(xi + bw/2, method_viol[xi], bw, color=pal_method_2[xi], alpha=0.8,
-                 label="DQN (rate)" if xi == dqn_x[0] else "_", zorder=3, hatch="//")
-    ax2b.set_ylim(0, 1.35)
-    ax2b.set_ylabel("Violation Rate  (DQN, 0–1)", color="#7f8c8d")
-    ax2b.tick_params(axis="y", labelcolor="#7f8c8d")
-
-    # combined legend
-    handles1, labels1 = ax2.get_legend_handles_labels()
-    handles2, labels2 = ax2b.get_legend_handles_labels()
-    ax2.legend(handles1 + handles2, labels1 + labels2, fontsize=8, loc="upper left")
 
     # ══════════════════════════════════════════════════════════════════════════
     # ax3 — AR variability (std): Random vs Method

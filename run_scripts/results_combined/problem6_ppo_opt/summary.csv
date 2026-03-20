@@ -1,4 +1,4 @@
 method,ar_mean,ar_std,viol_per_ep
 ILP (Optimal),0.540177,0.0,0.0
-Random Baseline,0.499519,0.081581,0.78
-"PPO (P6, best-fit)",0.472357,0.081849,0.4767
+Random Baseline,0.497851,0.091418,0.7767
+"PPO (P6, best-fit)",0.494066,0.089057,0.5367

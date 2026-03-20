@@ -1,0 +1,4 @@
+method,ar_mean,ar_std,viol_per_ep,placed
+ILP (Optimal),0.540177,0.0,0.0,10/10
+Random (no mask),0.494962,0.109928,3.9833,10/10
+Lagrange PPO,0.47664,0.075432,0.1733,10/10

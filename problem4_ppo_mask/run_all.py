@@ -22,6 +22,7 @@ import sys, time, json, functools
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+matplotlib.rcParams["agg.path.chunksize"] = 10000
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -229,22 +230,41 @@ class P4Callback(BaseCallback):
         self.episode_ars:     list[float] = []
         self.episode_placed:  list[int]   = []
         self.timesteps_at_ep: list[int]   = []
+        self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
+        self._t_start = 0.0
+
+    def _on_training_start(self) -> None:
+        self._t_start = time.time()
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
             if "episode" in info:
-                self.episode_ars.append(float(info["episode"]["r"]))
+                self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
                 self.timesteps_at_ep.append(self.num_timesteps)
+
+        if self.num_timesteps >= self._next_progress_step:
+            elapsed = max(time.time() - self._t_start, 1e-6)
+            pct = min(100.0, self.num_timesteps * 100.0 / C.TOTAL_STEPS)
+            eps = len(self.episode_ars)
+            sps = self.num_timesteps / elapsed
+            print(
+                f"  [train] step={self.num_timesteps:,}/{C.TOTAL_STEPS:,} "
+                f"({pct:5.1f}%) | eps={eps} | steps/s={sps:,.0f}"
+            )
+            self._next_progress_step += C.PROGRESS_LOG_EVERY_STEPS
         return True
 
 
 def train_maskppo(ecus, services):
-    n_envs = 6
+    import torch as _torch
+    _torch.set_num_threads(C.TORCH_NUM_THREADS)
+    n_envs = max(1, int(C.N_ENVS))
     env = SubprocVecEnv(
         [functools.partial(_make_p4_env, C.SEED + i) for i in range(n_envs)],
-        start_method="spawn",
+        start_method=C.SUBPROC_START_METHOD,
     )
+    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
 
     cb  = P4Callback()
     model = MaskablePPO(

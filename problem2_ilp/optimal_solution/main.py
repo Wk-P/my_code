@@ -2,6 +2,7 @@ import pulp
 import random
 import json
 from pathlib import Path
+import sys
 
 
 # Create a linear programming problem:
@@ -31,6 +32,14 @@ Situation 4:
 {e} are same
 {x} are different
 """
+# ── path setup ────────────────────────────────────────────────────────────────────────────
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE.parent.parent))
+
+import timer_utils
+
 
 def read_config(config_path):
     """Read configuration from YAML file"""
@@ -309,7 +318,7 @@ def _generate_summary_statistics(results, output_dir):
     print(f"{'='*60}\n")
 
 
-
+@timer_utils.timer
 def main(**kwargs):
     import datetime
     

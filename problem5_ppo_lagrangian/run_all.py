@@ -28,6 +28,7 @@ import sys, time, json
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+matplotlib.rcParams["agg.path.chunksize"] = 10000
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import deque
@@ -44,7 +45,7 @@ import pulp
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 import random
 import config as C
@@ -201,7 +202,7 @@ def solve_ilp_all_scenarios():
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs) -> int.  λ is always 0 during evaluation."""
     env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS, lambda_init=0.0)
-    ars, viol_rates, placed_list = [], [], []
+    ars, viol_rates, viols, placed_list = [], [], [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
         done = False
@@ -210,10 +211,12 @@ def run_episodes(ecus, services, policy_fn, n_eps):
             obs, _, done, _, info = env.step(policy_fn(obs))
         ars.append(info.get("ar", 0.0))
         viol_rates.append(info.get("viol_rate_ep", 0.0))
+        viols.append(int(info.get("violations_ep", 0)))
         placed_list.append(info.get("services_placed", 0))
     return {
         "ars":        np.array(ars),
         "viol_rates": np.array(viol_rates),
+        "viols":      np.array(viols),
         "placed":     np.array(placed_list),
     }
 
@@ -235,6 +238,11 @@ class LagrangeCallback(BaseCallback):
         self.episode_viol_rates: list[float] = []
         self.episode_lambdas:    list[float] = []
         self.timesteps_at_ep:    list[int]   = []
+        self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
+        self._t_start = 0.0
+
+    def _on_training_start(self) -> None:
+        self._t_start = time.time()
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
@@ -253,12 +261,26 @@ class LagrangeCallback(BaseCallback):
                 new_lam         = self.lambda_val + C.LAMBDA_LR * (avg_viol - C.LAMBDA_TARGET)
                 self.lambda_val = float(np.clip(new_lam, 0.0, C.LAMBDA_MAX))
                 self.training_env.env_method("set_lambda", self.lambda_val)
+
+        if self.num_timesteps >= self._next_progress_step:
+            elapsed = max(time.time() - self._t_start, 1e-6)
+            pct = min(100.0, self.num_timesteps * 100.0 / C.TOTAL_STEPS)
+            eps = len(self.episode_ars)
+            sps = self.num_timesteps / elapsed
+            print(
+                f"  [train] step={self.num_timesteps:,}/{C.TOTAL_STEPS:,} "
+                f"({pct:5.1f}%) | eps={eps} | steps/s={sps:,.0f} | lambda={self.lambda_val:.4f}"
+            )
+            self._next_progress_step += C.PROGRESS_LOG_EVERY_STEPS
         return True
 
 
 def train_lagrange(device: str, n_envs: int = 1):
+    import torch as _torch
+    _torch.set_num_threads(C.TORCH_NUM_THREADS)
     env_fns = [functools.partial(_make_lagrange_env, C.SEED + i) for i in range(n_envs)]
-    env = SubprocVecEnv(env_fns) if n_envs > 1 else DummyVecEnv(env_fns)
+    env = SubprocVecEnv(env_fns, start_method=C.SUBPROC_START_METHOD)
+    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
     cb  = LagrangeCallback()
 
     model = PPO(
@@ -421,10 +443,10 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"  P5 run.py  —  Lagrangian Constraint Relaxation")
-    n_envs = os.cpu_count() or 1
+    n_envs = max(1, int(C.N_ENVS))
     print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
     print(f"  λ_init={C.LAMBDA_INIT}  lr={C.LAMBDA_LR}  target={C.LAMBDA_TARGET}  max={C.LAMBDA_MAX}")
-    print(f"  CPU cores detected: {os.cpu_count()}  →  parallel envs: {n_envs}")
+    print(f"  CPU cores detected: {os.cpu_count()}  →  configured parallel envs: {n_envs}")
     print(f"{'='*60}\n")
 
     # 1. Load scenario
@@ -515,14 +537,14 @@ def main():
     csv_path = run_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "viol_rate", "placed"])
+        writer.writerow(["method", "ar_mean", "ar_std", "viol_per_ep", "placed"])
         writer.writerow(["ILP (Optimal)",    round(ilp_ar, 6), 0.0, 0.0, f"{M}/{M}"])
         writer.writerow(["Random (no mask)", round(float(np.mean(rand_res["ars"])), 6),
                          round(float(np.std(rand_res["ars"])), 6),
-                         round(float(np.mean(rand_res["viol_rates"])), 6), f"{M}/{M}"])
+                         round(float(np.mean(rand_res["viols"])), 4), f"{M}/{M}"])
         writer.writerow(["Lagrange PPO",     round(float(np.mean(ppo_res["ars"])),  6),
                          round(float(np.std(ppo_res["ars"])),  6),
-                         round(float(np.mean(ppo_res["viol_rates"])), 6), f"{M}/{M}"])
+                         round(float(np.mean(ppo_res["viols"])), 4), f"{M}/{M}"])
     print(f"  CSV  saved -> {csv_path}")
 
     # Plots

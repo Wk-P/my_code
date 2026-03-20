@@ -30,9 +30,13 @@ with open(YAML_CONFIG) as f:
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 
 # ── Training ──────────────────────────────────────────────────────────────────
-TOTAL_STEPS = 100_000
+TOTAL_STEPS = 10_000_000
 SEED        = 42
 DEVICE      = "auto"
+N_ENVS      = 12
+SUBPROC_START_METHOD = "fork"
+TORCH_NUM_THREADS = 4        # leave cores for SubprocVecEnv workers
+PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── DQN hyperparameters ──────────────────────────────────────────────────────────────────
 DQN_LR                    = 1e-3
@@ -50,7 +54,7 @@ DQN_NET_ARCH              = [128, 128]
 
 # ── Evaluation ──────────────────────────────────────────────────────────────────
 EVAL_EPS  = 300
-SMOOTH_W  = 50
+SMOOTH_W  = 1000
 
 # ── Paths ───────────────────────────────────────────────────────────────────────
 OUTDIR     = ROOT / "results"

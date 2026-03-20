@@ -20,10 +20,12 @@ Run:
 
 import datetime
 import csv
+import functools
 import sys, time, json
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+matplotlib.rcParams["agg.path.chunksize"] = 10000
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -40,6 +42,7 @@ import pulp
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 import config as C
 from problem3_ppo.env import P3Env
@@ -54,6 +57,15 @@ def resolve_device(cfg: str) -> str:
     print("[CPU] No CUDA GPU, using CPU")
     return "cpu"
 from problem2_ilp.objects import ECU, SVC
+
+
+def _make_p3_env(seed: int) -> Monitor:
+    import random
+    random.seed(seed)
+    caps, reqs = C.SCENARIOS[C.SCENARIO_IDX]
+    ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+    services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+    return Monitor(P3Env(ecus, services, scenarios=C.SCENARIOS))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -229,18 +241,41 @@ class P3Callback(BaseCallback):
         self.episode_ars        : list[float] = []
         self.episode_violations : list[int]   = []
         self.timesteps_at_ep    : list[int]   = []
+        self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
+        self._t_start = 0.0
+
+    def _on_training_start(self) -> None:
+        self._t_start = time.time()
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
             if "episode" in info:
-                self.episode_ars.append(float(info["episode"]["r"]))
+                self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_violations.append(int(info.get("total_violations", 0)))
                 self.timesteps_at_ep.append(self.num_timesteps)
+
+        if self.num_timesteps >= self._next_progress_step:
+            elapsed = max(time.time() - self._t_start, 1e-6)
+            pct = min(100.0, self.num_timesteps * 100.0 / C.TOTAL_STEPS)
+            eps = len(self.episode_ars)
+            sps = self.num_timesteps / elapsed
+            print(
+                f"  [train] step={self.num_timesteps:,}/{C.TOTAL_STEPS:,} "
+                f"({pct:5.1f}%) | eps={eps} | steps/s={sps:,.0f}"
+            )
+            self._next_progress_step += C.PROGRESS_LOG_EVERY_STEPS
         return True
 
 
 def train_ppo(ecus, services) -> tuple[PPO, P3Callback]:
-    env   = Monitor(P3Env(ecus, services, scenarios=C.SCENARIOS))
+    import torch as _torch
+    _torch.set_num_threads(C.TORCH_NUM_THREADS)
+    n_envs = max(1, int(C.N_ENVS))
+    env = SubprocVecEnv(
+        [functools.partial(_make_p3_env, C.SEED + i) for i in range(n_envs)],
+        start_method=C.SUBPROC_START_METHOD,
+    )
+    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
     cb    = P3Callback()
     model = PPO(
         policy        = "MlpPolicy",

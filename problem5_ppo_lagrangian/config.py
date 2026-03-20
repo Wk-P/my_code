@@ -34,9 +34,13 @@ with open(YAML_CONFIG) as f:
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 
 # ── Training ──────────────────────────────────────────────────────────────────
-TOTAL_STEPS = 100_000
+TOTAL_STEPS = 10_000_000
 SEED        = 42
 DEVICE      = "cpu"
+N_ENVS      = 40
+SUBPROC_START_METHOD = "fork"
+TORCH_NUM_THREADS = 4        # leave cores for SubprocVecEnv workers
+PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────
 PPO_LR         = 3e-4
@@ -57,7 +61,7 @@ LAMBDA_UPDATE_WINDOW = 30     # number of recent episodes to estimate violation 
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = 300
-SMOOTH_W = 30
+SMOOTH_W = 1000
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 OUTDIR     = ROOT / "results"
