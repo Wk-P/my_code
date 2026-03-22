@@ -118,6 +118,7 @@ class DQNEnv(gym.Env):
 
         done   = self._step >= self.M
 
+
         reward = float(ru)
 
         return self._obs(), reward, done, False, {

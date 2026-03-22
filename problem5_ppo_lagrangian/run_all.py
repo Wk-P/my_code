@@ -250,6 +250,7 @@ class LagrangeCallback(BaseCallback):
         self.lambda_val          = C.LAMBDA_INIT
         self._viol_window        = deque(maxlen=C.LAMBDA_UPDATE_WINDOW)
         self._episode_count      = 0
+        self._episodes_since_lambda_update = 0
         self.episode_ars:        list[float] = []
         self.episode_viol_rates: list[float] = []
         self.episode_placed:     list[int]   = []
@@ -275,14 +276,19 @@ class LagrangeCallback(BaseCallback):
             self.timesteps_at_ep.append(self.num_timesteps)
 
             self._viol_window.append(viol_rate)
+            if self._episode_count >= C.LAMBDA_WARMUP_EPISODES:
+                self._episodes_since_lambda_update += 1
+
             if (
                 self._episode_count >= C.LAMBDA_WARMUP_EPISODES
                 and len(self._viol_window) == C.LAMBDA_UPDATE_WINDOW
+                and self._episodes_since_lambda_update >= C.LAMBDA_UPDATE_WINDOW
             ):
                 avg_viol        = float(np.mean(self._viol_window))
                 new_lam         = self.lambda_val + C.LAMBDA_LR * (avg_viol - C.LAMBDA_TARGET)
                 self.lambda_val = float(np.clip(new_lam, 0.0, C.LAMBDA_MAX))
                 self.training_env.env_method("set_lambda", self.lambda_val)
+                self._episodes_since_lambda_update = 0
 
         if self.num_timesteps >= self._next_progress_step:
             elapsed = max(time.time() - self._t_start, 1e-6)

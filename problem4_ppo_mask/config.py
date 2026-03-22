@@ -44,10 +44,10 @@ PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── MaskablePPO hyperparameters ───────────────────────────────────────────────
 PPO_LR          = 3e-4
-PPO_N_STEPS     = 256
+PPO_N_STEPS     = 128
 PPO_BATCH_SIZE  = 128
 PPO_N_EPOCHS    = 10
-PPO_GAMMA       = 0.999
+PPO_GAMMA       = 0.99
 PPO_GAE_LAMBDA  = 0.95
 PPO_CLIP_RANGE  = 0.2
 # Larger network to process richer observation space (3N+2 dims)

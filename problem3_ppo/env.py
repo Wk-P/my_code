@@ -32,10 +32,10 @@ class P3Env(gym.Env):
       • duplicate ECU usage  → only recorded, assignment still happens
       • remaining_vms can go negative (overloaded)
 
-    Reward:
-      • +1.0 if AR increased vs. previous step
-      •  0.0 otherwise
-      (no terminal lump-sum; signal is dense and comparison-based)
+        Reward (positive shaping only):
+            reward = match_gain + terminal_bonus
+            • match_gain = requirement/capacity for feasible action, else 0.0
+            • terminal_bonus = +1.0*AR (zero-violation episode) or +0.1*AR
 
     Observation  (shape: N+2):
       [0]   current service demand, normalised by max initial capacity
@@ -68,6 +68,7 @@ class P3Env(gym.Env):
         self.ecu_assigned:  np.ndarray
         self.ar:            float
         self._step:         int
+        self.episode_violations: int
         self.reset()
 
     # ── reset ────────────────────────────────────────────────────────────────
@@ -84,6 +85,7 @@ class P3Env(gym.Env):
         self._step          = 0
         self.capacity_violations       = 0
         self.single_service_violations = 0
+        self.episode_violations = 0
         return self._obs(), {}
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -107,10 +109,13 @@ class P3Env(gym.Env):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
 
-        # ── Constraint check: ONLY record, do NOT penalize or terminate ──────
-        if self.remaining_vms[action] < svc.requirement:
+        # ── Constraint check: only record (no explicit violation penalty) ───
+        cap_violated = bool(self.remaining_vms[action] < svc.requirement)
+        dup_violated = bool(self.ecu_assigned[action])
+        violated = cap_violated or dup_violated
+        if cap_violated:
             self.capacity_violations += 1
-        if self.ecu_assigned[action]:
+        if dup_violated:
             self.single_service_violations += 1
 
         # ── Assignment always happens regardless of violations ────────────────
@@ -118,15 +123,21 @@ class P3Env(gym.Env):
         self.remaining_vms[action] -= svc.requirement      # can go negative
         self.ecu_assigned[action]   = True
 
-        # Incremental AR update
-        prev_ar = self.ar
+        # Incremental AR update (for metrics)
         self.ar = (self.ar * self._step + ru) / (self._step + 1)
         self._step += 1
+        if violated:
+            self.episode_violations += 1
 
         done   = self._step >= self.M
-        # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
-        delta = self.ar - prev_ar
-        reward = delta * 0.5 + (-1.0 if delta < 0 else 1.0)
+        match_gain = 0.0 if violated else float(ru)
+        terminal_bonus = 0.0
+        if done:
+            if self.episode_violations == 0:
+                terminal_bonus = 1.0 * self.ar
+            else:
+                terminal_bonus = 0.1 * self.ar
+        reward = float(match_gain + terminal_bonus)
 
         total_viol = self.capacity_violations + self.single_service_violations
         info = {
@@ -137,6 +148,7 @@ class P3Env(gym.Env):
             "single_service_violations": self.single_service_violations,
             "total_violations":          total_viol,
             "violation_rate":            total_viol / self._step,
+            "violations_ep":             self.episode_violations,
         }
         return self._obs(), reward, done, False, info
 

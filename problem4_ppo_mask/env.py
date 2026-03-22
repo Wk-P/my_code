@@ -28,21 +28,25 @@ class P4Env(gym.Env):
     which actions are legal. The agent's policy logits for masked actions
     are set to -inf, so they are never selected.
 
-    Observation (shape: 3N+2):
+        Observation (shape: 4N+6+M):
       [0]                current service demand, normalised by max ECU capacity
       [1]                current cumulative AR (average resource utilisation)
-      [2:2+N]            remaining capacity fraction per ECU (0–1)
-      [2+N:2+2N]         ECU occupied flags (1 = already assigned one service)
-      [2+2N:2+3N]        valid-action flags (1 = free AND has enough capacity)
+            [2]                sum of remaining usable ECU capacity (normalised)
+            [3]                sum of remaining service demand (normalised)
+            [4]                number of remaining usable ECUs (normalised by N)
+            [5]                number of remaining services (normalised by M)
+            [6:6+N]            initial capacity fraction per ECU
+            [6+N:6+2N]         remaining capacity fraction per ECU
+            [6+2N:6+3N]        ECU occupied flags (1 = already assigned one service)
+            [6+3N:6+4N]        valid-action flags (1 = free AND has enough capacity)
+            [6+4N:6+4N+M]      remaining service demands (sorted descending),
+                                                 and 0 for already-placed steps
 
-    Reward composition per step:
-        • Base contribution: +ru (tight-fit utilisation of chosen ECU)
-        • Waste penalty: -0.01 × (remaining_cap_fraction of chosen ECU)
-              → Encourages packing efficiency
-        • Completion bonus (if done & all M placed): +0.5 × final_ar
-              → Rewards high utilisation at episode end
-        • Early termination (if done & not all placed): -sum_of_unplaced_demands / total_capacity
-              → Strong penalty proportional to lost service requirements
+                Reward composition (positive shaping only):
+                    reward = match_gain + terminal_bonus
+          • match_gain = requirement/capacity for feasible action, else 0.0
+          • terminal_bonus = +1.0*AR (clean full episode) or +0.1*AR
+          • keep early-stop demand penalty when episode ends before placing all M
     """
 
     metadata = {"render_modes": []}
@@ -56,10 +60,13 @@ class P4Env(gym.Env):
         self.M = len(services)
 
         self.action_space = gym.spaces.Discrete(self.N)
-        # obs: [service_demand, ar, remaining_pct (N), occupied_flag (N), valid_action_flag (N)]
-        # total: 3N + 2
+        # obs: [service_demand, ar,
+        #       rem_cap_sum, rem_demand_sum, rem_usable_ecu_cnt, rem_service_cnt,
+        #       initial_cap_pct (N), remaining_pct (N), occupied_flag (N),
+        #       valid_action_flag (N), remaining_service_demands (M)]
+        # total: 4N + 6 + M
         self.observation_space = gym.spaces.Box(
-            low=0.0, high=1.0, shape=(3 * self.N + 2,), dtype=np.float32,
+            low=0.0, high=1.0, shape=(4 * self.N + 6 + self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -67,6 +74,7 @@ class P4Env(gym.Env):
         self.ecu_assigned:  np.ndarray
         self.ar:            float
         self._step:         int
+        self.episode_violations: int
         self.reset()
 
     # ── reset ────────────────────────────────────────────────────────────────
@@ -77,10 +85,13 @@ class P4Env(gym.Env):
             self.ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
             self.services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
+        # Largest-demand-first order helps avoid early infeasibility under masking.
+        self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms = self.initial_vms.copy()
         self.ecu_assigned  = np.zeros(self.N, dtype=bool)
         self.ar    = 0.0
         self._step = 0
+        self.episode_violations = 0
         return self._obs(), {}
 
     # ── action mask ──────────────────────────────────────────────────────────
@@ -103,6 +114,7 @@ class P4Env(gym.Env):
             svc = self.services[self._step]
             service_demand_norm = np.float32(svc.requirement / (np.max(self.initial_vms) + 1e-8))
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
+        initial_cap_pct = self.initial_vms / (np.max(self.initial_vms) + np.float32(1e-8))
         occupied_flag = self.ecu_assigned.astype(np.float32)
         
         # valid-action flag: true if ECU is free AND has enough capacity for current service
@@ -111,13 +123,42 @@ class P4Env(gym.Env):
         else:
             svc = self.services[self._step]
             valid_flag = ((~self.ecu_assigned) & (self.remaining_vms >= svc.requirement)).astype(np.float32)
+
+        max_cap = float(np.max(self.initial_vms) + 1e-8)
+        total_cap = float(np.sum(self.initial_vms) + 1e-8)
+
+        usable_mask = ~self.ecu_assigned
+        remaining_usable_capacity_sum = np.float32(np.sum(np.clip(self.remaining_vms[usable_mask], 0.0, None)) / total_cap)
+
+        if self._step >= self.M:
+            remaining_service_demand_sum = np.float32(0.0)
+            remaining_services_count = np.float32(0.0)
+        else:
+            remaining_service_demand_sum = np.float32(
+                sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
+            )
+            remaining_services_count = np.float32((self.M - self._step) / max(self.M, 1))
+
+        remaining_usable_ecu_count = np.float32(np.sum(usable_mask) / max(self.N, 1))
+
+        remaining_svcs = np.array(
+            [self.services[t].requirement / max_cap if t >= self._step else 0.0
+             for t in range(self.M)],
+            dtype=np.float32,
+        )
         
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
+            np.array([remaining_usable_capacity_sum], dtype=np.float32),
+            np.array([remaining_service_demand_sum], dtype=np.float32),
+            np.array([remaining_usable_ecu_count], dtype=np.float32),
+            np.array([remaining_services_count], dtype=np.float32),
+            initial_cap_pct,
             remaining_pct,
             occupied_flag,
             valid_flag,
+            remaining_svcs,
         ]).astype(np.float32)
 
     # ── step ─────────────────────────────────────────────────────────────────
@@ -127,15 +168,18 @@ class P4Env(gym.Env):
 
         # With action masking this should never happen, but defend just in case
         if self.remaining_vms[action] < svc.requirement or self.ecu_assigned[action]:
-            remaining_services = self.M - self._step
-            # Penalty based on sum of unplaced service demands, normalized by total capacity
+            self.episode_violations += 1
+            match_gain = 0.0
             unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
-            penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
+            demand_penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
+            terminal_bonus = 0.1 * self.ar + demand_penalty
+            penalty = float(match_gain + terminal_bonus)
             done = True
             return self._obs(), penalty, done, False, {
                 "ar": self.ar, "step": self._step,
                 "feasible": False,
                 "services_placed": self._step,
+                "violations_ep": self.episode_violations,
             }
 
         # ── Valid assignment ──────────────────────────────────────────────────
@@ -143,7 +187,6 @@ class P4Env(gym.Env):
         self.remaining_vms[action] -= svc.requirement
         self.ecu_assigned[action]   = True
 
-        prev_ar = self.ar
         self.ar = (self.ar * self._step + ru) / (self._step + 1)
         self._step += 1
 
@@ -153,31 +196,30 @@ class P4Env(gym.Env):
         if not done and not np.any(self.action_masks()):
             done = True   # no valid ECU for next service → early stop
 
-        # ── Reward composition ──────────────────────────────────────────────────
-        # 1. Base: tight-fit gain (service utilization of chosen ECU)
-        reward = float(ru)
-        
-        # 2. Penalty: waste in remaining capacity of this ECU after assignment
-        #    Encourages packing efficiency (tight-fit bonus)
-        capacity_waste = self.remaining_vms[action] / (self.initial_vms[action] + 1e-8)
-        reward -= 0.01 * capacity_waste
-        
-        # 3. Early termination: strong penalty based on unplaced service demands
+        # ── Reward composition (positive shaping + early-stop penalty) ──────
+        match_gain = float(ru)
+        terminal_bonus = 0.0
+
         remaining_services = self.M - self._step
         if done and remaining_services > 0:
             unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
             demand_penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
-            reward += demand_penalty
-        
-        # 4. Final-step bonus: reward achieving high AR if all placed
-        if done and remaining_services == 0:
-            reward += 0.5 * self.ar
+            terminal_bonus += demand_penalty
+
+        if done:
+            if self.episode_violations == 0 and remaining_services == 0:
+                terminal_bonus += 1.0 * self.ar
+            else:
+                terminal_bonus += 0.1 * self.ar
+
+        reward = float(match_gain + terminal_bonus)
 
         info = {
             "ar":       self.ar,
             "step":     self._step,
             "feasible": True,
             "services_placed": self._step,
+            "violations_ep": self.episode_violations,
         }
         return self._obs(), reward, done, False, info
 
@@ -207,7 +249,7 @@ if __name__ == "__main__":
 
     env = P4Env(ecus, services)
     obs, _ = env.reset()
-    print(f"\nObs shape : {obs.shape}  (expected {N+2})")
+    print(f"\nObs shape : {obs.shape}  (expected {4*N + 6 + M})")
 
     print("\n-- Random valid-action policy run --")
     done = False

@@ -40,7 +40,7 @@ with open(YAML_CONFIG) as f:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem5_ppo_lagrangian")
-SEED        = 42
+SEED        = 20
 DEVICE      = "cpu"
 N_ENVS      = 40
 SUBPROC_START_METHOD = "fork"
@@ -49,21 +49,21 @@ PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────
 PPO_LR         = 3e-4
-PPO_N_STEPS    = 256
+PPO_N_STEPS    = 128          # shorter rollout → more frequent updates (suits 10-step episodes)
 PPO_BATCH_SIZE = 256
 PPO_N_EPOCHS   = 10
 PPO_GAMMA      = 0.99
 PPO_GAE_LAMBDA = 0.95
 PPO_CLIP_RANGE = 0.2
-PPO_NET_ARCH   = dict(pi=[128, 128], vf=[256, 256])
+PPO_NET_ARCH   = dict(pi=[256, 256], vf=[512, 512])  # larger network for 43-dim obs
 
 # ── Lagrangian multiplier (dual variable) ─────────────────────────────────────
 LAMBDA_INIT          = 0.0    # initial λ value
-LAMBDA_LR            = 0.01   # smaller dual-ascent step to avoid over-penalising too early
-LAMBDA_TARGET        = 0.03   # allow a small transient violation rate to preserve AR search
+LAMBDA_LR            = 0.0003   # slower dual-ascent to avoid AR collapse after warmup
+LAMBDA_TARGET        = 0.0    # zero-violation objective
 LAMBDA_MAX           = 2.0    # keep penalty scale comparable to per-step utilisation gain
-LAMBDA_UPDATE_WINDOW = 200    # smoother violation estimate across many episodes
-LAMBDA_WARMUP_EPISODES = 3000 # delay dual updates until policy has learned basic placement
+LAMBDA_UPDATE_WINDOW = 20     # update λ every 20 episodes after warmup
+LAMBDA_WARMUP_EPISODES = 20000 # longer unconstrained phase to learn high-AR structure first
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = 300

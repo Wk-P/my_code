@@ -11,9 +11,13 @@ Violation at step t (c_t):
     c_t = 1.0  if capacity insufficient OR ECU already assigned, else 0.0
 
 Reward per step:
-    r_t = feasible_utilisation_delta  -  lambda_val * c_t
-    where feasible_utilisation_delta counts only the extra utilisable load up to
-    the ECU capacity, so overloaded placements no longer earn extra positive reward.
+    r_t = match_gain  -  (lambda_val + base_violation_penalty) * c_t  +  terminal_bonus
+    where match_gain is the direct per-step placement quality (requirement/capacity)
+    for feasible actions and 0.0 for violated actions.
+
+Terminal bonus (terminal only, lightweight):
+    +0.1 * final_ar always at episode end,
+    and +0.2 * final_ar extra when the episode has zero violations.
 
 Observation now includes the normalised λ value to reduce non-stationarity
 from the policy's perspective.
@@ -32,17 +36,24 @@ from problem2_ilp.objects import ECU, SVC
 
 class LagrangeEnv(gym.Env):
     """
-                Observation (shape: 3N+3):
-      [0]   current service demand, normalised by max initial capacity
-      [1]   current cumulative AR
-            [2]   current λ value, normalised by λ_max
-            [3:3+N]      remaining capacity fraction per ECU (can be < 0 if overloaded)
-            [3+N:3+2N]   ECU occupied flag per ECU (1 = already assigned)
-                        [3+2N:3+3N]  valid-action flag for current service (1 = feasible now)
+    Observation (shape: 3N+3+M):
+      [0]         current service demand, normalised by max initial capacity
+      [1]         current cumulative AR
+      [2]         current λ value, normalised by λ_max
+      [3:3+N]     remaining capacity fraction per ECU (can be < 0 if overloaded)
+      [3+N:3+2N]  ECU occupied flag per ECU (1 = already assigned)
+      [3+2N:3+3N] valid-action flag for current service (1 = feasible now)
+      [3+3N:3+3N+M]  remaining service demands (sorted descending); 0 for already-placed steps
 
-        Reward per step:
-        r_t = feasible_utilisation_delta  -  lambda_val * c_t
+    Services are sorted by descending requirement at each episode reset, enabling
+    the agent to use a first-fit-decreasing strategy and plan ahead.
+
+    Reward per step:
+        r_t = match_gain  -  (lambda_val + base_violation_penalty) * c_t  +  terminal_bonus
             c_t = 1.0 if capacity insufficient OR ECU already used, else 0.0
+            match_gain = requirement/capacity for feasible actions, else 0.0
+            terminal_bonus = +1.0 * final_ar (zero-violation episode)
+                           or +0.1 * final_ar (episode with violations)
 
     Lagrangian multiplier λ is updated externally by the training callback via dual ascent:
     λ ← clip(λ + lr*(avg_viol - target), 0, λ_max)
@@ -63,9 +74,9 @@ class LagrangeEnv(gym.Env):
         self.lambda_max = max(float(lambda_max), 1e-8)
 
         self.action_space = gym.spaces.Discrete(self.N)
-        # remaining_pct can be negative when overloaded
+        # remaining_pct can be negative when overloaded; shape = 3N+3+M
         self.observation_space = gym.spaces.Box(
-            low=-2.0, high=1.0, shape=(3 * self.N + 3,), dtype=np.float32,
+            low=-2.0, high=1.0, shape=(3 * self.N + 3 + self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -88,6 +99,8 @@ class LagrangeEnv(gym.Env):
             self.ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
             self.services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
+        # Sort services descending by requirement (FFD order improves greedy placement quality)
+        self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms      = self.initial_vms.copy()
         self.ecu_assigned       = np.zeros(self.N, dtype=bool)
         self.ar                 = 0.0
@@ -111,6 +124,13 @@ class LagrangeEnv(gym.Env):
             valid_flag = np.zeros(self.N, dtype=np.float32)
         else:
             valid_flag = ((~self.ecu_assigned) & (self.remaining_vms >= svc.requirement)).astype(np.float32)
+        # Remaining service demands (sorted descending, already-placed steps → 0)
+        max_cap = float(np.max(self.initial_vms) + 1e-8)
+        remaining_svcs = np.array(
+            [self.services[t].requirement / max_cap if t >= self._step else 0.0
+             for t in range(self.M)],
+            dtype=np.float32,
+        )
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
@@ -118,6 +138,7 @@ class LagrangeEnv(gym.Env):
             remaining_pct,
             assigned_flag,
             valid_flag,
+            remaining_svcs,
         ]).astype(np.float32)
 
     def _compute_feasible_total_util(self) -> float:
@@ -148,7 +169,6 @@ class LagrangeEnv(gym.Env):
         c_t          = 1.0 if violated else 0.0
 
         # ── Perform assignment regardless of violations ───────────────────────
-        ru = float(svc.requirement / (self.initial_vms[action] + 1e-8))
         self.remaining_vms[action] -= svc.requirement   # may go negative
         self.ecu_assigned[action]   = True
 
@@ -159,8 +179,15 @@ class LagrangeEnv(gym.Env):
 
         done = self._step >= self.M
 
-        feasible_delta = self._compute_feasible_total_util() - prev_total_util
-        reward = float(feasible_delta - self.lambda_val * c_t)
+        match_gain = 0.0 if violated else float(svc.requirement / (self.initial_vms[action] + 1e-8))
+        base_violation_penalty = 0.2
+        terminal_bonus = 0.0
+        if done:
+            if self.episode_violations == 0:
+                terminal_bonus = 1.0 * self.ar   # strong signal for clean episodes
+            else:
+                terminal_bonus = 0.1 * self.ar   # weak consolation for violated episodes
+        reward = float(match_gain - (self.lambda_val + base_violation_penalty) * c_t + terminal_bonus)
 
         return self._obs(), reward, done, False, {
             "ar":              self.ar,
