@@ -50,7 +50,8 @@ PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.999
 PPO_GAE_LAMBDA  = 0.95
 PPO_CLIP_RANGE  = 0.2
-PPO_NET_ARCH    = dict(pi=[128, 128], vf=[256, 256])
+# Larger network to process richer observation space (3N+2 dims)
+PPO_NET_ARCH    = dict(pi=[256, 256], vf=[256, 256])
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS  = 300

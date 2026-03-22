@@ -58,7 +58,7 @@ def plot_combined_results(data_list, ilp_data, output_path: Path):
     problem_names  = ["P3\nPPO", "P4\nPPO-Mask", "P5\nPPO-Lagrange", "P6\nPPO-Opt", "DQN"]
     pal_ilp    = "#e74c3c"
     pal_random = "#95a5a6"
-    pal_method = ["#3498db", "#2ecc71", "#f39c12", "#9b59b6", "#e67e22"]
+    pal_method = ["#3498db" for _ in range(len(problem_names))]
     pal_method_2 = pal_method
     x  = np.arange(len(problem_names))
     bw = 0.26  # bar width

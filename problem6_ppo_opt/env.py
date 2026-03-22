@@ -166,6 +166,26 @@ class P6Env(gym.Env):
                 # Step 5: fallback — enumerate all free ECUs, both arrangements
                 free_ecus = [j for j in range(self.N)
                              if not self.ecu_assigned[j] and j != ecu_n]
+                if not free_ecus:
+                    # No relocation target exists: keep original placement on ecu_n
+                    # and count this action as one duplicate-selection violation.
+                    self.single_service_violations += 1
+                    self._step += 1
+                    self.ar = self._compute_ar()
+                    done = self._step >= self.M
+                    reward = self._compute_total_util() - prev_total_util
+                    total_viol = self.capacity_violations + self.single_service_violations
+                    info = {
+                        "ar":   self.ar,
+                        "step": self._step,
+                        "services_placed":         self._step,
+                        "capacity_violations":       self.capacity_violations,
+                        "single_service_violations": self.single_service_violations,
+                        "total_violations":          total_viol,
+                        "violation_rate":            total_viol / self._step,
+                    }
+                    return self._obs(), reward, done, False, info
+
                 best_ecu_m   = -1
                 best_viol    = 3        # sentinel > 2
                 best_score   = -1.0

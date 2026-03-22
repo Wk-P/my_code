@@ -59,10 +59,11 @@ PPO_NET_ARCH   = dict(pi=[128, 128], vf=[256, 256])
 
 # ── Lagrangian multiplier (dual variable) ─────────────────────────────────────
 LAMBDA_INIT          = 0.0    # initial λ value
-LAMBDA_LR            = 0.05   # dual ascent step size per update
-LAMBDA_TARGET        = 0.0    # target per-step violation rate (0 = zero violations)
-LAMBDA_MAX           = 10.0   # upper clip to prevent explosion
-LAMBDA_UPDATE_WINDOW = 30     # number of recent episodes to estimate violation rate
+LAMBDA_LR            = 0.01   # smaller dual-ascent step to avoid over-penalising too early
+LAMBDA_TARGET        = 0.03   # allow a small transient violation rate to preserve AR search
+LAMBDA_MAX           = 2.0    # keep penalty scale comparable to per-step utilisation gain
+LAMBDA_UPDATE_WINDOW = 200    # smoother violation estimate across many episodes
+LAMBDA_WARMUP_EPISODES = 3000 # delay dual updates until policy has learned basic placement
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = 300
