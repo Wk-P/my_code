@@ -3,9 +3,9 @@ run_all.py — One-shot P6 full pipeline:
 
   1. Load a scenario from the same YAML used by problem2_ilp
   2. Solve with ILP (PuLP)                   -> ilp_ar  (optimal upper bound)
-  3. Evaluate a random policy                -> random_ars + violations
-  4. Train PPO (best-fit patch optimization) -> training curve
-  5. Evaluate the trained PPO agent          -> ppo_ars + violations
+    3. Evaluate a random masked policy         -> random_ars + violations
+    4. Train MaskablePPO (best-fit patch optimization) -> training curve
+    5. Evaluate the trained MaskablePPO agent  -> ppo_ars + violations
   6. Produce two plots:
        - comparison.png    — AR box plot + violation bar chart (3-way)
        - training_curve.png — AR & violation count during training
@@ -42,10 +42,11 @@ import timer_utils
 import torch
 import yaml
 import pulp
-from stable_baselines3 import PPO
+from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from sb3_contrib.common.wrappers import ActionMasker
 
 import config as C
 from problem6_ppo_opt.env import P6Env
@@ -79,7 +80,9 @@ def _make_p6_env(seed: int) -> Monitor:
     caps, reqs = C.SCENARIOS[C.SCENARIO_IDX]
     ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    return Monitor(P6Env(ecus, services, scenarios=C.SCENARIOS))
+    env = P6Env(ecus, services, scenarios=C.SCENARIOS)
+    env = ActionMasker(env, lambda base_env: base_env.action_masks())
+    return Monitor(env)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -222,7 +225,7 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
     """
     Run n_eps episodes on a fixed problem instance.
     Episodes always complete (M steps, no early termination in P6).
-    policy_fn(obs) -> int
+    policy_fn(obs, mask) -> int
     """
     env = P6Env(ecus, services, scenarios=C.SCENARIOS)
     ars, cap_viols, dup_viols, viol_rates, placed_list = [], [], [], [], []
@@ -232,7 +235,10 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
         done   = False
         info   = {}
         while not done:
-            obs, _, done, _, info = env.step(policy_fn(obs))
+            mask = env.action_masks()
+            if not np.any(mask):
+                break
+            obs, _, done, _, info = env.step(policy_fn(obs, mask))
         ars.append(info["ar"])
         cap_viols.append(info["capacity_violations"])
         dup_viols.append(info["single_service_violations"])
@@ -287,7 +293,7 @@ class P6Callback(BaseCallback):
         return True
 
 
-def train_ppo(ecus, services) -> tuple[PPO, P6Callback]:
+def train_ppo(ecus, services) -> tuple[MaskablePPO, P6Callback]:
     import torch as _torch
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     n_envs = max(1, int(C.N_ENVS))
@@ -297,7 +303,7 @@ def train_ppo(ecus, services) -> tuple[PPO, P6Callback]:
     )
     print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
     cb    = P6Callback()
-    model = PPO(
+    model = MaskablePPO(
         policy        = "MlpPolicy",
         env           = env,
         learning_rate = C.PPO_LR,
@@ -494,7 +500,7 @@ def main():
     np.random.seed(C.SEED)
     rand_res = run_episodes(
         ecus, services,
-        policy_fn=lambda obs: np.random.randint(0, N),
+        policy_fn=lambda obs, mask: int(np.random.choice(np.flatnonzero(mask))),
         n_eps=C.EVAL_EPS,
     )
     print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
@@ -509,8 +515,8 @@ def main():
 
     # ── 5. PPO evaluation ────────────────────────────────────────────────────
     print(f"\n[4/4] PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
-    def ppo_policy(obs):
-        action, _ = model.predict(obs, deterministic=True)
+    def ppo_policy(obs, mask):
+        action, _ = model.predict(obs, deterministic=True, action_masks=mask)
         return int(action)
     ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
     print(f"  PPO AR  mean={np.mean(ppo_res['ars']):.4f}  "

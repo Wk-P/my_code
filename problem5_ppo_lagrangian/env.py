@@ -36,14 +36,20 @@ from problem2_ilp.objects import ECU, SVC
 
 class LagrangeEnv(gym.Env):
     """
-    Observation (shape: 3N+3+M):
-      [0]         current service demand, normalised by max initial capacity
-      [1]         current cumulative AR
-      [2]         current λ value, normalised by λ_max
-      [3:3+N]     remaining capacity fraction per ECU (can be < 0 if overloaded)
-      [3+N:3+2N]  ECU occupied flag per ECU (1 = already assigned)
-      [3+2N:3+3N] valid-action flag for current service (1 = feasible now)
-      [3+3N:3+3N+M]  remaining service demands (sorted descending); 0 for already-placed steps
+        Observation (shape: 4N+7+M):
+            Standard PPO state from thinking.md plus one extra scalar:
+            [0]                current service demand
+            [1]                current cumulative AR
+            [2]                sum of remaining usable ECU capacity
+            [3]                sum of remaining service demand
+            [4]                number of remaining usable ECUs
+            [5]                number of remaining services
+            [6:6+N]            initial capacity fraction per ECU
+            [6+N:6+2N]         remaining capacity fraction per ECU
+            [6+2N:6+3N]        ECU occupied flags
+            [6+3N:6+4N]        valid-action flags for current service
+            [6+4N:6+4N+M]      remaining service demands (sorted descending)
+            [6+4N+M]           current λ value, normalised by λ_max
 
     Services are sorted by descending requirement at each episode reset, enabling
     the agent to use a first-fit-decreasing strategy and plan ahead.
@@ -74,9 +80,9 @@ class LagrangeEnv(gym.Env):
         self.lambda_max = max(float(lambda_max), 1e-8)
 
         self.action_space = gym.spaces.Discrete(self.N)
-        # remaining_pct can be negative when overloaded; shape = 3N+3+M
+        # Remaining capacity can go negative in P5 due to soft constraints.
         self.observation_space = gym.spaces.Box(
-            low=-2.0, high=1.0, shape=(3 * self.N + 3 + self.M,), dtype=np.float32,
+            low=-2.0, high=1.0, shape=(4 * self.N + 7 + self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -117,28 +123,47 @@ class LagrangeEnv(gym.Env):
             service_demand_norm = np.float32(
                 svc.requirement / (np.max(self.initial_vms) + 1e-8)
             )
-        lambda_norm = np.float32(self.lambda_val / self.lambda_max)
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
+        initial_cap_pct = self.initial_vms / (np.max(self.initial_vms) + np.float32(1e-8))
         assigned_flag = self.ecu_assigned.astype(np.float32)
         if self._step >= self.M:
             valid_flag = np.zeros(self.N, dtype=np.float32)
         else:
             valid_flag = ((~self.ecu_assigned) & (self.remaining_vms >= svc.requirement)).astype(np.float32)
-        # Remaining service demands (sorted descending, already-placed steps → 0)
         max_cap = float(np.max(self.initial_vms) + 1e-8)
+        total_cap = float(np.sum(self.initial_vms) + 1e-8)
+        usable_mask = ~self.ecu_assigned
+        remaining_usable_capacity_sum = np.float32(
+            np.sum(np.clip(self.remaining_vms[usable_mask], 0.0, None)) / total_cap
+        )
+        if self._step >= self.M:
+            remaining_service_demand_sum = np.float32(0.0)
+            remaining_services_count = np.float32(0.0)
+        else:
+            remaining_service_demand_sum = np.float32(
+                sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
+            )
+            remaining_services_count = np.float32((self.M - self._step) / max(self.M, 1))
+        remaining_usable_ecu_count = np.float32(np.sum(usable_mask) / max(self.N, 1))
         remaining_svcs = np.array(
             [self.services[t].requirement / max_cap if t >= self._step else 0.0
              for t in range(self.M)],
             dtype=np.float32,
         )
+        lambda_norm = np.float32(self.lambda_val / self.lambda_max)
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
-            np.array([lambda_norm], dtype=np.float32),
+            np.array([remaining_usable_capacity_sum], dtype=np.float32),
+            np.array([remaining_service_demand_sum], dtype=np.float32),
+            np.array([remaining_usable_ecu_count], dtype=np.float32),
+            np.array([remaining_services_count], dtype=np.float32),
+            initial_cap_pct,
             remaining_pct,
             assigned_flag,
             valid_flag,
             remaining_svcs,
+            np.array([lambda_norm], dtype=np.float32),
         ]).astype(np.float32)
 
     def _compute_feasible_total_util(self) -> float:

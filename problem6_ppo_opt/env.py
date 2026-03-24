@@ -3,9 +3,11 @@ P6 Environment — RL WITH best-fit patch optimization.
 
 Design intent (matches docs.md):
     • When assigning to an already-occupied ECU, a best-fit patch algorithm
-        is applied to relocate one service to a better-fitting free ECU.
-    • Episode NEVER terminates early — always runs M steps.
-    • Reward equals the exact increase in total utilisation after each action.
+        is applied only if it can keep the allocation fully feasible.
+    • If the selected action cannot be repaired without violations, the episode
+        terminates immediately with an unfinished-demand penalty.
+    • Reward equals the exact increase in total utilisation after each action,
+        plus an early-stop penalty when no feasible continuation exists.
     • Observation explicitly includes the currently loaded fraction of each ECU.
     • Scenarios: reset() randomly picks one of the provided scenarios.
 """
@@ -34,12 +36,21 @@ class P6Env(gym.Env):
 
         Reward:
             • increase in total utilisation after this action
+            • early-stop penalty if a zero-violation placement/patch is impossible
 
-        Observation  (shape: 2N+2):
-      [0]   current service demand, normalised by max initial capacity
-      [1]   current cumulative AR
-            [2:2+N]      remaining capacity fraction per ECU
-            [2+N:2+2N]   current assigned load fraction per ECU
+                Observation (shape: 4N+6+M):
+            Standard PPO state from thinking.md:
+            [0]                current service demand
+            [1]                current cumulative AR
+            [2]                sum of remaining usable ECU capacity
+            [3]                sum of remaining service demand
+            [4]                number of remaining usable ECUs
+            [5]                number of remaining services
+            [6:6+N]            initial capacity fraction per ECU
+            [6+N:6+2N]         remaining capacity fraction per ECU
+            [6+2N:6+3N]        ECU occupied flags
+            [6+3N:6+4N]        valid-action flags for current service
+            [6+4N:6+4N+M]      remaining service demands (sorted descending)
     """
 
     metadata = {"render_modes": []}
@@ -54,11 +65,11 @@ class P6Env(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
 
-        # remaining capacity can go below 0; load fraction can exceed 1
+        # Under strict feasibility all observation terms stay within [0, 1].
         self.observation_space = gym.spaces.Box(
-            low  = -1.0,
-            high =  2.0,
-            shape= (2 * self.N + 2,),
+            low  = 0.0,
+            high =  1.0,
+            shape= (4 * self.N + 6 + self.M,),
             dtype= np.float32,
         )
 
@@ -78,6 +89,7 @@ class P6Env(gym.Env):
             self.ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
             self.services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
+        self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms  = self.initial_vms.copy()
         self.ecu_loads      = np.zeros(self.N, dtype=np.float32)
         self.ecu_assigned   = np.zeros(self.N, dtype=bool)
@@ -88,6 +100,27 @@ class P6Env(gym.Env):
         self.single_service_violations = 0
         return self._obs(), {}
 
+    def _has_feasible_patch(self, ecu_n: int, svc: SVC) -> bool:
+        if not self.ecu_assigned[ecu_n]:
+            return bool(self.remaining_vms[ecu_n] >= svc.requirement)
+
+        s1 = self.services[self.ecu_service_idx[ecu_n]]
+        cap_n = float(self.initial_vms[ecu_n])
+        for j in range(self.N):
+            if self.ecu_assigned[j] or j == ecu_n:
+                continue
+            cap_m = float(self.initial_vms[j])
+            for s_on_n, s_on_m in ((s1, svc), (svc, s1)):
+                if s_on_n.requirement <= cap_n and s_on_m.requirement <= cap_m:
+                    return True
+        return False
+
+    def action_masks(self) -> np.ndarray:
+        if self._step >= self.M:
+            return np.zeros(self.N, dtype=bool)
+        svc = self.services[self._step]
+        return np.array([self._has_feasible_patch(j, svc) for j in range(self.N)], dtype=bool)
+
     # ── observation ──────────────────────────────────────────────────────────
     def _obs(self) -> np.ndarray:
         if self._step >= self.M:
@@ -97,13 +130,45 @@ class P6Env(gym.Env):
             service_demand_norm = np.float32(svc.requirement / (np.max(self.initial_vms) + 1e-8))
 
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
-        load_pct = self.ecu_loads / (self.initial_vms + np.float32(1e-8))
+        initial_cap_pct = self.initial_vms / (np.max(self.initial_vms) + np.float32(1e-8))
+        occupied_flag = self.ecu_assigned.astype(np.float32)
+        if self._step >= self.M:
+            valid_flag = np.zeros(self.N, dtype=np.float32)
+        else:
+            valid_flag = self.action_masks().astype(np.float32)
+
+        total_cap = float(np.sum(self.initial_vms) + 1e-8)
+        max_cap = float(np.max(self.initial_vms) + 1e-8)
+        usable_mask = ~self.ecu_assigned
+        remaining_usable_capacity_sum = np.float32(
+            np.sum(self.remaining_vms[usable_mask]) / total_cap
+        )
+        if self._step >= self.M:
+            remaining_service_demand_sum = np.float32(0.0)
+            remaining_services_count = np.float32(0.0)
+        else:
+            remaining_service_demand_sum = np.float32(
+                sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
+            )
+            remaining_services_count = np.float32((self.M - self._step) / max(self.M, 1))
+        remaining_usable_ecu_count = np.float32(np.sum(usable_mask) / max(self.N, 1))
+        remaining_svcs = np.array(
+            [self.services[t].requirement / max_cap if t >= self._step else 0.0 for t in range(self.M)],
+            dtype=np.float32,
+        )
 
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
+            np.array([remaining_usable_capacity_sum], dtype=np.float32),
+            np.array([remaining_service_demand_sum], dtype=np.float32),
+            np.array([remaining_usable_ecu_count], dtype=np.float32),
+            np.array([remaining_services_count], dtype=np.float32),
+            initial_cap_pct,
             remaining_pct,
-            load_pct,
+            occupied_flag,
+            valid_flag,
+            remaining_svcs,
         ]).astype(np.float32)
 
     def _compute_total_util(self) -> float:
@@ -125,105 +190,72 @@ class P6Env(gym.Env):
         prev_total_util = self._compute_total_util()
 
         if self.ecu_assigned[action]:
-            # ── Best-fit patch algorithm (see patch_algorithm_en.md) ──────────
+            # ── Best-fit patch algorithm under strict feasibility ─────────────
             ecu_n = action
             s1    = self.services[self.ecu_service_idx[ecu_n]]
             s2    = svc
             cap_n = float(self.initial_vms[ecu_n])
 
-            # Step 1: determine s_stay / s_move
-            if s2.requirement > s1.requirement:
-                s_stay, s_move = s2, s1
-                if cap_n < s2.requirement:
-                    self.capacity_violations += 1
-            else:
-                s_stay, s_move = s1, s2
+            free_ecus = [j for j in range(self.N) if not self.ecu_assigned[j] and j != ecu_n]
+            best_ecu_m  = -1
+            best_score  = -1.0
+            best_s_on_n = s1
+            best_s_on_m = s2
 
-            # Step 2: find best-fit ecu_m (capacity sufficient, tightest fit)
-            best_ecu_m    = -1
-            best_remaining = float('inf')
-            for j in range(self.N):
-                if not self.ecu_assigned[j] and j != ecu_n:
-                    if self.initial_vms[j] >= s_move.requirement:
-                        leftover = float(self.remaining_vms[j]) - s_move.requirement
-                        if leftover < best_remaining:
-                            best_remaining = leftover
-                            best_ecu_m     = j
+            for j in free_ecus:
+                cap_m = float(self.initial_vms[j])
+                for (s_on_n, s_on_m) in [(s1, s2), (s2, s1)]:
+                    if s_on_n.requirement > cap_n or s_on_m.requirement > cap_m:
+                        continue
+                    score = (s1.requirement + s2.requirement) / (cap_n + cap_m + 1e-8)
+                    if score > best_score:
+                        best_score  = score
+                        best_ecu_m  = j
+                        best_s_on_n = s_on_n
+                        best_s_on_m = s_on_m
 
-            if best_ecu_m != -1:
-                # Step 3: execute relocation (normal path)
-                ecu_m = best_ecu_m
-                cap_m = float(self.initial_vms[ecu_m])
-                self.ecu_loads[ecu_n]        = float(s_stay.requirement)
-                self.ecu_loads[ecu_m]        = float(s_move.requirement)
-                self.remaining_vms[ecu_n]    = cap_n - s_stay.requirement
-                self.remaining_vms[ecu_m]    = cap_m - s_move.requirement
-                self.ecu_service_idx[ecu_n]  = self.services.index(s_stay)
-                self.ecu_service_idx[ecu_m]  = self.services.index(s_move)
-                self.ecu_assigned[ecu_m]     = True
+            if best_ecu_m == -1:
+                self.single_service_violations += 1
+                remaining_services = self.M - self._step
+                unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
+                penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
+                return self._obs(), penalty, True, False, {
+                    "ar": self.ar,
+                    "step": self._step,
+                    "services_placed": self._step,
+                    "capacity_violations": self.capacity_violations,
+                    "single_service_violations": self.single_service_violations,
+                    "total_violations": self.capacity_violations + self.single_service_violations,
+                    "violation_rate": 1.0 if remaining_services > 0 else 0.0,
+                }
 
-            else:
-                # Step 5: fallback — enumerate all free ECUs, both arrangements
-                free_ecus = [j for j in range(self.N)
-                             if not self.ecu_assigned[j] and j != ecu_n]
-                if not free_ecus:
-                    # No relocation target exists: keep original placement on ecu_n
-                    # and count this action as one duplicate-selection violation.
-                    self.single_service_violations += 1
-                    self._step += 1
-                    self.ar = self._compute_ar()
-                    done = self._step >= self.M
-                    reward = self._compute_total_util() - prev_total_util
-                    total_viol = self.capacity_violations + self.single_service_violations
-                    info = {
-                        "ar":   self.ar,
-                        "step": self._step,
-                        "services_placed":         self._step,
-                        "capacity_violations":       self.capacity_violations,
-                        "single_service_violations": self.single_service_violations,
-                        "total_violations":          total_viol,
-                        "violation_rate":            total_viol / self._step,
-                    }
-                    return self._obs(), reward, done, False, info
-
-                best_ecu_m   = -1
-                best_viol    = 3        # sentinel > 2
-                best_score   = -1.0
-                best_s_on_n  = s1
-                best_s_on_m  = s2
-
-                for j in free_ecus:
-                    cap_m = float(self.initial_vms[j])
-                    for (s_on_n, s_on_m) in [(s1, s2), (s2, s1)]:
-                        viol = 0
-                        if s_on_n.requirement > cap_n: viol += 1
-                        if s_on_m.requirement > cap_m: viol += 1
-                        if viol >= 2:                  continue   # never allow both violated
-                        score = (s1.requirement + s2.requirement) / (cap_n + cap_m + 1e-8)
-                        if viol < best_viol or (viol == best_viol and score > best_score):
-                            best_viol   = viol
-                            best_score  = score
-                            best_ecu_m  = j
-                            best_s_on_n = s_on_n
-                            best_s_on_m = s_on_m
-
-                ecu_m = best_ecu_m
-                cap_m = float(self.initial_vms[ecu_m])
-                self.capacity_violations        += best_viol
-                self.ecu_loads[ecu_n]            = float(best_s_on_n.requirement)
-                self.ecu_loads[ecu_m]            = float(best_s_on_m.requirement)
-                self.remaining_vms[ecu_n]        = cap_n - best_s_on_n.requirement
-                self.remaining_vms[ecu_m]        = cap_m - best_s_on_m.requirement
-                self.ecu_service_idx[ecu_n]      = self.services.index(best_s_on_n)
-                self.ecu_service_idx[ecu_m]      = self.services.index(best_s_on_m)
-                self.ecu_assigned[ecu_m]         = True
+            ecu_m = best_ecu_m
+            cap_m = float(self.initial_vms[ecu_m])
+            self.ecu_loads[ecu_n]        = float(best_s_on_n.requirement)
+            self.ecu_loads[ecu_m]        = float(best_s_on_m.requirement)
+            self.remaining_vms[ecu_n]    = cap_n - best_s_on_n.requirement
+            self.remaining_vms[ecu_m]    = cap_m - best_s_on_m.requirement
+            self.ecu_service_idx[ecu_n]  = self.services.index(best_s_on_n)
+            self.ecu_service_idx[ecu_m]  = self.services.index(best_s_on_m)
+            self.ecu_assigned[ecu_m]     = True
             self._step += 1
 
         else:
             # ── Normal assignment (ecu_n was free) ────────────────────────────
-            # Constraint check: capacity violation
             if self.remaining_vms[action] < svc.requirement:
                 self.capacity_violations += 1
+                remaining_services = self.M - self._step
+                unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
+                penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
+                return self._obs(), penalty, True, False, {
+                    "ar": self.ar,
+                    "step": self._step,
+                    "services_placed": self._step,
+                    "capacity_violations": self.capacity_violations,
+                    "single_service_violations": self.single_service_violations,
+                    "total_violations": self.capacity_violations + self.single_service_violations,
+                    "violation_rate": 1.0 if remaining_services > 0 else 0.0,
+                }
             self.ecu_loads[action]        = float(svc.requirement)
             self.remaining_vms[action]   -= svc.requirement
             self.ecu_assigned[action]     = True

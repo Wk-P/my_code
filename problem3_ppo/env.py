@@ -37,10 +37,19 @@ class P3Env(gym.Env):
             • match_gain = requirement/capacity for feasible action, else 0.0
             • terminal_bonus = +1.0*AR (zero-violation episode) or +0.1*AR
 
-    Observation  (shape: N+2):
-      [0]   current service demand, normalised by max initial capacity
-      [1]   current cumulative AR
-      [2:]  remaining capacity fraction per ECU (can be negative if overloaded)
+        Observation (shape: 4N+6+M):
+            Standard PPO state from thinking.md:
+            [0]                current service demand
+            [1]                current cumulative AR
+            [2]                sum of remaining usable ECU capacity
+            [3]                sum of remaining service demand
+            [4]                number of remaining usable ECUs
+            [5]                number of remaining services
+            [6:6+N]            initial capacity fraction per ECU
+            [6+N:6+2N]         remaining capacity fraction per ECU
+            [6+2N:6+3N]        ECU occupied flags
+            [6+3N:6+4N]        valid-action flags for current service
+            [6+4N:6+4N+M]      remaining service demands (sorted descending)
     """
 
     metadata = {"render_modes": []}
@@ -55,11 +64,11 @@ class P3Env(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
 
-        # obs can go slightly below 0 (overloaded ECU) so low=-1
+        # Remaining capacity can go negative in P3, so low=-1.
         self.observation_space = gym.spaces.Box(
             low  = -1.0,
             high =  1.0,
-            shape= (self.N + 2,),
+            shape= (4 * self.N + 6 + self.M,),
             dtype= np.float32,
         )
 
@@ -79,6 +88,7 @@ class P3Env(gym.Env):
             self.ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
             self.services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
+        self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms  = self.initial_vms.copy()
         self.ecu_assigned   = np.zeros(self.N, dtype=bool)
         self.ar             = 0.0
@@ -97,11 +107,45 @@ class P3Env(gym.Env):
             service_demand_norm = np.float32(svc.requirement / (np.max(self.initial_vms) + 1e-8))
 
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
+        initial_cap_pct = self.initial_vms / (np.max(self.initial_vms) + np.float32(1e-8))
+        occupied_flag = self.ecu_assigned.astype(np.float32)
+        if self._step >= self.M:
+            valid_flag = np.zeros(self.N, dtype=np.float32)
+        else:
+            valid_flag = ((~self.ecu_assigned) & (self.remaining_vms >= svc.requirement)).astype(np.float32)
+
+        total_cap = float(np.sum(self.initial_vms) + 1e-8)
+        max_cap = float(np.max(self.initial_vms) + 1e-8)
+        usable_mask = ~self.ecu_assigned
+        remaining_usable_capacity_sum = np.float32(
+            np.sum(np.clip(self.remaining_vms[usable_mask], 0.0, None)) / total_cap
+        )
+        if self._step >= self.M:
+            remaining_service_demand_sum = np.float32(0.0)
+            remaining_services_count = np.float32(0.0)
+        else:
+            remaining_service_demand_sum = np.float32(
+                sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
+            )
+            remaining_services_count = np.float32((self.M - self._step) / max(self.M, 1))
+        remaining_usable_ecu_count = np.float32(np.sum(usable_mask) / max(self.N, 1))
+        remaining_svcs = np.array(
+            [self.services[t].requirement / max_cap if t >= self._step else 0.0 for t in range(self.M)],
+            dtype=np.float32,
+        )
 
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
+            np.array([remaining_usable_capacity_sum], dtype=np.float32),
+            np.array([remaining_service_demand_sum], dtype=np.float32),
+            np.array([remaining_usable_ecu_count], dtype=np.float32),
+            np.array([remaining_services_count], dtype=np.float32),
+            initial_cap_pct,
             remaining_pct,
+            occupied_flag,
+            valid_flag,
+            remaining_svcs,
         ]).astype(np.float32)
 
     # ── step ─────────────────────────────────────────────────────────────────
