@@ -1,4 +1,0 @@
-method,ar_mean,ar_std,placed_mean,viol_rate
-ILP (Optimal),0.540177,0.0,10,0.0
-Random Baseline,0.485446,0.102146,10.0,0.5503
-"PPO (P3, no constr)",0.570468,0.21761,10.0,1.525

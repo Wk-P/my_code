@@ -95,10 +95,12 @@ def load_scenario():
     ecus     = [ECU(s["name"], s["capacity"])    for s in scenario["ECUs"]]
     services = [SVC(s["name"], s["requirement"]) for s in scenario["SVCs"]]
     N, M = len(ecus), len(services)
-    print(f"Loaded: {scenario['name']}  |  N={N} ECUs  M={M} SVCs")
-    print(f"  ECU capacities : {[e.capacity for e in ecus]}")
-    print(f"  SVC requirements: {[s.requirement for s in services]}")
-    return ecus, services, scenario["name"]
+    scenario_scope = f"All {len(C.SCENARIOS)} Scenarios"
+    print(f"Loaded scenario pool: {scenario_scope}  |  N={N} ECUs  M={M} SVCs")
+    print(f"  Prototype scenario: {scenario['name']} (idx={C.SCENARIO_IDX})")
+    print(f"  Prototype ECU capacities : {[e.capacity for e in ecus]}")
+    print(f"  Prototype SVC requirements: {[s.requirement for s in services]}")
+    return ecus, services, scenario_scope, scenario["name"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -361,12 +363,12 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     print(f"  Saved -> {path}")
 
 
-def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
+def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scenario_name):
     colors = ["#e74c3c", "#3498db", "#2ecc71"]
     labels = ["ILP\n(Optimal)", "Random\n(masked)", "MaskablePPO\n(P4)"]
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle(f"P2(ILP) vs Random(masked) vs P4(MaskablePPO) — {scenario_name}",
+    fig.suptitle(f"P2(ILP) vs Random(masked) vs P4(MaskablePPO) - {scenario_name}",
                  fontsize=13, fontweight="bold")
 
     ax = axes[0]
@@ -395,14 +397,14 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir, scenario_name):
     ax.grid(axis="y", alpha=0.3)
 
     ax2 = axes[1]
-    vr_means = [0.0, 0.0, 0.0]
+    vr_means = [0.0, 0.0, ppo_train_viol_mean]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75)
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width()/2, v + 0.02,
                  f"{v:.2%}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, 1.05)
     ax2.set_ylabel("Violation Rate", fontsize=11)
-    ax2.set_title("Violation Rate", fontsize=11)
+    ax2.set_title("Violation Rate (train-end for P4)", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
 
     ax3 = axes[2]
@@ -438,11 +440,11 @@ def main():
         print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
     print(f"  P4 run_all.py  —  RL WITH action masking (0 violations)")
-    print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
+    print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
 
     # 1. Load scenario
-    ecus, services, sc_name = load_scenario()
+    ecus, services, sc_name, prototype_name = load_scenario()
     N, M = len(ecus), len(services)
 
     # 2. ILP (all scenarios)
@@ -490,12 +492,16 @@ def main():
           f"  {np.mean(rand_res['placed']):.1f}/{M:<4}  0")
     print(f"  {'MaskablePPO (P4)':<28} "
           f"{np.mean(ppo_res['ars']):.4f} +/- {np.std(ppo_res['ars']):.4f}   "
-          f"  {np.mean(ppo_res['placed']):.1f}/{M:<4}  0")
+            f"  {np.mean(ppo_res['placed']):.1f}/{M:<4}  0")
     print(f"{'='*66}\n")
 
     # Save JSON
     log = {
-        "scenario": sc_name, "N": N, "M": M,
+        "scenario": sc_name,
+        "prototype_scenario": prototype_name,
+        "scenario_count": len(C.SCENARIOS),
+        "N": N,
+        "M": M,
         "ilp": {
             "ar": round(ilp_ar, 6),
             "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
@@ -517,6 +523,7 @@ def main():
             "total_steps": C.TOTAL_STEPS,
             "n_episodes":  len(cb.episode_ars),
             "ar_last50":   round(float(np.mean(cb.episode_ars[-50:])), 6),
+            "viol_rate_last50": 0.0,
         },
     }
 
@@ -551,7 +558,7 @@ def main():
 
     # Plots
     plot_training_curve(cb, ilp_ar, base_path, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, base_path, sc_name)
+    plot_comparison(ilp_ar, rand_res, ppo_res, 0.0, base_path, sc_name)
 
     print("\nAll done! Output files:")
     print(f"  {base_path}/training_curve.png")

@@ -1,4 +1,0 @@
-method,ar_mean,ar_std,placed_mean,viol_rate
-ILP (Optimal),0.540177,0.0,10,0.0
-Random (masked),0.448297,0.071871,9.71,0.0
-MaskablePPO (P4),0.461265,0.071885,9.84,0.0

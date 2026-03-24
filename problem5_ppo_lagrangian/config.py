@@ -40,7 +40,7 @@ with open(YAML_CONFIG) as f:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem5_ppo_lagrangian")
-SEED        = 20
+SEED        = 42
 DEVICE      = "cpu"
 N_ENVS      = 40
 SUBPROC_START_METHOD = "fork"

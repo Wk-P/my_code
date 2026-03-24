@@ -94,10 +94,12 @@ def load_scenario():
 
     N = len(ecus)
     M = len(services)
-    print(f"Loaded: {scenario['name']}  |  N={N} ECUs  M={M} SVCs")
-    print(f"  ECU capacities : {[e.capacity for e in ecus]}")
-    print(f"  SVC requirements: {[s.requirement for s in services]}")
-    return ecus, services, scenario["name"]
+    scenario_scope = f"All {len(C.SCENARIOS)} Scenarios"
+    print(f"Loaded scenario pool: {scenario_scope}  |  N={N} ECUs  M={M} SVCs")
+    print(f"  Prototype scenario: {scenario['name']} (idx={C.SCENARIO_IDX})")
+    print(f"  Prototype ECU capacities : {[e.capacity for e in ecus]}")
+    print(f"  Prototype SVC requirements: {[s.requirement for s in services]}")
+    return ecus, services, scenario_scope, scenario["name"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -375,9 +377,9 @@ def plot_training_curve(cb: P3Callback, ilp_ar: float, outdir: Path, scenario_na
     print(f"  Saved → {path}")
 
 
-def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str):
+def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_viol_std, outdir: Path, scenario_name: str):
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle(f"P2(ILP) vs Random vs P3(PPO) — {scenario_name}", fontsize=13, fontweight="bold")
+    fig.suptitle(f"P2(ILP) vs Random vs P3(PPO) - {scenario_name}", fontsize=13, fontweight="bold")
 
     colors = ["#e74c3c", "#3498db", "#2ecc71"]
     labels = ["ILP\n(Optimal)", "Random\nBaseline", "PPO\n(P3, no constraint)"]
@@ -420,12 +422,12 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
     vr_means = [
         0.0,
         np.mean(rand_res["viol_rates"]),
-        np.mean(ppo_res["viol_rates"]),
+        ppo_train_viol_mean,
     ]
     vr_stds = [
         0.0,
         np.std(rand_res["viol_rates"]),
-        np.std(ppo_res["viol_rates"]),
+        ppo_train_viol_std,
     ]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75,
                    yerr=vr_stds, capsize=5, ecolor="black")
@@ -436,7 +438,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, outdir: Path, scenario_name: str)
 
     ax2.set_ylim(0, 1.05)
     ax2.set_ylabel("Violation Rate", fontsize=11)
-    ax2.set_title("Violation Rate", fontsize=11)
+    ax2.set_title("Violation Rate (train-end for PPO)", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
 
     ax3 = axes[2]
@@ -472,11 +474,11 @@ def main():
         print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
     print(f"  P3 run_all.py  —  RL WITHOUT constraint enforcement")
-    print(f"  Config : {C.YAML_CONFIG.name}  Scenario idx={C.SCENARIO_IDX}")
+    print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
 
     # ── 1. Load scenario ─────────────────────────────────────────────────────
-    ecus, services, sc_name = load_scenario()
+    ecus, services, sc_name, prototype_name = load_scenario()
     N = len(ecus)
     M = len(services)
 
@@ -511,7 +513,7 @@ def main():
     ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
     print(f"  PPO AR  mean={np.mean(ppo_res['ars']):.4f}  "
           f"std={np.std(ppo_res['ars']):.4f}")
-    print(f"  Viol rate mean={np.mean(ppo_res['viol_rates']):.2%}")
+    print(f"  Eval viol rate mean={np.mean(ppo_res['viol_rates']):.2%}")
 
     # ── Summary table ─────────────────────────────────────────────────────────
     M_total = M
@@ -520,7 +522,8 @@ def main():
     print(f"  {'-'*24} {'-'*22} {'-'*10}")
     print(f"  {'ILP (Optimal)':<24} {ilp_ar:.4f} ± 0.0000       {'0':<10}")
     r_v = np.mean(rand_res['viol_rates'])
-    p_v = np.mean(ppo_res['viol_rates'])
+    p_v = np.mean(cb.episode_viol_rates[-50:]) if len(cb.episode_viol_rates) >= 50 else np.mean(cb.episode_viol_rates)
+    p_v_std = np.std(cb.episode_viol_rates[-50:]) if len(cb.episode_viol_rates) >= 50 else np.std(cb.episode_viol_rates)
     print(f"  {'Random Baseline':<24} "
           f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
           f"  {r_v:<10.2%}")
@@ -532,6 +535,8 @@ def main():
     # ── Save JSON ─────────────────────────────────────────────────────────────
     log = {
         "scenario": sc_name,
+        "prototype_scenario": prototype_name,
+        "scenario_count": len(C.SCENARIOS),
         "N": N, "M": M,
         "ilp":    {
             "ar": round(ilp_ar, 6),
@@ -584,7 +589,7 @@ def main():
         ])
     print(f"  CSV  saved → {csv_path}")
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, run_dir, sc_name)
+    plot_comparison(ilp_ar, rand_res, ppo_res, p_v, p_v_std, run_dir, sc_name)
 
     print("\nAll done! Output files:")
     print(f"  {run_dir}/training_curve.png")

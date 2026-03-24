@@ -7,7 +7,8 @@ Edit this file when you want to change the default TOTAL_STEPS used by:
     - problem4_ppo_mask
     - problem5_ppo_lagrangian
     - problem6_ppo_opt
-    - dqn
+    - problem_dqn
+    - problem_ddqn
 
 Command-line overrides such as ``--total-timesteps`` still take precedence at runtime.
 """
@@ -20,7 +21,8 @@ PROBLEM_TOTAL_STEPS: dict[str, int] = {
     "problem4_ppo_mask": GLOBAL_TOTAL_STEPS,
     "problem5_ppo_lagrangian": GLOBAL_TOTAL_STEPS,
     "problem6_ppo_opt": GLOBAL_TOTAL_STEPS,
-    "dqn": 1_000_000,
+    "problem_dqn": 1_000_000,
+    "problem_ddqn": 1_000_000,
 }
 
 

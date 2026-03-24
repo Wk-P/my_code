@@ -16,7 +16,8 @@ RUN_LIST = [
     "problem4_ppo_mask/run_all.py",
     "problem5_ppo_lagrangian/run_all.py",
     "problem6_ppo_opt/run_all.py",
-    "dqn/run_all.py",
+    "problem_dqn/run_all.py",
+    "problem_ddqn/run_all.py",
 ]
 
 PYTHON_PATH = BASE_PATH / ".venv" / "bin" / "python"
