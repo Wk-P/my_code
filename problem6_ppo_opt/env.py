@@ -129,7 +129,7 @@ class P6Env(gym.Env):
             svc = self.services[self._step]
             service_demand_norm = np.float32(svc.requirement / (np.max(self.initial_vms) + 1e-8))
 
-        remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
+        remaining_abs_norm = self.remaining_vms / (np.max(self.initial_vms) + np.float32(1e-8))
         initial_cap_pct = self.initial_vms / (np.max(self.initial_vms) + np.float32(1e-8))
         occupied_flag = self.ecu_assigned.astype(np.float32)
         if self._step >= self.M:
@@ -165,7 +165,7 @@ class P6Env(gym.Env):
             np.array([remaining_usable_ecu_count], dtype=np.float32),
             np.array([remaining_services_count], dtype=np.float32),
             initial_cap_pct,
-            remaining_pct,
+            remaining_abs_norm,
             occupied_flag,
             valid_flag,
             remaining_svcs,

@@ -116,7 +116,7 @@ class P4Env(gym.Env):
         remaining_pct = self.remaining_vms / (self.initial_vms + np.float32(1e-8))
         initial_cap_pct = self.initial_vms / (np.max(self.initial_vms) + np.float32(1e-8))
         occupied_flag = self.ecu_assigned.astype(np.float32)
-        
+
         # valid-action flag: true if ECU is free AND has enough capacity for current service
         if self._step >= self.M:
             valid_flag = np.zeros(self.N, dtype=np.float32)

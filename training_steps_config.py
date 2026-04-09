@@ -21,8 +21,8 @@ PROBLEM_TOTAL_STEPS: dict[str, int] = {
     "problem4_ppo_mask": GLOBAL_TOTAL_STEPS,
     "problem5_ppo_lagrangian": GLOBAL_TOTAL_STEPS,
     "problem6_ppo_opt": GLOBAL_TOTAL_STEPS,
-    "problem_dqn": 1_000_000,
-    "problem_ddqn": 1_000_000,
+    "problem_dqn": 3_000_000,
+    "problem_ddqn": 3_000_000,
 }
 
 
