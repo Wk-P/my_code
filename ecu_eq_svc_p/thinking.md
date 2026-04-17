@@ -116,5 +116,3 @@ Notes:
 
 - This table describes the current standard state used by P3/P4/P6.
 - P5 uses the same state and appends one extra scalar `lambda_norm` (thus `4N + 7 + M`).
-
-
