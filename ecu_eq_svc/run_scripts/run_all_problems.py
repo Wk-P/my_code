@@ -20,7 +20,7 @@ RUN_LIST = [
     "problem_ddqn/run_all.py",
 ]
 
-PYTHON_PATH = BASE_PATH / ".venv" / "bin" / "python"
+PYTHON_PATH = BASE_PATH.parent / ".venv" / "bin" / "python"
 
 
 def parse_args():
