@@ -1,4 +1,0 @@
-method,ar_mean,ar_std,placed_mean,viol_rate
-ILP (Optimal),0.540177,0.0,10,0.0
-Random (no mask),0.469332,0.295472,2.08,1.0
-DQN (no mask),0.517424,0.074472,10.0,0.14
