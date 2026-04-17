@@ -1,0 +1,42 @@
+Starting all problem runs...
+Base path: /home/soar009/github/my_code/ecu_gt_svc_p
+Scheduled run: problem3_ppo/run_all.py
+Scheduled run: problem4_ppo_mask/run_all.py
+Scheduled run: problem5_ppo_lagrangian/run_all.py
+Scheduled run: problem6_ppo_opt/run_all.py
+Scheduled run: problem_dqn/run_all.py
+Scheduled run: problem_ddqn/run_all.py
+=== PPO/DQN Training & Evaluation for All Problems ===
+Using Python interpreter at: /home/soar009/github/my_code/.venv/bin/python
+All run scripts and Python interpreter found.
+
+Checking run script existence...
+All run scripts exist. Starting execution...
+
+
+=== Running problem3_ppo/run_all.py ===
+
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] ============================================================
+[problem3_ppo/run_all.py]   P3 run_all.py  —  RL WITHOUT constraint enforcement
+[problem3_ppo/run_all.py]   Config : config_ecu_gt_svc.yaml  |  scenario pool size=200  |  prototype idx=0
+[problem3_ppo/run_all.py] ============================================================
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] [CPU] No CUDA GPU, using CPU
+[problem3_ppo/run_all.py] Loaded scenario pool: All 200 Scenarios  |  N=15 ECUs  M=10 SVCs
+[problem3_ppo/run_all.py]   Prototype scenario: Scenario 1 (idx=0)
+[problem3_ppo/run_all.py]   Prototype ECU capacities : [195, 185, 55, 85, 170, 100, 50, 65, 190, 95, 155, 125, 70, 75, 165]
+[problem3_ppo/run_all.py]   Prototype SVC requirements: [80, 90, 55, 25, 70, 95, 85, 30, 35, 60]
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] [1/4] Solving ILP for all 200 scenarios ...
+[problem3_ppo/run_all.py]     [cache] Loaded ILP results from shared p2 cache
+[problem3_ppo/run_all.py]   ILP mean AR across 200 scenarios: 0.6256
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] [2/4] Random baseline evaluation (300 episodes) ...
+[problem3_ppo/run_all.py]   Random AR  mean=0.6913  std=0.1787
+[problem3_ppo/run_all.py]   Viol rate mean=45.13%
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] [3/4] PPO training (5,000,000 steps) ...
+[problem3_ppo/run_all.py]   Using SubprocVecEnv: n_envs=40, start_method=fork
+[problem3_ppo/run_all.py]   [train] step=200,000/5,000,000 (  4.0%) | eps=20000 | steps/s=1,988
+[problem3_ppo/run_all.py]   [train] step=400,000/5,000,000 (  8.0%) | eps=40000 | steps/s=1,970
