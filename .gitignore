@@ -3,3 +3,10 @@ __pycache__/**
 .vscode/
 .venv/
 *.zip
+run_scripts/run_background.log
+run_scripts/run_background.pid
+.claude/
+
+# Experiment results, images, and intermediate data — not tracked in git
+**/results/
+run_scripts/results_combined/

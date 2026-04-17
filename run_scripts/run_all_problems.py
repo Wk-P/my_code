@@ -78,8 +78,11 @@ def main(total_timesteps: int | None = None):
         )
 
         assert proc.stdout is not None
-        for line in proc.stdout:
-            print(f"[{run_script}] {line}", end="")
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            print(f"[{run_script}] {line}", end="", flush=True)
 
         rc = proc.wait()
         elapsed = time.time() - t0

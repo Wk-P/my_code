@@ -56,7 +56,8 @@ if __name__ == "__main__":
         BASE_PATH / "problem4_ppo_mask",
         BASE_PATH / "problem5_ppo_lagrangian",
         BASE_PATH / "problem6_ppo_opt",
-        BASE_PATH / "dqn",
+        BASE_PATH / "problem_dqn",
+        BASE_PATH / "problem_ddqn"
     ]
 
     target_path = [
@@ -64,7 +65,8 @@ if __name__ == "__main__":
         BASE_PATH / "run_scripts" / "results_combined" / "problem4_ppo_mask",
         BASE_PATH / "run_scripts" / "results_combined" / "problem5_ppo_lagrangian",
         BASE_PATH / "run_scripts" / "results_combined" / "problem6_ppo_opt",
-        BASE_PATH / "run_scripts" / "results_combined" / "dqn",
+        BASE_PATH / "run_scripts" / "results_combined" / "problem_dqn",
+        BASE_PATH / "run_scripts" / "results_combined" / "problem_ddqn"
     ]
 
     for src, tgt in zip(source_path, target_path):

@@ -78,7 +78,7 @@ _copilot_all_run_main() {
 		fi
 
 		if [[ $cleanup_only -eq 0 ]]; then
-			"$python_bin" "$root_dir/run_scripts/run_all_problems.py" "${run_args[@]}"
+			"$python_bin" -u "$root_dir/run_scripts/run_all_problems.py" "${run_args[@]}"
 			"$python_bin" "$root_dir/run_scripts/copy_files.py"
 			"$python_bin" "$root_dir/run_scripts/results_combined/combined.py"
 		fi

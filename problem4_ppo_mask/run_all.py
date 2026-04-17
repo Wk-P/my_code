@@ -45,17 +45,7 @@ import config as C
 from problem4_ppo_mask.env import P4Env
 from problem2_ilp.objects import ECU, SVC
 from sb3_contrib.common.wrappers import ActionMasker
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Run full P4 pipeline.")
-    parser.add_argument(
-        "--total-timesteps",
-        type=int,
-        default=None,
-        help="Override C.TOTAL_STEPS for quick smoke tests.",
-    )
-    return parser.parse_args()
+from run_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
 
 
 def _mask_fn(env) -> np.ndarray:
@@ -72,141 +62,6 @@ def _make_p4_env(seed: int) -> Monitor:
     env = P4Env(ecus, services, scenarios=C.SCENARIOS)
     env = ActionMasker(env, _mask_fn)
     return Monitor(env)
-
-
-def resolve_device(cfg: str) -> str:
-    if cfg != "auto":
-        return cfg
-    if torch.cuda.is_available():
-        print(f"[CUDA] {torch.cuda.get_device_name(0)}")
-        return "cuda"
-    print("[CPU] No CUDA GPU, using CPU")
-    return "cpu"
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  Step 1 — Load scenario
-# ══════════════════════════════════════════════════════════════════════════════
-
-def load_scenario():
-    with open(C.YAML_CONFIG, "r") as f:
-        data = yaml.safe_load(f)
-    scenario = data["scenarios"][C.SCENARIO_IDX]
-    ecus     = [ECU(s["name"], s["capacity"])    for s in scenario["ECUs"]]
-    services = [SVC(s["name"], s["requirement"]) for s in scenario["SVCs"]]
-    N, M = len(ecus), len(services)
-    scenario_scope = f"All {len(C.SCENARIOS)} Scenarios"
-    print(f"Loaded scenario pool: {scenario_scope}  |  N={N} ECUs  M={M} SVCs")
-    print(f"  Prototype scenario: {scenario['name']} (idx={C.SCENARIO_IDX})")
-    print(f"  Prototype ECU capacities : {[e.capacity for e in ecus]}")
-    print(f"  Prototype SVC requirements: {[s.requirement for s in services]}")
-    return ecus, services, scenario_scope, scenario["name"]
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  Step 2 — ILP optimal
-# ══════════════════════════════════════════════════════════════════════════════
-
-def solve_ilp(ecus, services):
-    N, M = len(ecus), len(services)
-    e_list = [e.capacity    for e in ecus]
-    n_list = [s.requirement for s in services]
-
-    prob = pulp.LpProblem("P4_ILP", pulp.LpMaximize)
-    x = pulp.LpVariable.dicts("x", (range(M), range(N)), cat="Binary")
-
-    prob += pulp.lpSum(x[i][j] * n_list[i] / e_list[j]
-                       for i in range(M) for j in range(N))
-    for i in range(M):
-        prob += pulp.lpSum(x[i][j] for j in range(N)) == 1
-    for j in range(N):
-        prob += pulp.lpSum(x[i][j] for i in range(M)) <= 1
-    for i in range(M):
-        for j in range(N):
-            if n_list[i] > e_list[j]:
-                prob += x[i][j] == 0
-    for j in range(N):
-        prob += pulp.lpSum(x[i][j] * n_list[i] for i in range(M)) <= e_list[j]
-
-    prob.solve(pulp.PULP_CBC_CMD(msg=False))
-
-    alloc = {}
-    for j in range(N):
-        svcs = [i for i in range(M) if pulp.value(x[i][j]) == 1]
-        if svcs:
-            alloc[j] = {
-                "services": svcs,
-                "utilization": sum(n_list[i] for i in svcs) / e_list[j],
-                "capacity": e_list[j],
-                "demand": sum(n_list[i] for i in svcs),
-            }
-    total_util  = pulp.value(prob.objective) or 0.0
-    active_ecus = len(alloc)
-    avg_util    = total_util / active_ecus if active_ecus > 0 else 0.0
-    return {
-        "status": pulp.LpStatus[prob.status],
-        "avg_utilization": avg_util,
-        "total_utilization": total_util,
-        "active_ecus": active_ecus,
-        "allocation": alloc,
-    }
-
-
-def solve_ilp_all_scenarios():
-    """Return (mean_ar, per_scenario_results) for all scenarios.
-    Priority: 1) shared p2 cache  2) own local cache  3) compute from scratch.
-    """
-    cache_key = f"{C.YAML_CONFIG.name}__n{len(C.SCENARIOS)}"
-
-    def _load_cache(path):
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return {}
-
-    def _save_cache(path, data):
-        tmp = path.with_suffix(".tmp")
-        with open(tmp, "w") as f:
-            json.dump(data, f)
-        tmp.replace(path)
-
-    # ─ 1. Shared cache written by problem2_ilp/optimal_solution/main.py ─
-    shared_cache = C.YAML_CONFIG.parent.parent / "results" / "ilp_cache.json"
-    if shared_cache.exists():
-        cache = _load_cache(shared_cache)
-        if cache.get("key") == cache_key and len(cache.get("results", [])) == len(C.SCENARIOS):
-            print(f"    [cache] Loaded ILP results from shared p2 cache")
-            results = cache["results"]
-            ars = [r["avg_utilization"] for r in results]
-            return float(np.mean(ars)), results
-
-    # ─ 2. Own local incremental cache ─
-    C.OUTDIR.mkdir(parents=True, exist_ok=True)
-    cache_path = C.OUTDIR / "ilp_cache.json"
-    results: list = []
-    if cache_path.exists():
-        cache = _load_cache(cache_path)
-        if cache.get("key") == cache_key:
-            results = cache.get("results", [])
-            if len(results) == len(C.SCENARIOS):
-                print(f"    [cache] Loaded ILP results from {cache_path}")
-                ars = [r["avg_utilization"] for r in results]
-                return float(np.mean(ars)), results
-            print(f"    [cache] Resuming from scenario {len(results)+1}")
-
-    # ─ 3. Compute remaining, save after each ─
-    for idx, (caps, reqs) in enumerate(C.SCENARIOS[len(results):], start=len(results)):
-        ecus_sc = [ECU(f"ECU{i}", c) for i, c in enumerate(caps)]
-        svcs_sc = [SVC(f"SVC{i}", r) for i, r in enumerate(reqs)]
-        res = solve_ilp(ecus_sc, svcs_sc)
-        results.append(res)
-        print(f"    Scenario {idx+1}: AR={res['avg_utilization']:.4f}  ({res['status']})")
-        _save_cache(cache_path, {"key": cache_key, "results": results})
-
-    print(f"    [cache] Saved to {cache_path}")
-    ars = [r["avg_utilization"] for r in results]
-    return float(np.mean(ars)), results
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -270,9 +125,10 @@ class P4Callback(BaseCallback):
         return True
 
 
-def train_maskppo(ecus, services):
+def train_maskppo(ecus, services, device: str):
     import torch as _torch
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
+    sys.stdout.flush()
     n_envs = max(1, int(C.N_ENVS))
     env = SubprocVecEnv(
         [functools.partial(_make_p4_env, C.SEED + i) for i in range(n_envs)],
@@ -292,7 +148,7 @@ def train_maskppo(ecus, services):
         gae_lambda    = C.PPO_GAE_LAMBDA,
         clip_range    = C.PPO_CLIP_RANGE,
         policy_kwargs = dict(net_arch=C.PPO_NET_ARCH),
-        device        = resolve_device(C.DEVICE),
+        device        = device,
         verbose       = 0,
         seed          = C.SEED,
     )
@@ -312,13 +168,6 @@ def train_maskppo(ecus, services):
 # ══════════════════════════════════════════════════════════════════════════════
 #  Plotting
 # ══════════════════════════════════════════════════════════════════════════════
-
-def moving_avg(arr, w):
-    arr = np.asarray(arr, dtype=float)
-    if len(arr) < w:
-        return arr, 0
-    return np.convolve(arr, np.ones(w) / w, mode="valid"), w - 1
-
 
 def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
@@ -404,7 +253,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scen
                  f"{v:.2%}", ha="center", fontsize=10, fontweight="bold", color="black")
     ax2.set_ylim(0, 1.05)
     ax2.set_ylabel("Violation Rate", fontsize=11)
-    ax2.set_title("Violation Rate (train-end for P4)", fontsize=11)
+    ax2.set_title("Violation Rate (eval)", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
 
     ax3 = axes[2]
@@ -442,14 +291,15 @@ def main():
     print(f"  P4 run_all.py  —  RL WITH action masking (0 violations)")
     print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
+    device = resolve_device(C.DEVICE)
 
     # 1. Load scenario
-    ecus, services, sc_name, prototype_name = load_scenario()
+    ecus, services, sc_name, prototype_name = load_scenario(C.YAML_CONFIG, C.SCENARIO_IDX, C.SCENARIOS)
     N, M = len(ecus), len(services)
 
     # 2. ILP (all scenarios)
     print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
-    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios()
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.SCENARIOS, C.OUTDIR)
     print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
 
     # 3. Random (masked)
@@ -467,7 +317,7 @@ def main():
 
     # 4. MaskablePPO training
     print(f"\n[3/4] MaskablePPO training ({C.TOTAL_STEPS:,} steps) ...")
-    model, cb = train_maskppo(ecus, services)
+    model, cb = train_maskppo(ecus, services, device)
     model.save(str(C.MODEL_PATH))
     print(f"  Model saved -> {C.MODEL_PATH}.zip")
 

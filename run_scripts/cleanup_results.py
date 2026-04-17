@@ -14,7 +14,8 @@ RESULT_PATHS = [
     BASE_PATH / "problem4_ppo_mask" / "results",
     BASE_PATH / "problem5_ppo_lagrangian" / "results",
     BASE_PATH / "problem6_ppo_opt" / "results",
-    BASE_PATH / "dqn" / "results",
+    BASE_PATH / "problem_dqn" / "results",
+    BASE_PATH / "problem_ddqn" / "results",
 ]
 REQUIRED_FILES = ["results.json", "summary.csv", "training_curve.png", "comparison.png"]
 TIMESTAMP_DIR_RE = re.compile(r"^\d{8}_\d{6}$")

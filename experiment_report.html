@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实验报告 — 服务部署强化学习方法比较</title>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --bg: #f8f9fb;
+    --sidebar-bg: #1e2330;
+    --sidebar-w: 240px;
+    --accent-ilp:      #e74c3c;
+    --accent-p3:       #3498db;
+    --accent-p4:       #27ae60;
+    --accent-p5:       #8e44ad;
+    --accent-p6:       #d35400;
+    --accent-dqn:      #16a085;
+    --accent-ddqn:     #2980b9;
+    --text: #2c3e50;
+    --muted: #7f8c8d;
+    --border: #dde1e9;
+    --code-bg: #f0f2f5;
+    --header-h: 56px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0;
+    width: var(--sidebar-w);
+    height: 100vh;
+    background: var(--sidebar-bg);
+    overflow-y: auto;
+    z-index: 100;
+    padding: 0 0 40px 0;
+  }
+  .nav-title {
+    padding: 20px 18px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #aab2c8;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 1px solid #2d3548;
+  }
+  nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 18px;
+    color: #9aa3b8;
+    text-decoration: none;
+    font-size: 13.5px;
+    transition: background 0.15s, color 0.15s;
+    border-left: 3px solid transparent;
+  }
+  nav a:hover { background: #252d42; color: #e0e5f0; }
+  nav a.active { background: #252d42; color: #fff; border-left-color: #4f8ef7; }
+  .nav-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .nav-section {
+    padding: 14px 18px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #4f5e7a;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Main ── */
+  main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 48px 56px 80px;
+    max-width: 960px;
+  }
+
+  /* ── Section ── */
+  section { margin-bottom: 72px; scroll-margin-top: 24px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 28px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+  }
+  h1 { font-size: 28px; font-weight: 700; color: #1a202c; }
+  h2 { font-size: 22px; font-weight: 700; color: #1a202c; }
+  h3 { font-size: 16px; font-weight: 600; color: #2d3748; margin: 24px 0 10px; }
+
+  p { margin-bottom: 14px; }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* ── Tags ── */
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 2px 3px 2px 0;
+  }
+  .tag-reward  { background:#eaf4ff; color:#2563eb; }
+  .tag-constr  { background:#fef3f2; color:#dc2626; }
+  .tag-policy  { background:#f0fdf4; color:#16a34a; }
+  .tag-off     { background:#fdf4ff; color:#7c3aed; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 14px 0 20px;
+  }
+  th {
+    background: #f1f3f8;
+    padding: 9px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    color: #4a5568;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfc; }
+  td code, th code {
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    font-family: "Fira Code", "Cascadia Code", monospace;
+  }
+
+  /* ── Comparison table colors ── */
+  .cmp-ilp  { color: var(--accent-ilp);  font-weight: 700; }
+  .cmp-p3   { color: var(--accent-p3);   font-weight: 700; }
+  .cmp-p4   { color: var(--accent-p4);   font-weight: 700; }
+  .cmp-p5   { color: var(--accent-p5);   font-weight: 700; }
+  .cmp-p6   { color: var(--accent-p6);   font-weight: 700; }
+  .cmp-dqn  { color: var(--accent-dqn);  font-weight: 700; }
+  .cmp-ddqn { color: var(--accent-ddqn); font-weight: 700; }
+
+  /* ── Constraint badge ── */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    gap: 4px;
+  }
+  .pill-hard { background: #dcfce7; color: #15803d; }
+  .pill-soft { background: #fef9c3; color: #854d0e; }
+  .pill-none { background: #fee2e2; color: #b91c1c; }
+  .pill-term { background: #ede9fe; color: #5b21b6; }
+
+  /* ── Callout ── */
+  .callout {
+    display: flex;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout-info  { background: #eff6ff; border-left: 4px solid #3b82f6; }
+  .callout-warn  { background: #fffbeb; border-left: 4px solid #f59e0b; }
+  .callout-key   { background: #f0fdf4; border-left: 4px solid #22c55e; }
+  .callout-icon  { font-size: 18px; flex-shrink: 0; line-height: 1.5; }
+
+  /* ── MDP box ── */
+  .mdp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .mdp-cell {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .mdp-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .mdp-value { font-size: 13.5px; }
+
+  /* ── Cover ── */
+  .cover {
+    background: linear-gradient(135deg, #1e2330 0%, #2d3748 100%);
+    border-radius: 14px;
+    padding: 48px 52px;
+    color: #fff;
+    margin-bottom: 56px;
+  }
+  .cover h1 { color: #fff; font-size: 32px; margin-bottom: 10px; }
+  .cover .subtitle { color: #a0aec0; font-size: 15px; margin-bottom: 24px; }
+  .cover-meta { display: flex; gap: 24px; flex-wrap: wrap; }
+  .cover-meta-item { font-size: 13px; color: #a0aec0; }
+  .cover-meta-item strong { color: #e2e8f0; display: block; font-size: 14px; }
+
+  /* ── Accent bar ── */
+  .accent-bar {
+    height: 4px;
+    border-radius: 2px;
+    margin-bottom: 20px;
+  }
+
+  hr.sep { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+  /* ── Footnote ── */
+  .footnote { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+  @media (max-width: 768px) {
+    nav { display: none; }
+    main { margin-left: 0; padding: 24px 18px 60px; }
+    .mdp-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ Sidebar ═══ -->
+<nav>
+  <div class="nav-title">实验报告</div>
+  <div class="nav-section">概述</div>
+  <a href="#overview"><span class="nav-dot" style="background:#4f8ef7"></span>项目概述</a>
+  <a href="#problem"><span class="nav-dot" style="background:#4f8ef7"></span>问题定义</a>
+  <div class="nav-section">基准方法</div>
+  <a href="#ilp"><span class="nav-dot" style="background:var(--accent-ilp)"></span>P2 — ILP 最优解</a>
+  <div class="nav-section">PPO 系列</div>
+  <a href="#p3"><span class="nav-dot" style="background:var(--accent-p3)"></span>P3 — PPO 无约束</a>
+  <a href="#p4"><span class="nav-dot" style="background:var(--accent-p4)"></span>P4 — PPO 动作掩码</a>
+  <a href="#p5"><span class="nav-dot" style="background:var(--accent-p5)"></span>P5 — PPO 拉格朗日</a>
+  <a href="#p6"><span class="nav-dot" style="background:var(--accent-p6)"></span>P6 — PPO 最优适配</a>
+  <div class="nav-section">DQN 系列</div>
+  <a href="#dqn"><span class="nav-dot" style="background:var(--accent-dqn)"></span>DQN — 深度 Q 网络</a>
+  <a href="#ddqn"><span class="nav-dot" style="background:var(--accent-ddqn)"></span>DDQN — 双重 DQN</a>
+  <div class="nav-section">综合对比</div>
+  <a href="#comparison"><span class="nav-dot" style="background:#f59e0b"></span>方法横向对比</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════ Main ═══════ -->
+<main>
+
+<!-- Cover -->
+<div class="cover">
+  <h1>服务部署强化学习方法比较</h1>
+  <div class="subtitle">实验设置、MDP 建模与算法理念报告</div>
+  <div class="cover-meta">
+    <div class="cover-meta-item"><strong>实验数量</strong>6 个 RL 实验 + 1 个 ILP 基准</div>
+    <div class="cover-meta-item"><strong>场景规模</strong>200 个随机场景，N ECU × M 服务</div>
+    <div class="cover-meta-item"><strong>评测回合</strong>每方法 300 回合</div>
+    <div class="cover-meta-item"><strong>框架</strong>Stable-Baselines3 / sb3-contrib</div>
+  </div>
+</div>
+
+<!-- ═══════════ Overview ═══════════ -->
+<section id="overview">
+  <div class="section-header">
+    <h2>项目概述</h2>
+  </div>
+  <p>本项目研究<strong>边缘计算节点单元（ECU）服务部署</strong>问题：将 M 个服务分配到 N 个 ECU，在满足容量与唯一性约束的前提下，最大化平均资源利用率（AR）。</p>
+  <p>研究路线从整数线性规划最优解出发，逐步探索不同的强化学习方法，对比各方法在<strong>AR 性能</strong>、<strong>约束满足</strong>和<strong>推理效率</strong>三个维度上的权衡。</p>
+
+  <div class="mdp-grid" style="grid-template-columns: repeat(4,1fr); margin-top:20px;">
+    <div class="mdp-cell">
+      <div class="mdp-label">场景来源</div>
+      <div class="mdp-value">共享 YAML 配置<br><code>config_20260305_183222.yaml</code></div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">随机种子</div>
+      <div class="mdp-value"><code>SEED = 42</code>（所有实验统一）</div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">评测方式</div>
+      <div class="mdp-value">确定性策略，300 回合均值</div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">ILP 基准</div>
+      <div class="mdp-value">PuLP + CBC 求解器，全局最优</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Problem Definition ═══════════ -->
+<section id="problem">
+  <div class="section-header">
+    <h2>问题定义</h2>
+  </div>
+
+  <div class="card">
+    <div class="card-title">符号说明</div>
+    <table>
+      <tr><th>符号</th><th>含义</th></tr>
+      <tr><td>\(N\)</td><td>ECU（Edge Computing Unit）数量</td></tr>
+      <tr><td>\(M\)</td><td>需部署的服务数量（\(M \leq N\)）</td></tr>
+      <tr><td>\(e_j\)</td><td>ECU \(j\) 的 VM 容量</td></tr>
+      <tr><td>\(n_i\)</td><td>服务 \(i\) 的 VM 需求</td></tr>
+      <tr><td>\(x_{ij} \in \{0,1\}\)</td><td>决策变量：服务 \(i\) 是否分配到 ECU \(j\)</td></tr>
+      <tr><td>AR</td><td>平均资源利用率（Average Resource utilisation）</td></tr>
+    </table>
+  </div>
+
+  <h3>优化目标</h3>
+  <p>最大化所有已分配 ECU 的平均资源利用率：</p>
+  <p>$$\max\; AR = \frac{1}{|\mathcal{A}|} \sum_{j \in \mathcal{A}} \sum_{i=0}^{M-1} x_{ij} \cdot \frac{n_i}{e_j}$$</p>
+  <p>其中 \(\mathcal{A}\) 为接收了服务的活跃 ECU 集合。</p>
+
+  <h3>约束条件</h3>
+  <table>
+    <tr><th>约束</th><th>数学形式</th><th>含义</th></tr>
+    <tr><td>唯一分配</td><td>\(\sum_j x_{ij} = 1 \;\forall i\)</td><td>每个服务恰好分配到一个 ECU</td></tr>
+    <tr><td>单服务 ECU</td><td>\(\sum_i x_{ij} \leq 1 \;\forall j\)</td><td>每个 ECU 最多承载一个服务</td></tr>
+    <tr><td>容量限制</td><td>\(\sum_i x_{ij} \cdot n_i \leq e_j \;\forall j\)</td><td>服务需求不超过 ECU 容量</td></tr>
+  </table>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ️</span>
+    <div>各 RL 实验采用相同的 MDP 框架，核心差异在于<strong>约束违反的处理方式</strong>（无惩罚 / 动作掩码 / 拉格朗日惩罚 / 终止惩罚）及<strong>奖励函数的稠密程度</strong>。</div>
+  </div>
+</section>
+
+<!-- ═══════════ ILP ═══════════ -->
+<section id="ilp">
+  <div class="accent-bar" style="background:var(--accent-ilp)"></div>
+  <div class="section-header">
+    <span class="section-badge" style="background:var(--accent-ilp)">P2 · ILP</span>
+    <h2>整数线性规划最优解</h2>
+  </div>
+
+  <p>问题 2 将部署任务建模为整数线性规划，通过 PuLP + CBC 求解器求得<strong>全局最优解</strong>，所得 AR 值作为所有后续 RL 方法的<strong>理论上界基准</strong>。</p>
+
+  <div class="callout callout-key">
+    <span class="callout-icon">🎯</span>
+    <div><strong>实验理念：</strong>在进行任何近似方法之前，先获得精确的理论最优值，为后续方法提供可量化的性能差距参考。</div>
+  </div>
+
+  <h3>ILP 公式</h3>
+  <p>$$\max \sum_{i=0}^{M-1} \sum_{j=0}^{N-1} x_{ij} \cdot \frac{n_i}{e_j}$$</p>
+  <p>约束与上节相同，其中容量不可行配对（\(n_i > e_j\)）被预先设置为 \(x_{ij} = 0\)。</p>
+
+  <h3>场景配置</h3>
+  <table>
+    <tr><th>场景</th><th>ECU 容量</th><th>服务需求</th><th>特点</th></tr>
+    <tr><td>Scenario 1</td><td>均匀</td><td>均匀</td><td>对称，有效分配方案多</td></tr>
+    <tr><td>Scenario 2</td><td>异构</td><td>异构</td><td>需要精细匹配</td></tr>
+    <tr><td>Scenario 3</td><td>异构</td><td>均匀</td><td>ECU 多样性导致利用率差异</td></tr>
+    <tr><td>Scenario 4</td><td>均匀</td><td>异构</td><td>服务多样性导致利用率差异</td></tr>
+  </table>
+  <p class="footnote">完整 200 个场景逐一求解，结果缓存至 <code>ilp_cache.json</code>，后续所有 RL 实验直接读取。</p>
+
+  <h3>局限性</h3>
+  <div class="card">
+    <table>
+      <tr><th>维度</th><th>说明</th></tr>
+      <tr><td>计算复杂度</td><td>NP-hard，规模增大时求解时间显著上升</td></tr>
+      <tr><td>在线推理</td><td>不可实时部署，每次求解需完整运行 CBC</td></tr>
+      <tr><td>可扩展性</td><td>\(N > 100\) 时明显变慢</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════ P3 ═══════════ -->
+<section id="p3">
+  <div class="accent-bar" style="background:var(--accent-p3)"></div>
+  <div class="section-header">
+    <span class="section-badge" style="background:var(--accent-p3)">P3 · PPO</span>
+    <h2>PPO — 无约束执行</h2>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <span class="tag tag-reward">稀疏奖励（末步 AR）</span>
+    <span class="tag tag-constr">无约束惩罚</span>
+    <span class="tag tag-policy">在策略</span>
+    <span class="pill pill-none">约束：不执行</span>
+  </div>
+
+  <p>问题 3 训练 PPO 智能体，<strong>完全不执行任何约束</strong>。约束违反情况仅被记录用于分析，不施加任何惩罚，回合始终运行完整的 M 步。</p>
+
+  <div class="callout callout-key">
+    <span class="callout-icon">🎯</span>
+    <div><strong>实验理念：</strong>作为 RL 基准线，衡量在<em>无任何约束干预</em>情况下，纯 AR 最大化能达到的上限，以及伴随的违反率。后续 P4/P5 的约束引入代价可通过与 P3 对比量化。</div>
+  </div>
+
+  <h3>MDP 设计</h3>
+  <div class="mdp-grid">
+    <div class="mdp-cell">
+      <div class="mdp-label">状态空间 \((N+2)\) 维</div>
+      <div class="mdp-value">
+        \([d_t,\; AR_t,\; r_0^t,\ldots,r_{N-1}^t]\)<br>
+        当前服务需求 + 累积 AR + 各 ECU 剩余容量百分比
+      </div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">动作空间</div>
+      <div class="mdp-value">
+        \(a_t \in \{0,\ldots,N-1\}\)<br>
+        为当前服务选择目标 ECU，<strong>无任何屏蔽</strong>
+      </div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">奖励函数（稀疏）</div>
+      <div class="mdp-value">
+        $$r_t = \begin{cases} AR_M & t = M-1 \\ 0 & \text{其他} \end{cases}$$
+        违反不惩罚，余量可为负
+      </div>
+    </div>
+  </div>
+
+  <h3>超参数配置</h3>
+  <table>
+    <tr><th>超参数</th><th>值</th><th>说明</th></tr>
+    <tr><td>算法</td><td>PPO (Stable-Baselines3)</td><td></td></tr>
+    <tr><td>总训练步数</td><td><code>5,000,000</code></td><td></td></tr>
+    <tr><td>并行环境数 \(N_\text{envs}\)</td><td><code>40</code></td><td>SubprocVecEnv + fork</td></tr>
+    <tr><td>学习率</td><td><code>3e-4</code></td><td></td></tr>
+    <tr><td>展开长度 <code>n_steps</code></td><td><code>256</code></td><td>每次更新前收集的步数</td></tr>
+    <tr><td>批次大小</td><td><code>128</code></td><td></td></tr>
+    <tr><td>更新轮数</td><td><code>10</code></td><td></td></tr>
+    <tr><td>折扣因子 \(\gamma\)</td><td><code>0.999</code></td><td>高值确保末步奖励反向传播 M 步</td></tr>
+    <tr><td>GAE \(\lambda\)</td><td><code>0.95</code></td><td></td></tr>
+    <tr><td>裁剪范围</td><td><code>0.2</code></td><td></td></tr>
+    <tr><td>网络结构</td><td><code>[256, 256]</code></td><td>Actor-Critic 共享 MLP</td></tr>
+  </table>
+
+  <div class="callout callout-warn">
+    <span class="callout-icon">⚠️</span>
+    <div>由于不执行约束，评测时存在<strong>非零违反率</strong>，agent 可能将服务分配到已占用或容量不足的 ECU，但回合仍继续，AR 反映的是包含违规分配的值。</div>
+  </div>
+</section>
+
+<!-- ═══════════ P4 ═══════════ -->
+<section id="p4">
+  <div class="accent-bar" style="background:var(--accent-p4)"></div>
+  <div class="section-header">
+    <span class="section-badge" style="background:var(--accent-p4)">P4 · PPO-Mask</span>
+    <h2>MaskablePPO — 动作掩码硬约束</h2>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <span class="tag tag-reward">稀疏奖励（末步 AR）</span>
+    <span class="tag tag-constr">动作掩码</span>
+    <span class="tag tag-policy">在策略</span>
+    <span class="pill pill-hard">约束：硬（构造保证）</span>
+  </div>
+
+  <p>问题 4 使用 <strong>MaskablePPO</strong>（sb3-contrib），每步环境提供布尔掩码，将不可行 ECU 的策略 logit 置为 \(-\infty\)，<strong>从设计上彻底杜绝约束违反</strong>。</p>
+
+  <div class="callout callout-key">
+    <span class="callout-icon">🎯</span>
+    <div><strong>实验理念：</strong>动作掩码是 RL 中最简洁的硬约束机制——无需奖励工程，零违反由构造保证，代价是当无可行 ECU 时回合提前终止，略微降低期望 AR。</div>
+  </div>
+
+  <h3>动作掩码机制</h3>
+  <p>每步 \(t\) 的掩码向量 \(\mathbf{m}_t \in \{0,1\}^N\)：</p>
+  <p>$$m_t[j] = 1 \iff \text{ECU}_j\text{ 未分配} \;\wedge\; \text{remaining\_vms}[j] \geq n_t$$</p>
+  <p>MaskablePPO 在 softmax 前应用掩码：</p>
+  <p>$$\pi(a_t \mid s_t) \propto \exp(\text{logit}(a_t)) \cdot \mathbf{1}[m_t[a_t] = 1]$$</p>
+
+  <h3>MDP 设计</h3>
+  <div class="mdp-grid">
+    <div class="mdp-cell">
+      <div class="mdp-label">状态空间 \((N+2)\) 维</div>
+      <div class="mdp-value">与 P3 相同<br>需求 + AR + 剩余容量百分比</div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">动作空间</div>
+      <div class="mdp-value">
+        \(a_t \in \{0,\ldots,N-1\}\)<br>经掩码过滤后仅可行 ECU 可选
+      </div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">奖励函数</div>
+      <div class="mdp-value">
+        $$r_t = \begin{cases} AR_M & t = M-1 \\ AR_t & \text{无可行动作} \\ 0 & \text{其他} \end{cases}$$
+        无可行 ECU 时提前终止
+      </div>
+    </div>
+  </div>
+
+  <h3>超参数配置</h3>
+  <table>
+    <tr><th>超参数</th><th>值</th><th>说明</th></tr>
+    <tr><td>算法</td><td>MaskablePPO (sb3-contrib)</td><td></td></tr>
+    <tr><td>总训练步数</td><td><code>5,000,000</code></td><td></td></tr>
+    <tr><td>并行环境数</td><td><code>40</code></td><td></td></tr>
+    <tr><td>学习率</td><td><code>3e-4</code></td><td></td></tr>
+    <tr><td><code>n_steps</code></td><td><code>128</code></td><td>比 P3 更短，因掩码后有效动作减少</td></tr>
+    <tr><td>批次大小</td><td><code>128</code></td><td></td></tr>
+    <tr><td>更新轮数</td><td><code>10</code></td><td></td></tr>
+    <tr><td>折扣因子 \(\gamma\)</td><td><code>0.99</code></td><td></td></tr>
+    <tr><td>GAE \(\lambda\)</td><td><code>0.95</code></td><td></td></tr>
+    <tr><td>网络结构</td><td><code>pi=[256,256], vf=[256,256]</code></td><td>Actor/Critic 分离网络</td></tr>
+  </table>
+
+  <div class="card">
+    <div class="card-title">约束保证</div>
+    <table>
+      <tr><th>属性</th><th>保证</th></tr>
+      <tr><td>容量违反</td><td><strong>不可能</strong> — 掩码屏蔽超容量 ECU</td></tr>
+      <tr><td>重复 ECU 分配</td><td><strong>不可能</strong> — 掩码屏蔽已分配 ECU</td></tr>
+      <tr><td>违反率</td><td><strong>0%</strong>（由构造保证，无需训练收敛）</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════ P5 ═══════════ -->
+<section id="p5">
+  <div class="accent-bar" style="background:var(--accent-p5)"></div>
+  <div class="section-header">
+    <span class="section-badge" style="background:var(--accent-p5)">P5 · PPO-Lagrangian</span>
+    <h2>PPO — 拉格朗日约束松弛</h2>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <span class="tag tag-reward">密集奖励（每步利用率）</span>
+    <span class="tag tag-constr">拉格朗日软惩罚</span>
+    <span class="tag tag-policy">在策略</span>
+    <span class="pill pill-soft">约束：软（自适应）</span>
+  </div>
+
+  <p>问题 5 在标准 PPO 基础上加入<strong>自适应拉格朗日乘子 \(\lambda\)</strong>，将约束作为软惩罚纳入奖励函数。训练过程中通过<strong>对偶上升</strong>自动调节 \(\lambda\)，逐步增大违反代价，直至智能体学会避免违反。</p>
+
+  <div class="callout callout-key">
+    <span class="callout-icon">🎯</span>
+    <div><strong>实验理念：</strong>相比 P4 的硬掩码，拉格朗日方法不屏蔽动作，智能体始终可访问所有 ECU，训练信号更丰富（密集奖励）。核心问题是 \(\lambda\) 增长节奏——过快导致 AR 崩溃，过慢则违反率居高不下。</div>
+  </div>
+
+  <h3>奖励函数</h3>
+  <p>每步违反指示变量：</p>
+  <p>$$c_t = \begin{cases} 1 & \text{remaining\_vms}[a_t] < n_t \;\text{ 或 ECU}\;a_t\;\text{已占用} \\ 0 & \text{其他} \end{cases}$$</p>
+  <p>每步奖励：</p>
+  <p>$$r_t = \frac{n_{a_t}}{M \cdot e_{a_t}} - \lambda \cdot c_t$$</p>
+  <p>零违反时，完整 M 步回合的累积奖励恰好等于 AR。</p>
+
+  <h3>对偶上升更新规则</h3>
+  <p>每 <code>LAMBDA_UPDATE_WINDOW</code> 个回合更新一次：</p>
+  <p>$$\lambda \leftarrow \text{clip}\!\bigl(\lambda + \alpha \cdot (\bar{v} - v^*),\; 0,\; \lambda_{\max}\bigr)$$</p>
+  <table>
+    <tr><th>参数</th><th>值</th><th>含义</th></tr>
+    <tr><td>\(\alpha\)（<code>LAMBDA_LR</code>）</td><td><code>0.0003</code></td><td>对偶上升步长（故意偏小，防止 AR 崩溃）</td></tr>
+    <tr><td>\(v^*\)（<code>LAMBDA_TARGET</code>）</td><td><code>0.0</code></td><td>目标违反率（零违反）</td></tr>
+    <tr><td>\(\lambda_{\max}\)（<code>LAMBDA_MAX</code>）</td><td><code>2.0</code></td><td>惩罚上限（与每步利用率增益量级匹配）</td></tr>
+    <tr><td>预热轮数（<code>LAMBDA_WARMUP_EPISODES</code>）</td><td><code>20,000</code></td><td>训练早期 \(\lambda = 0\)，先学习高 AR 策略结构</td></tr>
+    <tr><td>更新窗口（<code>LAMBDA_UPDATE_WINDOW</code>）</td><td><code>20</code></td><td>每 20 回合估计 \(\bar{v}\) 并更新 \(\lambda\)</td></tr>
+  </table>
+
+  <h3>超参数配置</h3>
+  <table>
+    <tr><th>超参数</th><th>值</th><th>说明</th></tr>
+    <tr><td>总训练步数</td><td><code>5,000,000</code></td><td></td></tr>
+    <tr><td>并行环境数</td><td><code>40</code></td><td></td></tr>
+    <tr><td>学习率</td><td><code>3e-4</code></td><td></td></tr>
+    <tr><td><code>n_steps</code></td><td><code>128</code></td><td>短 rollout，更频繁更新</td></tr>
+    <tr><td>批次大小</td><td><code>256</code></td><td>比 P3/P4 更大，对应更大的策略空间</td></tr>
+    <tr><td>折扣因子 \(\gamma\)</td><td><code>0.99</code></td><td>密集奖励无需特别高的 γ</td></tr>
+    <tr><td>网络结构</td><td><code>pi=[256,256], vf=[512,512]</code></td><td>Critic 更大，处理更复杂的价值估计</td></tr>
+    <tr><td>运行设备</td><td><code>cpu</code></td><td>固定 CPU（避免 CUDA 与 fork 冲突）</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════ P6 ═══════════ -->
+<section id="p6">
+  <div class="accent-bar" style="background:var(--accent-p6)"></div>
+  <div class="section-header">
+    <span class="section-badge" style="background:var(--accent-p6)">P6 · PPO-Opt</span>
+    <h2>PPO — 最优适配补救算法</h2>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <span class="tag tag-reward">密集奖励（利用率增量）</span>
+    <span class="tag tag-constr">Best-Fit Patch</span>
+    <span class="tag tag-policy">在策略</span>
+    <span class="pill pill-hard">约束：最优适配修复</span>
+  </div>
+
+  <p>问题 6 在 PPO 环境层面内置<strong>最优适配补救算法（Best-Fit Patch）</strong>：当智能体选择已被占用的 ECU 时，不直接报告违规，而是尝试将两个冲突服务在空闲 ECU 间<strong>重新调度</strong>以最小化违规并最大化利用率。</p>
+
+  <div class="callout callout-key">
+    <span class="callout-icon">🎯</span>
+    <div><strong>实验理念：</strong>探索"环境层修复"能否在不使用 action masking 的前提下，通过启发式后处理将 agent 的次优动作转化为可行分配，从而同时提升 AR 和约束满足率。</div>
+  </div>
+
+  <h3>补救算法流程</h3>
+  <div class="card">
+    <p><strong>触发条件：</strong><code>ecu_assigned[a_t] == True</code>（选中了已占用 ECU）</p>
+    <p>设 \(s_1\) 为当前占用该 ECU 的服务，\(s_2\) 为当前新来服务。</p>
+
+    <p><strong>步骤 1 — 决定留守/迁移方：</strong></p>
+    <ul style="margin-left:20px;margin-bottom:10px;font-size:14px;">
+      <li>若 \(n_{s_2} > n_{s_1}\)：\(s_2\) 留守（大服务配大 ECU），\(s_1\) 迁移</li>
+      <li>否则：\(s_1\) 留守，\(s_2\) 迁移</li>
+    </ul>
+
+    <p><strong>步骤 2 — 寻找最优适配空闲 ECU：</strong></p>
+    <p>在所有 <code>ecu_assigned[j] == False</code> 的候选中，选使剩余空间最小的（最紧适配）。</p>
+
+    <p><strong>步骤 3 — 执行迁移并增量修正 AR：</strong></p>
+    <p>$$AR_\text{new} = AR_\text{old} + \frac{n_{s_\text{move}}}{\text{step}} \cdot \left(\frac{1}{e_m} - \frac{1}{e_n}\right)$$</p>
+
+    <p><strong>步骤 4（Fallback）— 无容量足够空闲 ECU 时：</strong>枚举所有空闲 ECU 与两种排列组合，选违规数最少、得分最高的方案（排除 2 违规组合）。</p>
+  </div>
+
+  <h3>超参数配置</h3>
+  <table>
+    <tr><th>超参数</th><th>值</th><th>说明</th></tr>
+    <tr><td>总训练步数</td><td><code>5,000,000</code></td><td></td></tr>
+    <tr><td>并行环境数</td><td><code>40</code></td><td></td></tr>
+    <tr><td>学习率</td><td><code>3e-4</code></td><td></td></tr>
+    <tr><td><code>n_steps</code></td><td><code>256</code></td><td></td></tr>
+    <tr><td>折扣因子 \(\gamma\)</td><td><code>0.999</code></td><td>密集奖励仍需较高 γ 支撑长期信用分配</td></tr>
+    <tr><td>网络结构</td><td><code>[256, 256]</code></td><td></td></tr>
+    <tr><td>观测维度</td><td>\(4N + 6 + M\)</td><td>比 P3 更丰富，含占用标志、合法动作掩码等</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════ DQN ═══════════ -->
+<section id="dqn">
+  <div class="accent-bar" style="background:var(--accent-dqn)"></div>
+  <div class="section-header">
+    <span class="section-badge" style="background:var(--accent-dqn)">DQN</span>
+    <h2>深度 Q 网络 — 离策略 + 终止惩罚</h2>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <span class="tag tag-reward">密集奖励（每步利用率）</span>
+    <span class="tag tag-off">离策略</span>
+    <span class="tag tag-constr">违规即终止</span>
+    <span class="pill pill-term">约束：终止惩罚</span>
+  </div>
+
+  <p>DQN 实验将<strong>离策略学习</strong>引入本任务，采用经验回放缓冲区，通过<strong>违规即终止 + 负惩罚</strong>处理约束，无需动作掩码或拉格朗日调参。</p>
+
+  <div class="callout callout-key">
+    <span class="callout-icon">🎯</span>
+    <div><strong>实验理念：</strong>对比离策略（DQN）与在策略（PPO）在此任务上的优劣，同时验证"终止惩罚"这一简单约束机制能否替代掩码，在评测时杜绝违规。</div>
+  </div>
+
+  <h3>奖励函数（密集 + 惩罚）</h3>
+  <table>
+    <tr><th>情形</th><th>奖励</th><th>终止</th></tr>
+    <tr><td>不可行 ECU（容量超出或重复使用）</td><td>\(-\text{remaining\_services}\)（剩余服务数）</td><td>✓ 立即终止</td></tr>
+    <tr><td>合法分配（中间步）</td><td>\(n_{a_t} / (M \cdot e_{a_t})\)（即时利用率贡献）</td><td>✗</td></tr>
+    <tr><td>合法分配（最后步 \(t = M-1\)）</td><td>\(n_{a_t} / (M \cdot e_{a_t})\)</td><td>✓ 自然终止</td></tr>
+  </table>
+  <p class="footnote">零违反时累积奖励 \(= AR\)；违规导致提前终止，故评测时 <code>services_placed &lt; M</code>（见图中 DQN/DDQN 列）。</p>
+
+  <h3>状态空间（\(4N+6+M\) 维，富信息观测）</h3>
+  <table>
+    <tr><th>索引</th><th>内容</th></tr>
+    <tr><td>\([0]\)</td><td>当前服务需求（归一化）</td></tr>
+    <tr><td>\([1]\)</td><td>当前累积 AR</td></tr>
+    <tr><td>\([2]\)</td><td>剩余可用 ECU 容量之和</td></tr>
+    <tr><td>\([3]\)</td><td>剩余服务需求之和</td></tr>
+    <tr><td>\([4]\)</td><td>剩余可用 ECU 数量</td></tr>
+    <tr><td>\([5]\)</td><td>剩余服务数量</td></tr>
+    <tr><td>\([6:6+N]\)</td><td>各 ECU 初始容量比例</td></tr>
+    <tr><td>\([6+N:6+2N]\)</td><td>各 ECU 当前剩余容量比例</td></tr>
+    <tr><td>\([6+2N:6+3N]\)</td><td>ECU 占用标志</td></tr>
+    <tr><td>\([6+3N:6+4N]\)</td><td>当前服务的合法动作标志</td></tr>
+    <tr><td>\([6+4N:6+4N+M]\)</td><td>剩余服务需求列表（降序）</td></tr>
+  </table>
+
+  <h3>超参数配置</h3>
+  <table>
+    <tr><th>超参数</th><th>值</th><th>说明</th></tr>
+    <tr><td>总训练步数</td><td><code>3,000,000</code></td><td>比 PPO 少，但离策略样本利用率更高</td></tr>
+    <tr><td>并行环境数</td><td><code>12</code></td><td>DQN 缓冲区共享，无需大量并行</td></tr>
+    <tr><td>学习率</td><td><code>1e-3</code></td><td>比 PPO 高，配合较小批次</td></tr>
+    <tr><td>回放缓冲区大小</td><td><code>100,000</code></td><td></td></tr>
+    <tr><td>开始学习步数</td><td><code>2,000</code></td><td>预热阶段填充缓冲区</td></tr>
+    <tr><td>批次大小</td><td><code>64</code></td><td></td></tr>
+    <tr><td>目标网络更新 \(\tau\)</td><td><code>1.0</code>（硬更新）</td><td></td></tr>
+    <tr><td>目标网络更新间隔</td><td>每 <code>500</code> 步</td><td></td></tr>
+    <tr><td>折扣因子 \(\gamma\)</td><td><code>0.99</code></td><td></td></tr>
+    <tr><td>训练频率</td><td>每 <code>4</code> 步</td><td></td></tr>
+    <tr><td>探索比例</td><td><code>0.5</code>（前 50%）</td><td>\(\epsilon\) 从 1.0 线性衰减至 0.05</td></tr>
+    <tr><td>Q 网络结构</td><td><code>[128, 128]</code></td><td>刻意较小，防止对过时转移过拟合</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════ DDQN ═══════════ -->
+<section id="ddqn">
+  <div class="accent-bar" style="background:var(--accent-ddqn)"></div>
+  <div class="section-header">
+    <span class="section-badge" style="background:var(--accent-ddqn)">DDQN</span>
+    <h2>双重深度 Q 网络 — 减少高估偏差</h2>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <span class="tag tag-reward">密集奖励（每步利用率）</span>
+    <span class="tag tag-off">离策略</span>
+    <span class="tag tag-constr">违规即终止</span>
+    <span class="pill pill-term">约束：终止惩罚</span>
+  </div>
+
+  <p>DDQN 是 DQN 的改进变体，通过<strong>两个 Q 网络解耦动作选择与价值估计</strong>，减少标准 DQN 中因 max 操作引入的系统性高估偏差。</p>
+
+  <div class="callout callout-key">
+    <span class="callout-icon">🎯</span>
+    <div><strong>实验理念：</strong>在与 DQN 完全相同的环境和超参数下，验证 Double Q-learning 技术在本任务中是否能带来更稳定的价值估计和更高的 AR，量化高估偏差对结果的影响。</div>
+  </div>
+
+  <h3>与 DQN 的核心差异</h3>
+  <div class="card">
+    <p><strong>标准 DQN 目标：</strong></p>
+    <p>$$y = r + \gamma \cdot \max_{a'} Q_\theta(s', a')$$</p>
+    <p><strong>DDQN 目标（解耦选择与估计）：</strong></p>
+    <p>$$y = r + \gamma \cdot Q_{\theta^-}\!\bigl(s',\; \arg\max_{a'} Q_\theta(s', a')\bigr)$$</p>
+    <p>在线网络 \(Q_\theta\) 选择动作，目标网络 \(Q_{\theta^-}\) 估计价值，消除双重 max 引入的高估。</p>
+  </div>
+
+  <h3>超参数配置</h3>
+  <p>与 DQN 完全相同（详见 DQN 章节），仅算法内核由单 Q 网络替换为双 Q 网络。</p>
+  <table>
+    <tr><th>超参数</th><th>值</th></tr>
+    <tr><td>总训练步数</td><td><code>3,000,000</code></td></tr>
+    <tr><td>并行环境数</td><td><code>12</code></td></tr>
+    <tr><td>学习率</td><td><code>1e-3</code></td></tr>
+    <tr><td>回放缓冲区</td><td><code>100,000</code></td></tr>
+    <tr><td>Q 网络结构</td><td><code>[128, 128]</code></td></tr>
+    <tr><td>探索策略</td><td>\(\epsilon\) 从 1.0 → 0.05，前 50% 步线性衰减</td></tr>
+  </table>
+
+  <div class="callout callout-warn">
+    <span class="callout-icon">⚠️</span>
+    <div>与 DQN 相同，DDQN 评测时若触发违规则 episode 立即终止，因此<strong>Placement Completeness 图中 services_placed &lt; M 是预期行为</strong>，体现的是模型尚未完全消除无效动作，而非实现缺陷。</div>
+  </div>
+</section>
+
+<!-- ═══════════ Comparison ═══════════ -->
+<section id="comparison">
+  <div class="section-header">
+    <h2>方法横向对比</h2>
+  </div>
+
+  <table>
+    <tr>
+      <th>方法</th>
+      <th>算法类型</th>
+      <th>约束机制</th>
+      <th>奖励密度</th>
+      <th>训练步数</th>
+      <th>违反率</th>
+      <th>评测放满</th>
+    </tr>
+    <tr>
+      <td><span class="cmp-ilp">ILP</span></td>
+      <td>精确求解</td>
+      <td><span class="pill pill-hard">硬（LP 内置）</span></td>
+      <td>—</td>
+      <td>—</td>
+      <td>0%</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td><span class="cmp-p3">P3 PPO</span></td>
+      <td>在策略</td>
+      <td><span class="pill pill-none">无执行</span></td>
+      <td>稀疏（末步）</td>
+      <td>5,000,000</td>
+      <td>&gt; 0%</td>
+      <td>✓（M 步强制）</td>
+    </tr>
+    <tr>
+      <td><span class="cmp-p4">P4 PPO-Mask</span></td>
+      <td>在策略</td>
+      <td><span class="pill pill-hard">硬（动作掩码）</span></td>
+      <td>稀疏（末步）</td>
+      <td>5,000,000</td>
+      <td>0%（保证）</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td><span class="cmp-p5">P5 PPO-Lag.</span></td>
+      <td>在策略</td>
+      <td><span class="pill pill-soft">软（λ 自适应）</span></td>
+      <td>密集（每步）</td>
+      <td>5,000,000</td>
+      <td>≈ 0%（收敛后）</td>
+      <td>✓（M 步强制）</td>
+    </tr>
+    <tr>
+      <td><span class="cmp-p6">P6 PPO-Opt</span></td>
+      <td>在策略</td>
+      <td><span class="pill pill-hard">Best-Fit 修复</span></td>
+      <td>密集（增量）</td>
+      <td>5,000,000</td>
+      <td>低（修复后）</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td><span class="cmp-dqn">DQN</span></td>
+      <td>离策略</td>
+      <td><span class="pill pill-term">终止惩罚</span></td>
+      <td>密集（每步）</td>
+      <td>3,000,000</td>
+      <td>训练后仍可能 &gt; 0%</td>
+      <td>✗（违规即终止）</td>
+    </tr>
+    <tr>
+      <td><span class="cmp-ddqn">DDQN</span></td>
+      <td>离策略</td>
+      <td><span class="pill pill-term">终止惩罚</span></td>
+      <td>密集（每步）</td>
+      <td>3,000,000</td>
+      <td>训练后仍可能 &gt; 0%</td>
+      <td>✗（违规即终止）</td>
+    </tr>
+  </table>
+
+  <hr class="sep">
+
+  <h3>约束机制权衡总结</h3>
+  <div class="mdp-grid" style="grid-template-columns: repeat(2,1fr);">
+    <div class="mdp-cell">
+      <div class="mdp-label">硬约束：动作掩码（P4）</div>
+      <div class="mdp-value" style="font-size:13px;">
+        ✓ 零违反保证，无需调参<br>
+        ✓ 可证明安全<br>
+        ✗ 需要 sb3-contrib 扩展<br>
+        ✗ 无可行 ECU 时提前终止
+      </div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">软约束：拉格朗日（P5）</div>
+      <div class="mdp-value" style="font-size:13px;">
+        ✓ 密集奖励，早期学习快<br>
+        ✓ 无需 masking 扩展库<br>
+        ✗ 需调 λ 超参数（LR、max、warmup）<br>
+        ✗ 收敛前违反率不稳定
+      </div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">终止惩罚（DQN/DDQN）</div>
+      <div class="mdp-value" style="font-size:13px;">
+        ✓ 简单直接，无额外依赖<br>
+        ✓ 离策略样本效率高<br>
+        ✗ 评测时仍可能违规终止<br>
+        ✗ 短 episode 导致 Q 估计困难
+      </div>
+    </div>
+    <div class="mdp-cell">
+      <div class="mdp-label">环境层修复（P6 Best-Fit）</div>
+      <div class="mdp-value" style="font-size:13px;">
+        ✓ agent 容错性强<br>
+        ✓ 启发式修复提升 AR<br>
+        ✗ 环境逻辑复杂度高<br>
+        ✗ Fallback 场景仍有残余违规
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+  <p class="footnote" style="text-align:center;">本文档由代码自动提取生成 · 超参数均来自各实验 <code>config.py</code> · 生成日期 2026-04-17</p>
+</section>
+
+</main>
+
+<script>
+  // Sidebar active link highlight on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('nav a[href^="#"]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
