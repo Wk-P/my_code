@@ -64,7 +64,7 @@ def _val(row, col, default=0.0):
 
 
 def plot_combined(records):
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    fig, axes = plt.subplots(1, 4, figsize=(24, 6))
     fig.suptitle("Combined Results: P3–P6 PPO Variants + DQN vs ILP Optimal",
                  fontsize=13, fontweight="bold")
 
@@ -73,8 +73,10 @@ def plot_combined(records):
     w  = 0.25
 
     keys = ["ilp_ar", "ilp_std", "ilp_placed",
-            "rand_ar", "rand_std", "rand_placed", "rand_viol",
-            "rl_ar",  "rl_std",  "rl_placed",  "rl_viol"]
+            "rand_ar", "rand_std", "rand_placed",
+            "rand_cap_viol", "rand_conflict_viol",
+            "rl_ar",  "rl_std",  "rl_placed",
+            "rl_cap_viol", "rl_conflict_viol"]
     data = {k: [] for k in keys}
 
     for folder, _ in PROBLEM_ORDER:
@@ -86,11 +88,13 @@ def plot_combined(records):
         data["rand_ar"].append(_val(rand, "ar_mean"))
         data["rand_std"].append(_val(rand, "ar_std"))
         data["rand_placed"].append(_val(rand, "placed_mean"))
-        data["rand_viol"].append(_val(rand, "viol_rate"))
+        data["rand_cap_viol"].append(_val(rand, "cap_viol_total"))
+        data["rand_conflict_viol"].append(_val(rand, "conflict_viol_total"))
         data["rl_ar"].append(_val(rl,  "ar_mean"))
         data["rl_std"].append(_val(rl, "ar_std"))
         data["rl_placed"].append(_val(rl, "placed_mean"))
-        data["rl_viol"].append(_val(rl,  "viol_rate"))
+        data["rl_cap_viol"].append(_val(rl, "cap_viol_total"))
+        data["rl_conflict_viol"].append(_val(rl, "conflict_viol_total"))
 
     for k in data:
         data[k] = np.array(data[k])
@@ -121,36 +125,60 @@ def plot_combined(records):
 
     ax.set_xticks(xs)
     ax.set_xticklabels(xlabels, fontsize=8)
+    for tick, c in zip(ax.get_xticklabels(), rl_colors):
+        tick.set_color(c)
     ax.set_ylabel("Average Resource Utilisation (AR)")
     ax.set_title("AR Comparison: ILP vs Random vs Method", fontsize=10, fontweight="bold")
     ax.legend(fontsize=6.5, loc="lower right", ncol=2)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
 
-    # ── Subplot 2: Constraint Violation Rate ──────────────────────────────
+    # ── Subplot 2: Capacity Violations ───────────────────────────────────
     ax = axes[1]
-    ax.bar(xs - w / 2, data["rand_viol"], width=w,
+    ax.bar(xs - w / 2, data["rand_cap_viol"], width=w,
            color="#aec7e8", edgecolor="black", linewidth=0.5, label="Random")
-    b_rl2 = ax.bar(xs + w / 2, data["rl_viol"], width=w,
+    b_cap = ax.bar(xs + w / 2, data["rl_cap_viol"], width=w,
                    color=rl_colors, edgecolor="black", linewidth=0.5)
     for folder, lbl in PROBLEM_ORDER:
         ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
 
-    for bar, v in zip(b_rl2, data["rl_viol"]):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
-                f"{v:.2f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
+    cap_max = max(np.max(data["rand_cap_viol"]), np.max(data["rl_cap_viol"]), 1.0)
+    for bar, v in zip(b_cap, data["rl_cap_viol"]):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + cap_max * 0.02,
+                f"{v:.0f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
 
     ax.set_xticks(xs)
     ax.set_xticklabels(xlabels, fontsize=8)
-    ax.set_ylabel("Violation Rate")
-    ax.set_title("Constraint Violation Rate", fontsize=10, fontweight="bold")
+    ax.set_ylabel("Total Capacity Violations")
+    ax.set_title("Capacity Violations (cap_viol_total)", fontsize=10, fontweight="bold")
     ax.legend(fontsize=6.5, ncol=2)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
-    vmax = max(np.max(data["rand_viol"]), np.max(data["rl_viol"]))
-    ax.set_ylim(0, vmax * 1.3 + 0.05)
+    ax.set_ylim(0, cap_max * 1.3 + 1)
 
-    # ── Subplot 3: Placement Completeness ─────────────────────────────────
+    # ── Subplot 3: Conflict Violations ────────────────────────────────────
     ax = axes[2]
+    ax.bar(xs - w / 2, data["rand_conflict_viol"], width=w,
+           color="#aec7e8", edgecolor="black", linewidth=0.5, label="Random")
+    b_conf = ax.bar(xs + w / 2, data["rl_conflict_viol"], width=w,
+                    color=rl_colors, edgecolor="black", linewidth=0.5)
+    for folder, lbl in PROBLEM_ORDER:
+        ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
+
+    conf_max = max(np.max(data["rand_conflict_viol"]), np.max(data["rl_conflict_viol"]), 1.0)
+    for bar, v in zip(b_conf, data["rl_conflict_viol"]):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + conf_max * 0.02,
+                f"{v:.0f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
+
+    ax.set_xticks(xs)
+    ax.set_xticklabels(xlabels, fontsize=8)
+    ax.set_ylabel("Total Conflict Violations")
+    ax.set_title("Conflict Violations (conflict_viol_total)", fontsize=10, fontweight="bold")
+    ax.legend(fontsize=6.5, ncol=2)
+    ax.grid(axis="y", linestyle="--", alpha=0.5)
+    ax.set_ylim(0, conf_max * 1.3 + 1)
+
+    # ── Subplot 4: Placement Completeness ─────────────────────────────────
+    ax = axes[3]
     b_ilp3  = ax.bar(xs - w, data["ilp_placed"],  width=w,
                      color="#d62728", edgecolor="black", linewidth=0.5, label="ILP (Optimal)")
     b_rand3 = ax.bar(xs,     data["rand_placed"], width=w,
