@@ -66,6 +66,8 @@ class LagrangeEnv(gym.Env):
         self.ar:                  float
         self._step:               int
         self.episode_violations:  int
+        self.cap_violations:      int
+        self.conflict_violations: int
         self.reset()
 
     def set_lambda(self, val: float):
@@ -107,7 +109,9 @@ class LagrangeEnv(gym.Env):
         self.ar              = 0.0
         self._total_ru       = 0.0
         self._step           = 0
-        self.episode_violations = 0
+        self.episode_violations  = 0
+        self.cap_violations      = 0
+        self.conflict_violations = 0
         return self._obs(), {}
 
     # ── observation ───────────────────────────────────────────────────────────
@@ -184,6 +188,10 @@ class LagrangeEnv(gym.Env):
         self._step += 1
         if violated:
             self.episode_violations += 1
+        if cap_violated:
+            self.cap_violations += 1
+        if conflict_violated:
+            self.conflict_violations += 1
 
         done = self._step >= self.M
         match_gain     = 0.0 if cap_violated else float(ru)
@@ -194,12 +202,14 @@ class LagrangeEnv(gym.Env):
         reward = float(match_gain - (self.lambda_val + base_penalty) * c_t + terminal_bonus)
 
         return self._obs(), reward, done, False, {
-            "ar":              self.ar,
-            "violated":        violated,
-            "violations_ep":   self.episode_violations,
-            "viol_rate_ep":    self.episode_violations / self._step,
-            "services_placed": self._step,
-            "lambda":          self.lambda_val,
+            "ar":                self.ar,
+            "violated":          violated,
+            "violations_ep":     self.episode_violations,
+            "viol_rate_ep":      self.episode_violations / self._step,
+            "cap_violations":    self.cap_violations,
+            "conflict_violations": self.conflict_violations,
+            "services_placed":   self._step,
+            "lambda":            self.lambda_val,
         }
 
     # ── render ────────────────────────────────────────────────────────────────

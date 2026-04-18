@@ -358,16 +358,20 @@ def main():
             "violations": 0,
         },
         "random_masked": {
-            "ar_mean":   round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":    round(float(np.std(rand_res["ars"])), 6),
-            "placed_mean": round(float(np.mean(rand_res["placed"])), 2),
-            "violations": 0,
+            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
+            "ar_std":             round(float(np.std(rand_res["ars"])), 6),
+            "placed_mean":        round(float(np.mean(rand_res["placed"])), 2),
+            "violations":         0,
+            "cap_viol_total":     0,
+            "conflict_viol_total": 0,
         },
         "maskable_ppo": {
-            "ar_mean":   round(float(np.mean(ppo_res["ars"])), 6),
-            "ar_std":    round(float(np.std(ppo_res["ars"])), 6),
-            "placed_mean": round(float(np.mean(ppo_res["placed"])), 2),
-            "violations": 0,
+            "ar_mean":            round(float(np.mean(ppo_res["ars"])), 6),
+            "ar_std":             round(float(np.std(ppo_res["ars"])), 6),
+            "placed_mean":        round(float(np.mean(ppo_res["placed"])), 2),
+            "violations":         0,
+            "cap_viol_total":     0,
+            "conflict_viol_total": 0,
         },
         "training": {
             "total_steps": C.TOTAL_STEPS,
@@ -388,21 +392,21 @@ def main():
     csv_path = base_path / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
             "Random (masked)",
             round(float(np.mean(rand_res["ars"])), 6),
             round(float(np.std(rand_res["ars"])), 6),
             round(float(np.mean(rand_res["placed"])), 2),
-            0.0,
+            0.0, 0, 0,
         ])
         writer.writerow([
             "MaskablePPO (P4)",
             round(float(np.mean(ppo_res["ars"])), 6),
             round(float(np.std(ppo_res["ars"])), 6),
             round(float(np.mean(ppo_res["placed"])), 2),
-            0.0,
+            0.0, 0, 0,
         ])
     print(f"  CSV  saved -> {csv_path}")
 

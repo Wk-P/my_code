@@ -394,14 +394,18 @@ def main():
             "violations": 0,
         },
         "random": {
-            "ar_mean":   round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":    round(float(np.std(rand_res["ars"])),  6),
-            "viol_rate_mean": round(float(r_v), 6),
+            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
+            "ar_std":             round(float(np.std(rand_res["ars"])),  6),
+            "viol_rate_mean":     round(float(r_v), 6),
+            "cap_viol_total":     int(np.sum(rand_res["cap_viols"])),
+            "conflict_viol_total": int(np.sum(rand_res["conflict_viols"])),
         },
         "ppo": {
-            "ar_mean":   round(float(np.mean(ppo_res["ars"])), 6),
-            "ar_std":    round(float(np.std(ppo_res["ars"])),  6),
-            "viol_rate_mean": round(float(p_v), 6),
+            "ar_mean":            round(float(np.mean(ppo_res["ars"])), 6),
+            "ar_std":             round(float(np.std(ppo_res["ars"])),  6),
+            "viol_rate_mean":     round(float(p_v), 6),
+            "cap_viol_total":     int(np.sum(ppo_res["cap_viols"])),
+            "conflict_viol_total": int(np.sum(ppo_res["conflict_viols"])),
         },
         "training": {
             "total_steps":  C.TOTAL_STEPS,
@@ -421,14 +425,16 @@ def main():
     csv_path = run_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
             "Random Baseline",
             round(float(np.mean(rand_res["ars"])), 6),
             round(float(np.std(rand_res["ars"])), 6),
             round(float(np.mean(rand_res["placed"])), 2),
             round(float(r_v), 4),
+            int(np.sum(rand_res["cap_viols"])),
+            int(np.sum(rand_res["conflict_viols"])),
         ])
         writer.writerow([
             "PPO (P6, best-fit)",
@@ -436,6 +442,8 @@ def main():
             round(float(np.std(ppo_res["ars"])), 6),
             round(float(np.mean(ppo_res["placed"])), 2),
             round(float(p_v), 4),
+            int(np.sum(ppo_res["cap_viols"])),
+            int(np.sum(ppo_res["conflict_viols"])),
         ])
     print(f"  CSV  saved → {csv_path}")
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)

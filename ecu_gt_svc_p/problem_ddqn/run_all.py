@@ -66,7 +66,7 @@ def _make_ddqn_env(seed: int) -> Monitor:
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs) -> int   (no mask)"""
     env = DDQNEnv(ecus, services, scenarios=C.SCENARIOS)
-    ars, placed_list, viol_list = [], [], []
+    ars, placed_list, viol_list, conflict_viol_list = [], [], [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
         done = False
@@ -76,10 +76,12 @@ def run_episodes(ecus, services, policy_fn, n_eps):
         ars.append(info.get("ar", 0.0))
         placed_list.append(info.get("services_placed", 0))
         viol_list.append(1 if info.get("violated", False) else 0)
+        conflict_viol_list.append(int(info.get("conflict_violations", 0)))
     return {
-        "ars":    np.array(ars),
-        "placed": np.array(placed_list),
-        "viols":  np.array(viol_list),
+        "ars":           np.array(ars),
+        "placed":        np.array(placed_list),
+        "viols":         np.array(viol_list),
+        "conflict_viols": np.array(conflict_viol_list),
     }
 
 
@@ -372,16 +374,20 @@ def main():
             "violations": 0,
         },
         "random": {
-            "ar_mean":     round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":      round(float(np.std(rand_res["ars"])), 6),
-            "placed_mean": round(float(np.mean(rand_res["placed"])), 2),
-            "viol_rate":   round(float(np.mean(rand_res["viols"])), 4),
+            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
+            "ar_std":             round(float(np.std(rand_res["ars"])), 6),
+            "placed_mean":        round(float(np.mean(rand_res["placed"])), 2),
+            "viol_rate":          round(float(np.mean(rand_res["viols"])), 4),
+            "cap_viol_total":     int(np.sum(rand_res["viols"])),
+            "conflict_viol_total": int(np.sum(rand_res["conflict_viols"])),
         },
         "ddqn": {
-            "ar_mean":     round(float(np.mean(ddqn_res["ars"])), 6),
-            "ar_std":      round(float(np.std(ddqn_res["ars"])), 6),
-            "placed_mean": round(float(np.mean(ddqn_res["placed"])), 2),
-            "viol_rate":   round(float(ddqn_train_v), 4),
+            "ar_mean":            round(float(np.mean(ddqn_res["ars"])), 6),
+            "ar_std":             round(float(np.std(ddqn_res["ars"])), 6),
+            "placed_mean":        round(float(np.mean(ddqn_res["placed"])), 2),
+            "viol_rate":          round(float(ddqn_train_v), 4),
+            "cap_viol_total":     int(np.sum(ddqn_res["viols"])),
+            "conflict_viol_total": int(np.sum(ddqn_res["conflict_viols"])),
         },
         "training": {
             "total_steps":      C.TOTAL_STEPS,
@@ -400,14 +406,16 @@ def main():
     csv_path = base_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
             "Random (no mask)",
             round(float(np.mean(rand_res["ars"])), 6),
             round(float(np.std(rand_res["ars"])), 6),
             round(float(np.mean(rand_res["placed"])), 2),
             round(float(np.mean(rand_res["viols"])), 4),
+            int(np.sum(rand_res["viols"])),
+            int(np.sum(rand_res["conflict_viols"])),
         ])
         writer.writerow([
             "DDQN (no mask)",
@@ -415,6 +423,8 @@ def main():
             round(float(np.std(ddqn_res["ars"])), 6),
             round(float(np.mean(ddqn_res["placed"])), 2),
             round(float(ddqn_train_v), 4),
+            int(np.sum(ddqn_res["viols"])),
+            int(np.sum(ddqn_res["conflict_viols"])),
         ])
     print(f"  CSV  saved -> {csv_path}")
 

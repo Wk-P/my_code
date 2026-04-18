@@ -33,10 +33,489 @@ All run scripts exist. Starting execution...
 [problem3_ppo/run_all.py]   ILP mean AR across 200 scenarios: 0.6256
 [problem3_ppo/run_all.py] 
 [problem3_ppo/run_all.py] [2/4] Random baseline evaluation (300 episodes) ...
-[problem3_ppo/run_all.py]   Random AR  mean=0.6913  std=0.1787
-[problem3_ppo/run_all.py]   Viol rate mean=45.13%
+[problem3_ppo/run_all.py]   Random AR  mean=0.6799  std=0.1658
+[problem3_ppo/run_all.py]   Viol rate mean=43.97%
 [problem3_ppo/run_all.py] 
 [problem3_ppo/run_all.py] [3/4] PPO training (5,000,000 steps) ...
 [problem3_ppo/run_all.py]   Using SubprocVecEnv: n_envs=40, start_method=fork
-[problem3_ppo/run_all.py]   [train] step=200,000/5,000,000 (  4.0%) | eps=20000 | steps/s=1,988
-[problem3_ppo/run_all.py]   [train] step=400,000/5,000,000 (  8.0%) | eps=40000 | steps/s=1,970
+[problem3_ppo/run_all.py]   [train] step=200,000/5,000,000 (  4.0%) | eps=20000 | steps/s=2,179
+[problem3_ppo/run_all.py]   [train] step=400,000/5,000,000 (  8.0%) | eps=40000 | steps/s=2,091
+[problem3_ppo/run_all.py]   [train] step=600,000/5,000,000 ( 12.0%) | eps=60000 | steps/s=2,094
+[problem3_ppo/run_all.py]   [train] step=800,000/5,000,000 ( 16.0%) | eps=80000 | steps/s=2,097
+[problem3_ppo/run_all.py]   [train] step=1,000,000/5,000,000 ( 20.0%) | eps=100000 | steps/s=2,096
+[problem3_ppo/run_all.py]   [train] step=1,200,000/5,000,000 ( 24.0%) | eps=120000 | steps/s=2,085
+[problem3_ppo/run_all.py]   [train] step=1,400,000/5,000,000 ( 28.0%) | eps=140000 | steps/s=2,079
+[problem3_ppo/run_all.py]   [train] step=1,600,000/5,000,000 ( 32.0%) | eps=160000 | steps/s=2,067
+[problem3_ppo/run_all.py]   [train] step=1,800,000/5,000,000 ( 36.0%) | eps=180000 | steps/s=2,070
+[problem3_ppo/run_all.py]   [train] step=2,000,000/5,000,000 ( 40.0%) | eps=200000 | steps/s=2,060
+[problem3_ppo/run_all.py]   [train] step=2,200,000/5,000,000 ( 44.0%) | eps=220000 | steps/s=2,063
+[problem3_ppo/run_all.py]   [train] step=2,400,000/5,000,000 ( 48.0%) | eps=240000 | steps/s=2,065
+[problem3_ppo/run_all.py]   [train] step=2,600,000/5,000,000 ( 52.0%) | eps=260000 | steps/s=2,076
+[problem3_ppo/run_all.py]   [train] step=2,800,000/5,000,000 ( 56.0%) | eps=280000 | steps/s=2,082
+[problem3_ppo/run_all.py]   [train] step=3,000,000/5,000,000 ( 60.0%) | eps=300000 | steps/s=2,084
+[problem3_ppo/run_all.py]   [train] step=3,200,000/5,000,000 ( 64.0%) | eps=320000 | steps/s=2,071
+[problem3_ppo/run_all.py]   [train] step=3,400,000/5,000,000 ( 68.0%) | eps=340000 | steps/s=2,064
+[problem3_ppo/run_all.py]   [train] step=3,600,000/5,000,000 ( 72.0%) | eps=360000 | steps/s=2,064
+[problem3_ppo/run_all.py]   [train] step=3,800,000/5,000,000 ( 76.0%) | eps=380000 | steps/s=2,063
+[problem3_ppo/run_all.py]   [train] step=4,000,000/5,000,000 ( 80.0%) | eps=400000 | steps/s=2,067
+[problem3_ppo/run_all.py]   [train] step=4,200,000/5,000,000 ( 84.0%) | eps=420000 | steps/s=2,063
+[problem3_ppo/run_all.py]   [train] step=4,400,000/5,000,000 ( 88.0%) | eps=440000 | steps/s=2,067
+[problem3_ppo/run_all.py]   [train] step=4,600,000/5,000,000 ( 92.0%) | eps=460000 | steps/s=2,071
+[problem3_ppo/run_all.py]   [train] step=4,800,000/5,000,000 ( 96.0%) | eps=480000 | steps/s=2,075
+[problem3_ppo/run_all.py]   [train] step=5,000,000/5,000,000 (100.0%) | eps=500000 | steps/s=2,076
+[problem3_ppo/run_all.py]   Training done  2413.2s | 500720 episodes | AR(last50)=0.6198
+[problem3_ppo/run_all.py]   Model saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/ppo_p3_model.zip
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] [4/4] PPO evaluation (300 episodes, deterministic) ...
+[problem3_ppo/run_all.py]   PPO AR  mean=0.6262  std=0.0759
+[problem3_ppo/run_all.py]   Eval viol rate mean=0.00%
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] ==============================================================
+[problem3_ppo/run_all.py]   Method                   AR (mean±std)          ViolRate  
+[problem3_ppo/run_all.py]   ------------------------ ---------------------- ----------
+[problem3_ppo/run_all.py]   ILP (Optimal)            0.6256 ± 0.0000       0         
+[problem3_ppo/run_all.py]   Random Baseline          0.6799 ± 0.1658     43.97%    
+[problem3_ppo/run_all.py]   PPO (P3, no constr)      0.6262 ± 0.0759     0.00%     
+[problem3_ppo/run_all.py] ==============================================================
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py]   JSON saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/results.json
+[problem3_ppo/run_all.py]   CSV  saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/summary.csv
+[problem3_ppo/run_all.py]   Saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/training_curve.png
+[problem3_ppo/run_all.py]   Saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/comparison.png
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] All done! Output files:
+[problem3_ppo/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/training_curve.png
+[problem3_ppo/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/comparison.png
+[problem3_ppo/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/results.json
+[problem3_ppo/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/summary.csv
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] 
+[problem3_ppo/run_all.py] [timer] main finished in 40m 25.7s
+=== Finished problem3_ppo/run_all.py in 2430.6s ===
+
+=== Running problem4_ppo_mask/run_all.py ===
+
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] ============================================================
+[problem4_ppo_mask/run_all.py]   P4 run_all.py  —  RL WITH action masking (0 violations)
+[problem4_ppo_mask/run_all.py]   Config : config_ecu_gt_svc.yaml  |  scenario pool size=200  |  prototype idx=0
+[problem4_ppo_mask/run_all.py] ============================================================
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] [CPU] No CUDA GPU, using CPU
+[problem4_ppo_mask/run_all.py] Loaded scenario pool: All 200 Scenarios  |  N=15 ECUs  M=10 SVCs
+[problem4_ppo_mask/run_all.py]   Prototype scenario: Scenario 1 (idx=0)
+[problem4_ppo_mask/run_all.py]   Prototype ECU capacities : [195, 185, 55, 85, 170, 100, 50, 65, 190, 95, 155, 125, 70, 75, 165]
+[problem4_ppo_mask/run_all.py]   Prototype SVC requirements: [80, 90, 55, 25, 70, 95, 85, 30, 35, 60]
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] [1/4] Solving ILP for all 200 scenarios ...
+[problem4_ppo_mask/run_all.py]     [cache] Loaded ILP results from shared p2 cache
+[problem4_ppo_mask/run_all.py]   ILP mean AR across 200 scenarios: 0.6256
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] [2/4] Random masked baseline (300 episodes) ...
+[problem4_ppo_mask/run_all.py]   Random AR  mean=0.5520  std=0.0804
+[problem4_ppo_mask/run_all.py]   Placed/ep  mean=10.0/10
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] [3/4] MaskablePPO training (5,000,000 steps) ...
+[problem4_ppo_mask/run_all.py]   Using SubprocVecEnv: n_envs=40, start_method=fork
+[problem4_ppo_mask/run_all.py]   [train] step=200,000/5,000,000 (  4.0%) | eps=20000 | steps/s=1,649
+[problem4_ppo_mask/run_all.py]   [train] step=400,000/5,000,000 (  8.0%) | eps=40000 | steps/s=1,654
+[problem4_ppo_mask/run_all.py]   [train] step=600,000/5,000,000 ( 12.0%) | eps=60000 | steps/s=1,691
+[problem4_ppo_mask/run_all.py]   [train] step=800,000/5,000,000 ( 16.0%) | eps=80000 | steps/s=1,706
+[problem4_ppo_mask/run_all.py]   [train] step=1,000,000/5,000,000 ( 20.0%) | eps=100000 | steps/s=1,700
+[problem4_ppo_mask/run_all.py]   [train] step=1,200,000/5,000,000 ( 24.0%) | eps=120000 | steps/s=1,687
+[problem4_ppo_mask/run_all.py]   [train] step=1,400,000/5,000,000 ( 28.0%) | eps=140000 | steps/s=1,682
+[problem4_ppo_mask/run_all.py]   [train] step=1,600,000/5,000,000 ( 32.0%) | eps=160000 | steps/s=1,683
+[problem4_ppo_mask/run_all.py]   [train] step=1,800,000/5,000,000 ( 36.0%) | eps=180000 | steps/s=1,688
+[problem4_ppo_mask/run_all.py]   [train] step=2,000,000/5,000,000 ( 40.0%) | eps=200000 | steps/s=1,681
+[problem4_ppo_mask/run_all.py]   [train] step=2,200,000/5,000,000 ( 44.0%) | eps=220000 | steps/s=1,679
+[problem4_ppo_mask/run_all.py]   [train] step=2,400,000/5,000,000 ( 48.0%) | eps=240000 | steps/s=1,682
+[problem4_ppo_mask/run_all.py]   [train] step=2,600,000/5,000,000 ( 52.0%) | eps=260000 | steps/s=1,679
+[problem4_ppo_mask/run_all.py]   [train] step=2,800,000/5,000,000 ( 56.0%) | eps=280000 | steps/s=1,676
+[problem4_ppo_mask/run_all.py]   [train] step=3,000,000/5,000,000 ( 60.0%) | eps=300000 | steps/s=1,677
+[problem4_ppo_mask/run_all.py]   [train] step=3,200,000/5,000,000 ( 64.0%) | eps=320000 | steps/s=1,678
+[problem4_ppo_mask/run_all.py]   [train] step=3,400,000/5,000,000 ( 68.0%) | eps=340000 | steps/s=1,681
+[problem4_ppo_mask/run_all.py]   [train] step=3,600,000/5,000,000 ( 72.0%) | eps=360000 | steps/s=1,684
+[problem4_ppo_mask/run_all.py]   [train] step=3,800,000/5,000,000 ( 76.0%) | eps=380000 | steps/s=1,688
+[problem4_ppo_mask/run_all.py]   [train] step=4,000,000/5,000,000 ( 80.0%) | eps=400000 | steps/s=1,692
+[problem4_ppo_mask/run_all.py]   [train] step=4,200,000/5,000,000 ( 84.0%) | eps=420000 | steps/s=1,696
+[problem4_ppo_mask/run_all.py]   [train] step=4,400,000/5,000,000 ( 88.0%) | eps=440000 | steps/s=1,699
+[problem4_ppo_mask/run_all.py]   [train] step=4,600,000/5,000,000 ( 92.0%) | eps=460000 | steps/s=1,699
+[problem4_ppo_mask/run_all.py]   [train] step=4,800,000/5,000,000 ( 96.0%) | eps=480000 | steps/s=1,697
+[problem4_ppo_mask/run_all.py]   [train] step=5,000,000/5,000,000 (100.0%) | eps=500000 | steps/s=1,699
+[problem4_ppo_mask/run_all.py]   Training done  2944.7s | 500200 eps | AR(last50)=0.6398 | placed(last50)=10.0/10
+[problem4_ppo_mask/run_all.py]   Model saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/maskppo_p4_model.zip
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] [4/4] MaskablePPO evaluation (300 episodes, deterministic) ...
+[problem4_ppo_mask/run_all.py]   PPO AR  mean=0.6268  std=0.0760
+[problem4_ppo_mask/run_all.py]   Placed/ep  mean=10.0/10
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] ==================================================================
+[problem4_ppo_mask/run_all.py]   Method                       AR (mean+/-std)          Placed     Viol
+[problem4_ppo_mask/run_all.py]   ---------------------------- ------------------------ ---------- -----
+[problem4_ppo_mask/run_all.py]   ILP (Optimal)                0.6256 +/- 0.0000       10/10      0
+[problem4_ppo_mask/run_all.py]   Random (masked)              0.5520 +/- 0.0804     10.0/10    0
+[problem4_ppo_mask/run_all.py]   MaskablePPO (P4)             0.6268 +/- 0.0760     10.0/10    0
+[problem4_ppo_mask/run_all.py] ==================================================================
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py]   JSON saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/results.json
+[problem4_ppo_mask/run_all.py]   CSV  saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/summary.csv
+[problem4_ppo_mask/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/training_curve.png
+[problem4_ppo_mask/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/comparison.png
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] All done! Output files:
+[problem4_ppo_mask/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/training_curve.png
+[problem4_ppo_mask/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/comparison.png
+[problem4_ppo_mask/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/results.json
+[problem4_ppo_mask/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/summary.csv
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] 
+[problem4_ppo_mask/run_all.py] [timer] main finished in 49m 15.6s
+=== Finished problem4_ppo_mask/run_all.py in 2960.0s ===
+
+=== Running problem5_ppo_lagrangian/run_all.py ===
+
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] ============================================================
+[problem5_ppo_lagrangian/run_all.py]   P5 run.py  —  Lagrangian Constraint Relaxation
+[problem5_ppo_lagrangian/run_all.py]   Config : config_ecu_gt_svc.yaml  |  scenario pool size=200  |  prototype idx=0
+[problem5_ppo_lagrangian/run_all.py]   λ_init=0.0  lr=0.0003  target=0.0  max=2.0
+[problem5_ppo_lagrangian/run_all.py]   CPU cores detected: 56  →  configured parallel envs: 40
+[problem5_ppo_lagrangian/run_all.py] ============================================================
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] Loaded scenario pool: All 200 Scenarios  |  N=15 ECUs  M=10 SVCs
+[problem5_ppo_lagrangian/run_all.py]   Prototype scenario: Scenario 1 (idx=0)
+[problem5_ppo_lagrangian/run_all.py]   Prototype ECU capacities : [195, 185, 55, 85, 170, 100, 50, 65, 190, 95, 155, 125, 70, 75, 165]
+[problem5_ppo_lagrangian/run_all.py]   Prototype SVC requirements: [80, 90, 55, 25, 70, 95, 85, 30, 35, 60]
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] [1/4] Solving ILP for all 200 scenarios ...
+[problem5_ppo_lagrangian/run_all.py]     [cache] Loaded ILP results from shared p2 cache
+[problem5_ppo_lagrangian/run_all.py]   ILP mean AR across 200 scenarios: 0.6256
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] [2/4] Random baseline (300 episodes, no masking) ...
+[problem5_ppo_lagrangian/run_all.py]   Random  AR mean=0.6814  viol=32.87%
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] [3/4] Lagrangian PPO training (5,000,000 steps, 40 envs) ...
+[problem5_ppo_lagrangian/run_all.py]   Using SubprocVecEnv: n_envs=40, start_method=fork
+[problem5_ppo_lagrangian/run_all.py]   [train] step=200,000/5,000,000 (  4.0%) | eps=20000 | steps/s=2,611 | lambda=0.0000
+[problem5_ppo_lagrangian/run_all.py]   [train] step=400,000/5,000,000 (  8.0%) | eps=40000 | steps/s=2,514 | lambda=0.0013
+[problem5_ppo_lagrangian/run_all.py]   [train] step=600,000/5,000,000 ( 12.0%) | eps=60000 | steps/s=2,516 | lambda=0.0023
+[problem5_ppo_lagrangian/run_all.py]   [train] step=800,000/5,000,000 ( 16.0%) | eps=80000 | steps/s=2,499 | lambda=0.0030
+[problem5_ppo_lagrangian/run_all.py]   [train] step=1,000,000/5,000,000 ( 20.0%) | eps=100000 | steps/s=2,500 | lambda=0.0036
+[problem5_ppo_lagrangian/run_all.py]   [train] step=1,200,000/5,000,000 ( 24.0%) | eps=120000 | steps/s=2,497 | lambda=0.0041
+[problem5_ppo_lagrangian/run_all.py]   [train] step=1,400,000/5,000,000 ( 28.0%) | eps=140000 | steps/s=2,491 | lambda=0.0046
+[problem5_ppo_lagrangian/run_all.py]   [train] step=1,600,000/5,000,000 ( 32.0%) | eps=160000 | steps/s=2,499 | lambda=0.0051
+[problem5_ppo_lagrangian/run_all.py]   [train] step=1,800,000/5,000,000 ( 36.0%) | eps=180000 | steps/s=2,498 | lambda=0.0054
+[problem5_ppo_lagrangian/run_all.py]   [train] step=2,000,000/5,000,000 ( 40.0%) | eps=200000 | steps/s=2,505 | lambda=0.0057
+[problem5_ppo_lagrangian/run_all.py]   [train] step=2,200,000/5,000,000 ( 44.0%) | eps=220000 | steps/s=2,513 | lambda=0.0061
+[problem5_ppo_lagrangian/run_all.py]   [train] step=2,400,000/5,000,000 ( 48.0%) | eps=240000 | steps/s=2,521 | lambda=0.0065
+[problem5_ppo_lagrangian/run_all.py]   [train] step=2,600,000/5,000,000 ( 52.0%) | eps=260000 | steps/s=2,516 | lambda=0.0068
+[problem5_ppo_lagrangian/run_all.py]   [train] step=2,800,000/5,000,000 ( 56.0%) | eps=280000 | steps/s=2,504 | lambda=0.0072
+[problem5_ppo_lagrangian/run_all.py]   [train] step=3,000,000/5,000,000 ( 60.0%) | eps=300000 | steps/s=2,503 | lambda=0.0075
+[problem5_ppo_lagrangian/run_all.py]   [train] step=3,200,000/5,000,000 ( 64.0%) | eps=320000 | steps/s=2,498 | lambda=0.0078
+[problem5_ppo_lagrangian/run_all.py]   [train] step=3,400,000/5,000,000 ( 68.0%) | eps=340000 | steps/s=2,496 | lambda=0.0080
+[problem5_ppo_lagrangian/run_all.py]   [train] step=3,600,000/5,000,000 ( 72.0%) | eps=360000 | steps/s=2,500 | lambda=0.0084
+[problem5_ppo_lagrangian/run_all.py]   [train] step=3,800,000/5,000,000 ( 76.0%) | eps=380000 | steps/s=2,499 | lambda=0.0087
+[problem5_ppo_lagrangian/run_all.py]   [train] step=4,000,000/5,000,000 ( 80.0%) | eps=400000 | steps/s=2,496 | lambda=0.0090
+[problem5_ppo_lagrangian/run_all.py]   [train] step=4,200,000/5,000,000 ( 84.0%) | eps=420000 | steps/s=2,495 | lambda=0.0092
+[problem5_ppo_lagrangian/run_all.py]   [train] step=4,400,000/5,000,000 ( 88.0%) | eps=440000 | steps/s=2,496 | lambda=0.0094
+[problem5_ppo_lagrangian/run_all.py]   [train] step=4,600,000/5,000,000 ( 92.0%) | eps=460000 | steps/s=2,500 | lambda=0.0097
+[problem5_ppo_lagrangian/run_all.py]   [train] step=4,800,000/5,000,000 ( 96.0%) | eps=480000 | steps/s=2,500 | lambda=0.0100
+[problem5_ppo_lagrangian/run_all.py]   [train] step=5,000,000/5,000,000 (100.0%) | eps=500000 | steps/s=2,501 | lambda=0.0103
+[problem5_ppo_lagrangian/run_all.py]   Training done  2000.9s | 500200 episodes | AR(last50)=0.6395 | viol(last50)=0.0020 | final λ=0.0103
+[problem5_ppo_lagrangian/run_all.py]   Model saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/lagrange_ppo_model.zip
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] [4/4] Lagrangian PPO evaluation (300 episodes, deterministic) ...
+[problem5_ppo_lagrangian/run_all.py]   PPO  AR mean=0.6268  Eval viol=0.00%
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] ========================================================================
+[problem5_ppo_lagrangian/run_all.py]   Method                       AR mean±std              Viol%          Placed
+[problem5_ppo_lagrangian/run_all.py]   ---------------------------- ------------------------ -------------- --------
+[problem5_ppo_lagrangian/run_all.py]   ILP (Optimal)                0.6256 ± 0.0000        0.00%          10/10
+[problem5_ppo_lagrangian/run_all.py]   Random (no mask)             0.6814 ± 0.1754     32.87%       10/10
+[problem5_ppo_lagrangian/run_all.py]   Lagrange PPO                 0.6268 ± 0.0756     0.00%        10/10
+[problem5_ppo_lagrangian/run_all.py]   Final λ = 0.0103
+[problem5_ppo_lagrangian/run_all.py] ========================================================================
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py]   JSON saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/results.json
+[problem5_ppo_lagrangian/run_all.py]   CSV  saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/summary.csv
+[problem5_ppo_lagrangian/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/training_curve.png
+[problem5_ppo_lagrangian/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/comparison.png
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] All done! Output files:
+[problem5_ppo_lagrangian/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/training_curve.png
+[problem5_ppo_lagrangian/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/comparison.png
+[problem5_ppo_lagrangian/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/results.json
+[problem5_ppo_lagrangian/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/summary.csv
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] 
+[problem5_ppo_lagrangian/run_all.py] [timer] main finished in 33m 28.7s
+=== Finished problem5_ppo_lagrangian/run_all.py in 2013.8s ===
+
+=== Running problem6_ppo_opt/run_all.py ===
+
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] ============================================================
+[problem6_ppo_opt/run_all.py]   P6 run_all.py  —  RL WITH both hard constraints (MaskablePPO)
+[problem6_ppo_opt/run_all.py]   Config : config_ecu_gt_svc.yaml  |  scenario pool size=200  |  prototype idx=0
+[problem6_ppo_opt/run_all.py] ============================================================
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] [CPU] No CUDA GPU, using CPU
+[problem6_ppo_opt/run_all.py] Loaded scenario pool: All 200 Scenarios  |  N=15 ECUs  M=10 SVCs
+[problem6_ppo_opt/run_all.py]   Prototype scenario: Scenario 1 (idx=0)
+[problem6_ppo_opt/run_all.py]   Prototype ECU capacities : [195, 185, 55, 85, 170, 100, 50, 65, 190, 95, 155, 125, 70, 75, 165]
+[problem6_ppo_opt/run_all.py]   Prototype SVC requirements: [80, 90, 55, 25, 70, 95, 85, 30, 35, 60]
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] [1/4] Solving ILP for all 200 scenarios ...
+[problem6_ppo_opt/run_all.py]     [cache] Loaded ILP results from shared p2 cache
+[problem6_ppo_opt/run_all.py]   ILP mean AR across 200 scenarios: 0.6256
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] [2/4] Random baseline evaluation (300 episodes) ...
+[problem6_ppo_opt/run_all.py]   Random AR  mean=0.4514  std=0.0685
+[problem6_ppo_opt/run_all.py]   Viol rate mean=0.00%
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] [3/4] PPO training (5,000,000 steps) ...
+[problem6_ppo_opt/run_all.py]   Using SubprocVecEnv: n_envs=40, start_method=fork
+[problem6_ppo_opt/run_all.py]   [train] step=200,000/5,000,000 (  4.0%) | eps=20000 | steps/s=1,809
+[problem6_ppo_opt/run_all.py]   [train] step=400,000/5,000,000 (  8.0%) | eps=40000 | steps/s=1,728
+[problem6_ppo_opt/run_all.py]   [train] step=600,000/5,000,000 ( 12.0%) | eps=60000 | steps/s=1,734
+[problem6_ppo_opt/run_all.py]   [train] step=800,000/5,000,000 ( 16.0%) | eps=80000 | steps/s=1,724
+[problem6_ppo_opt/run_all.py]   [train] step=1,000,000/5,000,000 ( 20.0%) | eps=100000 | steps/s=1,712
+[problem6_ppo_opt/run_all.py]   [train] step=1,200,000/5,000,000 ( 24.0%) | eps=120000 | steps/s=1,695
+[problem6_ppo_opt/run_all.py]   [train] step=1,400,000/5,000,000 ( 28.0%) | eps=140000 | steps/s=1,705
+[problem6_ppo_opt/run_all.py]   [train] step=1,600,000/5,000,000 ( 32.0%) | eps=160000 | steps/s=1,706
+[problem6_ppo_opt/run_all.py]   [train] step=1,800,000/5,000,000 ( 36.0%) | eps=180000 | steps/s=1,714
+[problem6_ppo_opt/run_all.py]   [train] step=2,000,000/5,000,000 ( 40.0%) | eps=200000 | steps/s=1,714
+[problem6_ppo_opt/run_all.py]   [train] step=2,200,000/5,000,000 ( 44.0%) | eps=220000 | steps/s=1,720
+[problem6_ppo_opt/run_all.py]   [train] step=2,400,000/5,000,000 ( 48.0%) | eps=240000 | steps/s=1,720
+[problem6_ppo_opt/run_all.py]   [train] step=2,600,000/5,000,000 ( 52.0%) | eps=260000 | steps/s=1,725
+[problem6_ppo_opt/run_all.py]   [train] step=2,800,000/5,000,000 ( 56.0%) | eps=280000 | steps/s=1,723
+[problem6_ppo_opt/run_all.py]   [train] step=3,000,000/5,000,000 ( 60.0%) | eps=300000 | steps/s=1,723
+[problem6_ppo_opt/run_all.py]   [train] step=3,200,000/5,000,000 ( 64.0%) | eps=320000 | steps/s=1,720
+[problem6_ppo_opt/run_all.py]   [train] step=3,400,000/5,000,000 ( 68.0%) | eps=340000 | steps/s=1,720
+[problem6_ppo_opt/run_all.py]   [train] step=3,600,000/5,000,000 ( 72.0%) | eps=360000 | steps/s=1,724
+[problem6_ppo_opt/run_all.py]   [train] step=3,800,000/5,000,000 ( 76.0%) | eps=380000 | steps/s=1,725
+[problem6_ppo_opt/run_all.py]   [train] step=4,000,000/5,000,000 ( 80.0%) | eps=400000 | steps/s=1,728
+[problem6_ppo_opt/run_all.py]   [train] step=4,200,000/5,000,000 ( 84.0%) | eps=420000 | steps/s=1,726
+[problem6_ppo_opt/run_all.py]   [train] step=4,400,000/5,000,000 ( 88.0%) | eps=440000 | steps/s=1,729
+[problem6_ppo_opt/run_all.py]   [train] step=4,600,000/5,000,000 ( 92.0%) | eps=460000 | steps/s=1,729
+[problem6_ppo_opt/run_all.py]   [train] step=4,800,000/5,000,000 ( 96.0%) | eps=480000 | steps/s=1,729
+[problem6_ppo_opt/run_all.py]   [train] step=5,000,000/5,000,000 (100.0%) | eps=500000 | steps/s=1,729
+[problem6_ppo_opt/run_all.py]   Training done  2898.4s | 500720 episodes | AR(last50)=0.6200
+[problem6_ppo_opt/run_all.py]   Model saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/ppo_p6_model.zip
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] [4/4] PPO evaluation (300 episodes, deterministic) ...
+[problem6_ppo_opt/run_all.py]   PPO AR  mean=0.6271  std=0.0760
+[problem6_ppo_opt/run_all.py]   Eval viol rate mean=0.00%
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] ==============================================================
+[problem6_ppo_opt/run_all.py]   Method                   AR (mean±std)          ViolRate  
+[problem6_ppo_opt/run_all.py]   ------------------------ ---------------------- ----------
+[problem6_ppo_opt/run_all.py]   ILP (Optimal)            0.6256 ± 0.0000       0         
+[problem6_ppo_opt/run_all.py]   Random Baseline          0.4514 ± 0.0685     0.00%     
+[problem6_ppo_opt/run_all.py]   MaskablePPO (P6)         0.6271 ± 0.0760     0.00%     
+[problem6_ppo_opt/run_all.py] ==============================================================
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py]   JSON saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/results.json
+[problem6_ppo_opt/run_all.py]   CSV  saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/summary.csv
+[problem6_ppo_opt/run_all.py]   Saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/training_curve.png
+[problem6_ppo_opt/run_all.py]   Saved → /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/comparison.png
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] All done! Output files:
+[problem6_ppo_opt/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/training_curve.png
+[problem6_ppo_opt/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/comparison.png
+[problem6_ppo_opt/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/results.json
+[problem6_ppo_opt/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/summary.csv
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] 
+[problem6_ppo_opt/run_all.py] [timer] main finished in 48m 31.0s
+=== Finished problem6_ppo_opt/run_all.py in 2915.6s ===
+
+=== Running problem_dqn/run_all.py ===
+
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] ============================================================
+[problem_dqn/run_all.py]   DQN run_all.py  —  RL WITHOUT action masking
+[problem_dqn/run_all.py]   Violation → reward=-1, episode terminates immediately.
+[problem_dqn/run_all.py]   Config : config_ecu_gt_svc.yaml  |  scenario pool size=200  |  prototype idx=0
+[problem_dqn/run_all.py] ============================================================
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] [CPU] No CUDA GPU, using CPU
+[problem_dqn/run_all.py] Loaded scenario pool: All 200 Scenarios  |  N=15 ECUs  M=10 SVCs
+[problem_dqn/run_all.py]   Prototype scenario: Scenario 1 (idx=0)
+[problem_dqn/run_all.py]   Prototype ECU capacities : [195, 185, 55, 85, 170, 100, 50, 65, 190, 95, 155, 125, 70, 75, 165]
+[problem_dqn/run_all.py]   Prototype SVC requirements: [80, 90, 55, 25, 70, 95, 85, 30, 35, 60]
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] [1/4] Solving ILP for all 200 scenarios ...
+[problem_dqn/run_all.py]     [cache] Loaded ILP results from shared p2 cache
+[problem_dqn/run_all.py]   ILP mean AR across 200 scenarios: 0.6256
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] [2/4] Random baseline (300 episodes, NO masking) ...
+[problem_dqn/run_all.py]   Random AR  mean=0.4522  std=0.3109
+[problem_dqn/run_all.py]   Placed/ep  mean=3.1/10
+[problem_dqn/run_all.py]   Viol rate  84.67%
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] [3/4] DQN training (3,000,000 steps) ...
+[problem_dqn/run_all.py]   Using SubprocVecEnv: n_envs=12, start_method=fork
+[problem_dqn/run_all.py]   [train] step=200,004/3,000,000 (  6.7%) | eps=45972 | steps/s=4,838
+[problem_dqn/run_all.py]   [train] step=400,008/3,000,000 ( 13.3%) | eps=87794 | steps/s=4,879
+[problem_dqn/run_all.py]   [train] step=600,000/3,000,000 ( 20.0%) | eps=125973 | steps/s=4,915
+[problem_dqn/run_all.py]   [train] step=800,004/3,000,000 ( 26.7%) | eps=160433 | steps/s=4,911
+[problem_dqn/run_all.py]   [train] step=1,000,008/3,000,000 ( 33.3%) | eps=191537 | steps/s=4,911
+[problem_dqn/run_all.py]   [train] step=1,200,000/3,000,000 ( 40.0%) | eps=219212 | steps/s=4,908
+[problem_dqn/run_all.py]   [train] step=1,400,004/3,000,000 ( 46.7%) | eps=243551 | steps/s=4,901
+[problem_dqn/run_all.py]   [train] step=1,600,008/3,000,000 ( 53.3%) | eps=265125 | steps/s=4,902
+[problem_dqn/run_all.py]   [train] step=1,800,000/3,000,000 ( 60.0%) | eps=286350 | steps/s=4,909
+[problem_dqn/run_all.py]   [train] step=2,000,004/3,000,000 ( 66.7%) | eps=307623 | steps/s=4,903
+[problem_dqn/run_all.py]   [train] step=2,200,008/3,000,000 ( 73.3%) | eps=328853 | steps/s=4,899
+[problem_dqn/run_all.py]   [train] step=2,400,000/3,000,000 ( 80.0%) | eps=350103 | steps/s=4,916
+[problem_dqn/run_all.py]   [train] step=2,600,004/3,000,000 ( 86.7%) | eps=371455 | steps/s=4,918
+[problem_dqn/run_all.py]   [train] step=2,800,008/3,000,000 ( 93.3%) | eps=392794 | steps/s=4,915
+[problem_dqn/run_all.py]   [train] step=3,000,000/3,000,000 (100.0%) | eps=414107 | steps/s=4,917
+[problem_dqn/run_all.py]   Training done  610.2s | 414107 eps | reward(last50)=5.2161 | AR(last50)=0.7480 | viol_rate(last50)=6.00%
+[problem_dqn/run_all.py]   Model saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/dqn_model.zip
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] [4/4] DQN evaluation (300 episodes, deterministic) ...
+[problem_dqn/run_all.py]   DQN AR  mean=0.7456  std=0.0935
+[problem_dqn/run_all.py]   Placed/ep  mean=10.0/10
+[problem_dqn/run_all.py]   Eval viol rate  0.00%
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] ====================================================================
+[problem_dqn/run_all.py]   Method                   AR (mean+/-std)        Placed     Viol%
+[problem_dqn/run_all.py]   ------------------------ ---------------------- ---------- ------
+[problem_dqn/run_all.py]   ILP (Optimal)            0.6256 +/- 0.0000     10/10     0%
+[problem_dqn/run_all.py]   Random (no mask)         0.4522 +/- 0.3109     3.1/10   85%
+[problem_dqn/run_all.py]   DQN (no mask)            0.7456 +/- 0.0935     10.0/10   0%
+[problem_dqn/run_all.py] ====================================================================
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py]   JSON saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/results.json
+[problem_dqn/run_all.py]   CSV  saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/summary.csv
+[problem_dqn/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/training_curve.png
+[problem_dqn/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/comparison.png
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] All done! Output files:
+[problem_dqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/training_curve.png
+[problem_dqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/comparison.png
+[problem_dqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/results.json
+[problem_dqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/summary.csv
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] 
+[problem_dqn/run_all.py] [timer] main finished in 10m 29.4s
+=== Finished problem_dqn/run_all.py in 634.6s ===
+
+=== Running problem_ddqn/run_all.py ===
+
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] ============================================================
+[problem_ddqn/run_all.py]   DDQN run_all.py  — RL WITHOUT action masking
+[problem_ddqn/run_all.py]   Violation → reward=-1, episode terminates immediately.
+[problem_ddqn/run_all.py]   Config : config_ecu_gt_svc.yaml  |  scenario pool size=200  |  prototype idx=0
+[problem_ddqn/run_all.py] ============================================================
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] [CPU] No CUDA GPU, using CPU
+[problem_ddqn/run_all.py] Loaded scenario pool: All 200 Scenarios  |  N=15 ECUs  M=10 SVCs
+[problem_ddqn/run_all.py]   Prototype scenario: Scenario 1 (idx=0)
+[problem_ddqn/run_all.py]   Prototype ECU capacities : [195, 185, 55, 85, 170, 100, 50, 65, 190, 95, 155, 125, 70, 75, 165]
+[problem_ddqn/run_all.py]   Prototype SVC requirements: [80, 90, 55, 25, 70, 95, 85, 30, 35, 60]
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] [1/4] Solving ILP for all 200 scenarios ...
+[problem_ddqn/run_all.py]     [cache] Loaded ILP results from shared p2 cache
+[problem_ddqn/run_all.py]   ILP mean AR across 200 scenarios: 0.6256
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] [2/4] Random baseline (300 episodes, NO masking) ...
+[problem_ddqn/run_all.py]   Random AR  mean=0.4574  std=0.3093
+[problem_ddqn/run_all.py]   Placed/ep  mean=3.1/10
+[problem_ddqn/run_all.py]   Viol rate  84.33%
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] [3/4] DDQN training (3,000,000 steps) ...
+[problem_ddqn/run_all.py]   Using SubprocVecEnv: n_envs=12, start_method=fork
+[problem_ddqn/run_all.py]   [train] step=200,004/3,000,000 (  6.7%) | eps=45972 | steps/s=4,874
+[problem_ddqn/run_all.py]   [train] step=400,008/3,000,000 ( 13.3%) | eps=87794 | steps/s=4,909
+[problem_ddqn/run_all.py]   [train] step=600,000/3,000,000 ( 20.0%) | eps=125973 | steps/s=4,933
+[problem_ddqn/run_all.py]   [train] step=800,004/3,000,000 ( 26.7%) | eps=160433 | steps/s=4,938
+[problem_ddqn/run_all.py]   [train] step=1,000,008/3,000,000 ( 33.3%) | eps=191537 | steps/s=4,929
+[problem_ddqn/run_all.py]   [train] step=1,200,000/3,000,000 ( 40.0%) | eps=219212 | steps/s=4,913
+[problem_ddqn/run_all.py]   [train] step=1,400,004/3,000,000 ( 46.7%) | eps=243551 | steps/s=4,907
+[problem_ddqn/run_all.py]   [train] step=1,600,008/3,000,000 ( 53.3%) | eps=265125 | steps/s=4,899
+[problem_ddqn/run_all.py]   [train] step=1,800,000/3,000,000 ( 60.0%) | eps=286350 | steps/s=4,905
+[problem_ddqn/run_all.py]   [train] step=2,000,004/3,000,000 ( 66.7%) | eps=307623 | steps/s=4,911
+[problem_ddqn/run_all.py]   [train] step=2,200,008/3,000,000 ( 73.3%) | eps=328853 | steps/s=4,925
+[problem_ddqn/run_all.py]   [train] step=2,400,000/3,000,000 ( 80.0%) | eps=350103 | steps/s=4,929
+[problem_ddqn/run_all.py]   [train] step=2,600,004/3,000,000 ( 86.7%) | eps=371455 | steps/s=4,925
+[problem_ddqn/run_all.py]   [train] step=2,800,008/3,000,000 ( 93.3%) | eps=392794 | steps/s=4,925
+[problem_ddqn/run_all.py]   [train] step=3,000,000/3,000,000 (100.0%) | eps=414107 | steps/s=4,924
+[problem_ddqn/run_all.py]   DDQN Training done  609.3s | 414107 eps | reward(last50)=5.2161 | AR(last50)=0.7480 | viol_rate(last50)=6.00%
+[problem_ddqn/run_all.py]   Model saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/ddqn_model.zip
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] [4/4] DDQN evaluation (300 episodes, deterministic) ...
+[problem_ddqn/run_all.py]   DDQN AR  mean=0.7456  std=0.0935
+[problem_ddqn/run_all.py]   Placed/ep  mean=10.0/10
+[problem_ddqn/run_all.py]   Eval viol rate  0.00%
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] ====================================================================
+[problem_ddqn/run_all.py]   Method                   AR (mean+/-std)        Placed     Viol%
+[problem_ddqn/run_all.py]   ------------------------ ---------------------- ---------- ------
+[problem_ddqn/run_all.py]   ILP (Optimal)            0.6256 +/- 0.0000     10/10     0%
+[problem_ddqn/run_all.py]   Random (no mask)         0.4574 +/- 0.3093     3.1/10   84%
+[problem_ddqn/run_all.py]   DDQN (no mask)           0.7456 +/- 0.0935   10.0/10   0.0%
+[problem_ddqn/run_all.py] ====================================================================
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py]   JSON saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/results.json
+[problem_ddqn/run_all.py]   CSV  saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/summary.csv
+[problem_ddqn/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/training_curve.png
+[problem_ddqn/run_all.py]   Saved -> /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/comparison.png
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] All done! Output files:
+[problem_ddqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/training_curve.png
+[problem_ddqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/comparison.png
+[problem_ddqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/results.json
+[problem_ddqn/run_all.py]   /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/summary.csv
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] 
+[problem_ddqn/run_all.py] [timer] main finished in 10m 27.6s
+=== Finished problem_ddqn/run_all.py in 632.5s ===
+
+[timer] main finished in 193m 7.1s
+All runs completed.
+Base path: /home/soar009/github/my_code/ecu_gt_svc_p
+Starting all problem runs...
+Copied /home/soar009/github/my_code/ecu_gt_svc_p/problem3_ppo/results/20260418_012701/summary.csv to /home/soar009/github/my_code/ecu_gt_svc_p/run_scripts/results_combined/problem3_ppo/summary.csv
+Copied /home/soar009/github/my_code/ecu_gt_svc_p/problem4_ppo_mask/results/20260418_021623/summary.csv to /home/soar009/github/my_code/ecu_gt_svc_p/run_scripts/results_combined/problem4_ppo_mask/summary.csv
+Copied /home/soar009/github/my_code/ecu_gt_svc_p/problem5_ppo_lagrangian/results/20260418_025000/summary.csv to /home/soar009/github/my_code/ecu_gt_svc_p/run_scripts/results_combined/problem5_ppo_lagrangian/summary.csv
+Copied /home/soar009/github/my_code/ecu_gt_svc_p/problem6_ppo_opt/results/20260418_033831/summary.csv to /home/soar009/github/my_code/ecu_gt_svc_p/run_scripts/results_combined/problem6_ppo_opt/summary.csv
+Copied /home/soar009/github/my_code/ecu_gt_svc_p/problem_dqn/results/20260418_033843/summary.csv to /home/soar009/github/my_code/ecu_gt_svc_p/run_scripts/results_combined/problem_dqn/summary.csv
+Copied /home/soar009/github/my_code/ecu_gt_svc_p/problem_ddqn/results/20260418_034917/summary.csv to /home/soar009/github/my_code/ecu_gt_svc_p/run_scripts/results_combined/problem_ddqn/summary.csv
+
+All files copied to results_combined. You can now run combined.py to aggregate and plot the results.
+
+===== Combined Summary =====
+        problem              method  ar_mean  ar_std  placed_mean  viol_rate  cap_viol_total  conflict_viol_total
+         P3 PPO       ILP (Optimal)   0.6256  0.0000      10.0000     0.0000               0                    0
+         P3 PPO     Random Baseline   0.6799  0.1658      10.0000     0.4397             565                  754
+         P3 PPO PPO (P3, no constr)   0.6262  0.0759      10.0000     0.0000               0                    0
+    P4 PPO-Mask       ILP (Optimal)   0.6256  0.0000      10.0000     0.0000               0                    0
+    P4 PPO-Mask     Random (masked)   0.5520  0.0804      10.0000     0.0000               0                    0
+    P4 PPO-Mask    MaskablePPO (P4)   0.6268  0.0760      10.0000     0.0000               0                    0
+P5 PPO-Lagrange       ILP (Optimal)   0.6256  0.0000      10.0000     0.0000               0                    0
+P5 PPO-Lagrange    Random (no mask)   0.6814  0.1754      10.0000     0.3287             564                  754
+P5 PPO-Lagrange        Lagrange PPO   0.6268  0.0756      10.0000     0.0000               0                    0
+     P6 PPO-Opt       ILP (Optimal)   0.6256  0.0000      10.0000     0.0000               0                    0
+     P6 PPO-Opt     Random Baseline   0.4514  0.0685      10.0000     0.0000               0                    0
+     P6 PPO-Opt  PPO (P6, best-fit)   0.6271  0.0760      10.0000     0.0000               0                    0
+            DQN       ILP (Optimal)   0.6256  0.0000      10.0000     0.0000               0                    0
+            DQN    Random (no mask)   0.4522  0.3109       3.1300     0.8467             254                  127
+            DQN       DQN (no mask)   0.7456  0.0935      10.0000     0.0000               0                  613
+           DDQN       ILP (Optimal)   0.6256  0.0000      10.0000     0.0000               0                    0
+           DDQN    Random (no mask)   0.4574  0.3093       3.1500     0.8433             253                  146
+           DDQN      DDQN (no mask)   0.7456  0.0935      10.0000     0.0000               0                  613
+
+===== Best RL Agent per Problem =====
+        problem              method  ar_mean  ar_std  placed_mean  viol_rate  cap_viol_total  conflict_viol_total
+         P3 PPO PPO (P3, no constr)   0.6262  0.0759      10.0000     0.0000               0                    0
+    P4 PPO-Mask    MaskablePPO (P4)   0.6268  0.0760      10.0000     0.0000               0                    0
+P5 PPO-Lagrange        Lagrange PPO   0.6268  0.0756      10.0000     0.0000               0                    0
+     P6 PPO-Opt  PPO (P6, best-fit)   0.6271  0.0760      10.0000     0.0000               0                    0
+           DDQN      DDQN (no mask)   0.7456  0.0935      10.0000     0.0000               0                  613
+            DQN       DQN (no mask)   0.7456  0.0935      10.0000     0.0000               0                  613
+Saved: /home/soar009/github/my_code/ecu_gt_svc_p/run_scripts/results_combined/combined_results.png
+
+Done.
