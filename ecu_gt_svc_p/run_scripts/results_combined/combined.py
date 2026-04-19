@@ -102,14 +102,12 @@ def plot_combined(records):
     b_ilp = ax.bar(xs - w / 2, data["ilp_ar"], width=w, yerr=data["ilp_std"],
                    color="#d62728", capsize=3, edgecolor="black", linewidth=0.5,
                    label="ILP (Optimal)")
-    rl_bar_color = "C0"
     b_rl  = ax.bar(xs + w / 2, data["rl_ar"],  width=w, yerr=data["rl_std"],
-                   color=rl_bar_color, capsize=3, edgecolor="black", linewidth=0.5,
-                   label="RL Method")
+                   color="C0", capsize=3, edgecolor="black", linewidth=0.5, label="RL Method")
 
     for bar, v, e in zip(b_rl, data["rl_ar"], data["rl_std"]):
         ax.text(bar.get_x() + bar.get_width() / 2, v + e + 0.005,
-                f"{v:.3f}", ha="center", va="bottom", fontsize=7, fontweight="bold", color=rl_bar_color)
+                f"{v:.3f}", ha="center", va="bottom", fontsize=7, fontweight="bold", color="C0")
 
     ax.set_xticks(xs)
     ax.set_xticklabels(xlabels, fontsize=8)
@@ -122,9 +120,7 @@ def plot_combined(records):
     # ── Subplot 2: Capacity Violations ───────────────────────────────────
     ax = axes[1]
     b_cap = ax.bar(xs, data["rl_cap_viol"], width=w,
-                   color=rl_colors, edgecolor="black", linewidth=0.5)
-    for folder, lbl in PROBLEM_ORDER:
-        ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
+                   color="C0", edgecolor="black", linewidth=0.5)
 
     cap_max = max(np.max(data["rl_cap_viol"]), 1.0)
     for bar, v in zip(b_cap, data["rl_cap_viol"]):
@@ -135,16 +131,13 @@ def plot_combined(records):
     ax.set_xticklabels(xlabels, fontsize=8)
     ax.set_ylabel("Total Capacity Violations")
     ax.set_title("Capacity Violations (cap_viol_total)", fontsize=10, fontweight="bold")
-    ax.legend(fontsize=6.5, ncol=2)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_ylim(0, cap_max * 1.3 + 1)
 
     # ── Subplot 3: Conflict Violations ────────────────────────────────────
     ax = axes[2]
     b_conf = ax.bar(xs, data["rl_conflict_viol"], width=w,
-                    color=rl_colors, edgecolor="black", linewidth=0.5)
-    for folder, lbl in PROBLEM_ORDER:
-        ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
+                    color="C0", edgecolor="black", linewidth=0.5)
 
     conf_max = max(np.max(data["rl_conflict_viol"]), 1.0)
     for bar, v in zip(b_conf, data["rl_conflict_viol"]):
@@ -155,34 +148,24 @@ def plot_combined(records):
     ax.set_xticklabels(xlabels, fontsize=8)
     ax.set_ylabel("Total Conflict Violations")
     ax.set_title("Conflict Violations (conflict_viol_total)", fontsize=10, fontweight="bold")
-    ax.legend(fontsize=6.5, ncol=2)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_ylim(0, conf_max * 1.3 + 1)
 
     # ── Subplot 4: Placement Completeness ─────────────────────────────────
     ax = axes[3]
-    b_ilp3 = ax.bar(xs - w / 2, data["ilp_placed"], width=w,
-                    color="#d62728", edgecolor="black", linewidth=0.5, label="ILP (Optimal)")
-    b_rl3  = ax.bar(xs + w / 2, data["rl_placed"],  width=w,
-                    color=rl_colors, edgecolor="black", linewidth=0.5)
-    for folder, lbl in PROBLEM_ORDER:
-        ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
+    b_rl3 = ax.bar(xs, data["rl_placed"], width=w,
+                   color="C0", edgecolor="black", linewidth=0.5)
 
-    ymax = max(np.max(data["ilp_placed"]), np.max(data["rl_placed"]), 1.0)
+    ymax = max(np.max(data["rl_placed"]), 1.0)
     offset = ymax * 0.015 + 0.05
     for bar, v in zip(b_rl3, data["rl_placed"]):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + offset,
                 f"{v:.1f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
-    for bar, v in zip(b_ilp3, data["ilp_placed"]):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + offset,
-                f"{v:.1f}", ha="center", va="bottom", fontsize=7, fontweight="bold",
-                color="#d62728")
 
     ax.set_xticks(xs)
     ax.set_xticklabels(xlabels, fontsize=8)
     ax.set_ylabel("Services Placed")
     ax.set_title("Placement Completeness", fontsize=10, fontweight="bold")
-    ax.legend(fontsize=6.5, ncol=2)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_ylim(0, ymax * 1.2)
 
