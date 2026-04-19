@@ -46,13 +46,11 @@ def load_all():
 
 
 def _get_rows(df):
-    ilp_df  = df[df["method"].str.contains("ILP|Optimal", regex=True, na=False)]
-    rand_df = df[df["method"].str.contains("Random",      regex=True, na=False)]
-    rl_df   = df[~df["method"].str.contains("ILP|Optimal|Random", regex=True, na=False)]
+    ilp_df = df[df["method"].str.contains("ILP|Optimal", regex=True, na=False)]
+    rl_df  = df[~df["method"].str.contains("ILP|Optimal|Random", regex=True, na=False)]
     return (
-        ilp_df.iloc[0]  if not ilp_df.empty  else None,
-        rand_df.iloc[0] if not rand_df.empty else None,
-        rl_df.iloc[0]   if not rl_df.empty   else None,
+        ilp_df.iloc[0] if not ilp_df.empty else None,
+        rl_df.iloc[0]  if not rl_df.empty  else None,
     )
 
 
@@ -73,23 +71,16 @@ def plot_combined(records):
     w  = 0.25
 
     keys = ["ilp_ar", "ilp_std", "ilp_placed",
-            "rand_ar", "rand_std", "rand_placed",
-            "rand_cap_viol", "rand_conflict_viol",
             "rl_ar",  "rl_std",  "rl_placed",
             "rl_cap_viol", "rl_conflict_viol"]
     data = {k: [] for k in keys}
 
     for folder, _ in PROBLEM_ORDER:
         df = records.get(folder, pd.DataFrame())
-        ilp, rand, rl = _get_rows(df) if not df.empty else (None, None, None)
+        ilp, rl = _get_rows(df) if not df.empty else (None, None)
         data["ilp_ar"].append(_val(ilp,  "ar_mean"))
         data["ilp_std"].append(_val(ilp, "ar_std"))
         data["ilp_placed"].append(_val(ilp, "placed_mean"))
-        data["rand_ar"].append(_val(rand, "ar_mean"))
-        data["rand_std"].append(_val(rand, "ar_std"))
-        data["rand_placed"].append(_val(rand, "placed_mean"))
-        data["rand_cap_viol"].append(_val(rand, "cap_viol_total"))
-        data["rand_conflict_viol"].append(_val(rand, "conflict_viol_total"))
         data["rl_ar"].append(_val(rl,  "ar_mean"))
         data["rl_std"].append(_val(rl, "ar_std"))
         data["rl_placed"].append(_val(rl, "placed_mean"))
@@ -108,16 +99,13 @@ def plot_combined(records):
     ax = axes[0]
     ax.axhline(ilp_mean, color="#d62728", linestyle="--", linewidth=1.2, alpha=0.7,
                label=f"ILP mean={ilp_mean:.3f}")
-    b_ilp  = ax.bar(xs - w, data["ilp_ar"],  width=w, yerr=data["ilp_std"],
-                    color="#d62728", capsize=3, edgecolor="black", linewidth=0.5,
-                    label="ILP (Optimal)")
-    b_rand = ax.bar(xs,     data["rand_ar"], width=w, yerr=data["rand_std"],
-                    color="#aec7e8", capsize=3, edgecolor="black", linewidth=0.5,
-                    label="Random Baseline")
+    b_ilp = ax.bar(xs - w / 2, data["ilp_ar"], width=w, yerr=data["ilp_std"],
+                   color="#d62728", capsize=3, edgecolor="black", linewidth=0.5,
+                   label="ILP (Optimal)")
     rl_bar_color = "C0"
-    b_rl   = ax.bar(xs + w, data["rl_ar"],   width=w, yerr=data["rl_std"],
-                    color=rl_bar_color, capsize=3, edgecolor="black", linewidth=0.5,
-                    label="RL Method")
+    b_rl  = ax.bar(xs + w / 2, data["rl_ar"],  width=w, yerr=data["rl_std"],
+                   color=rl_bar_color, capsize=3, edgecolor="black", linewidth=0.5,
+                   label="RL Method")
 
     for bar, v, e in zip(b_rl, data["rl_ar"], data["rl_std"]):
         ax.text(bar.get_x() + bar.get_width() / 2, v + e + 0.005,
@@ -126,21 +114,19 @@ def plot_combined(records):
     ax.set_xticks(xs)
     ax.set_xticklabels(xlabels, fontsize=8)
     ax.set_ylabel("Average Resource Utilisation (AR)")
-    ax.set_title("AR Comparison: ILP vs Random vs Method", fontsize=10, fontweight="bold")
+    ax.set_title("AR Comparison: ILP vs Method", fontsize=10, fontweight="bold")
     ax.legend(fontsize=7, loc="lower right")
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
 
     # ── Subplot 2: Capacity Violations ───────────────────────────────────
     ax = axes[1]
-    ax.bar(xs - w / 2, data["rand_cap_viol"], width=w,
-           color="#aec7e8", edgecolor="black", linewidth=0.5, label="Random")
-    b_cap = ax.bar(xs + w / 2, data["rl_cap_viol"], width=w,
+    b_cap = ax.bar(xs, data["rl_cap_viol"], width=w,
                    color=rl_colors, edgecolor="black", linewidth=0.5)
     for folder, lbl in PROBLEM_ORDER:
         ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
 
-    cap_max = max(np.max(data["rand_cap_viol"]), np.max(data["rl_cap_viol"]), 1.0)
+    cap_max = max(np.max(data["rl_cap_viol"]), 1.0)
     for bar, v in zip(b_cap, data["rl_cap_viol"]):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + cap_max * 0.02,
                 f"{v:.0f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
@@ -155,14 +141,12 @@ def plot_combined(records):
 
     # ── Subplot 3: Conflict Violations ────────────────────────────────────
     ax = axes[2]
-    ax.bar(xs - w / 2, data["rand_conflict_viol"], width=w,
-           color="#aec7e8", edgecolor="black", linewidth=0.5, label="Random")
-    b_conf = ax.bar(xs + w / 2, data["rl_conflict_viol"], width=w,
+    b_conf = ax.bar(xs, data["rl_conflict_viol"], width=w,
                     color=rl_colors, edgecolor="black", linewidth=0.5)
     for folder, lbl in PROBLEM_ORDER:
         ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
 
-    conf_max = max(np.max(data["rand_conflict_viol"]), np.max(data["rl_conflict_viol"]), 1.0)
+    conf_max = max(np.max(data["rl_conflict_viol"]), 1.0)
     for bar, v in zip(b_conf, data["rl_conflict_viol"]):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + conf_max * 0.02,
                 f"{v:.0f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
@@ -177,17 +161,14 @@ def plot_combined(records):
 
     # ── Subplot 4: Placement Completeness ─────────────────────────────────
     ax = axes[3]
-    b_ilp3  = ax.bar(xs - w, data["ilp_placed"],  width=w,
-                     color="#d62728", edgecolor="black", linewidth=0.5, label="ILP (Optimal)")
-    b_rand3 = ax.bar(xs,     data["rand_placed"], width=w,
-                     color="#aec7e8", edgecolor="black", linewidth=0.5, label="Random Baseline")
-    b_rl3   = ax.bar(xs + w, data["rl_placed"],   width=w,
-                     color=rl_colors, edgecolor="black", linewidth=0.5)
+    b_ilp3 = ax.bar(xs - w / 2, data["ilp_placed"], width=w,
+                    color="#d62728", edgecolor="black", linewidth=0.5, label="ILP (Optimal)")
+    b_rl3  = ax.bar(xs + w / 2, data["rl_placed"],  width=w,
+                    color=rl_colors, edgecolor="black", linewidth=0.5)
     for folder, lbl in PROBLEM_ORDER:
         ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
 
-    ymax = max(np.max(data["ilp_placed"]), np.max(data["rand_placed"]),
-               np.max(data["rl_placed"]), 1.0)
+    ymax = max(np.max(data["ilp_placed"]), np.max(data["rl_placed"]), 1.0)
     offset = ymax * 0.015 + 0.05
     for bar, v in zip(b_rl3, data["rl_placed"]):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + offset,

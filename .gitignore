@@ -10,3 +10,7 @@ run_scripts/run_background.pid
 # Experiment results, images, and intermediate data — not tracked in git
 **/results/
 run_scripts/results_combined/
+
+
+*.log
+*.pid
