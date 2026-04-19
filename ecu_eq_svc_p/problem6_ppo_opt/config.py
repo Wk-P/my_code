@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT.parent))
 from training_steps_config import get_total_steps
 
 # ── Scenario source (same YAML config file as problem2_ilp) ──────────────
-YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_20260305_183222.yaml"
+YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_ecu_gt_svc.yaml"
 SCENARIO_IDX = 0   # 0-indexed: 0 = Scenario 1, 1 = Scenario 2 ...
 # N and M are inferred automatically from the YAML file
 
@@ -23,11 +23,12 @@ with open(YAML_CONFIG) as f:
     N = len(_all[0]["ECUs"])          # 所有 200 个 scenario 均为相同规模
     M = len(_all[0]["SVCs"])
 
-    # 全部 200 个 scenario，每项为 (caps_list, reqs_list)
+    # 全部 200 个 scenario，每项为 (caps_list, reqs_list, conflict_sets)
     SCENARIOS = [
         (
             [ecu["capacity"] for ecu in sc["ECUs"]],
             [svc["requirement"] for svc in sc["SVCs"]],
+            sc.get("conflict_sets", []),
         )
         for sc in _all
     ]

@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT.parent))
 from training_steps_config import get_total_steps
 
 # ── Scenario source (same YAML config file as problem2_ilp) ──────────────
-YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_20260305_183222.yaml"
+YAML_CONFIG  = ROOT / ".." / "problem2_ilp" / "config" / "config_ecu_gt_svc.yaml"
 SCENARIO_IDX = 0   # 0-indexed: 0 = Scenario 1, 1 = Scenario 2 ...
 
 with open(YAML_CONFIG) as f:
@@ -27,6 +27,7 @@ with open(YAML_CONFIG) as f:
         (
             [ecu["capacity"] for ecu in sc["ECUs"]],
             [svc["requirement"] for svc in sc["SVCs"]],
+            sc.get("conflict_sets", []),
         )
         for sc in _all
     ]
