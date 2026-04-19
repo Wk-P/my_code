@@ -28,6 +28,7 @@ with open(YAML_CONFIG) as f:
         (
             [ecu["capacity"] for ecu in sc["ECUs"]],
             [svc["requirement"] for svc in sc["SVCs"]],
+            sc.get("conflict_sets", []),
         )
         for sc in _all
     ]
