@@ -114,22 +114,20 @@ def plot_combined(records):
     b_rand = ax.bar(xs,     data["rand_ar"], width=w, yerr=data["rand_std"],
                     color="#aec7e8", capsize=3, edgecolor="black", linewidth=0.5,
                     label="Random Baseline")
+    rl_bar_color = "C0"
     b_rl   = ax.bar(xs + w, data["rl_ar"],   width=w, yerr=data["rl_std"],
-                    color=rl_colors, capsize=3, edgecolor="black", linewidth=0.5)
-    for folder, lbl in PROBLEM_ORDER:
-        ax.bar([], [], color=RL_COLORS[folder], label=RL_LABELS[folder])
+                    color=rl_bar_color, capsize=3, edgecolor="black", linewidth=0.5,
+                    label="RL Method")
 
-    for bar, v, e, c in zip(b_rl, data["rl_ar"], data["rl_std"], rl_colors):
+    for bar, v, e in zip(b_rl, data["rl_ar"], data["rl_std"]):
         ax.text(bar.get_x() + bar.get_width() / 2, v + e + 0.005,
-                f"{v:.3f}", ha="center", va="bottom", fontsize=7, fontweight="bold", color=c)
+                f"{v:.3f}", ha="center", va="bottom", fontsize=7, fontweight="bold", color=rl_bar_color)
 
     ax.set_xticks(xs)
     ax.set_xticklabels(xlabels, fontsize=8)
-    for tick, c in zip(ax.get_xticklabels(), rl_colors):
-        tick.set_color(c)
     ax.set_ylabel("Average Resource Utilisation (AR)")
     ax.set_title("AR Comparison: ILP vs Random vs Method", fontsize=10, fontweight="bold")
-    ax.legend(fontsize=6.5, loc="lower right", ncol=2)
+    ax.legend(fontsize=7, loc="lower right")
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
 

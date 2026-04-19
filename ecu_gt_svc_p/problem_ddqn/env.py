@@ -173,6 +173,13 @@ class DDQNEnv(gym.Env):
         conflict_violated = self._has_conflict(action, self._step)
         if conflict_violated:
             self.conflict_violations += 1
+            remaining_services = self.M - self._step
+            return self._obs(), -float(remaining_services), True, False, {
+                "ar":                  self.ar,
+                "services_placed":     self._step,
+                "violated":            True,
+                "conflict_violations": self.conflict_violations,
+            }
 
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement

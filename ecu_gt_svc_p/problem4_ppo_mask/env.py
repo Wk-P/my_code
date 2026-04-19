@@ -180,6 +180,13 @@ class P4Env(gym.Env):
         conflict_violated = self._has_conflict(action, self._step)
         if conflict_violated:
             self.conflict_violations += 1
+            unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
+            demand_penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
+            return self._obs(), demand_penalty, True, False, {
+                "ar": self.ar, "step": self._step,
+                "feasible": False, "services_placed": self._step,
+                "conflict_violations": self.conflict_violations,
+            }
 
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
@@ -202,7 +209,7 @@ class P4Env(gym.Env):
             unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
             terminal_bonus += -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
         if done:
-            terminal_bonus += 1.0 * self.ar if (self.conflict_violations == 0 and remaining_services == 0) else 0.1 * self.ar
+            terminal_bonus += self.ar if remaining_services == 0 else -self.ar
 
         return self._obs(), float(match_gain + terminal_bonus), done, False, {
             "ar":                  self.ar,

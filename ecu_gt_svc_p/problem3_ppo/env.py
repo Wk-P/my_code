@@ -188,8 +188,8 @@ class P3Env(gym.Env):
         match_gain    = 0.0 if cap_violated else float(ru)
         terminal_bonus = 0.0
         if done:
-            total_viol = self.capacity_violations + self.conflict_violations
-            terminal_bonus = 1.0 * self.ar if total_viol == 0 else 0.1 * self.ar
+            # 无容量违规：给满额终局奖励；有违规：扣分表示策略失败
+            terminal_bonus = self.ar if self.capacity_violations == 0 else -self.ar
         reward = float(match_gain + terminal_bonus)
 
         total_viol = self.capacity_violations + self.conflict_violations
