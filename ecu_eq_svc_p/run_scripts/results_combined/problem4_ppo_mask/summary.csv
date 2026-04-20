@@ -1,0 +1,4 @@
+method,ar_mean,ar_std,placed_mean,viol_rate,cap_viol_total,conflict_viol_total
+ILP (Optimal),0.543534,0.0,10,0.0,0,0
+Random (masked),0.592162,0.083089,4.77,0.0,0,0
+MaskablePPO (P4),0.548421,0.069156,10.0,0.0,0,0
