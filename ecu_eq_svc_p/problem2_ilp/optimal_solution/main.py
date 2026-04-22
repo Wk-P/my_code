@@ -9,13 +9,12 @@ import sys
 """
 Problem Description:
 There are {M} services and {N} ECUs (N == M).
-Goal: maximise AR = (1/M) * sum_i(req_i / cap_{ECU_i}).
+Goal: maximise AR = (1/active_ecus) * sum_j( sum_{i->j}(req_i) / cap_j ).
 Constraints:
   - Every service must be placed on exactly one ECU.
   - Total demand on an ECU must not exceed its capacity.
   - Multiple services may share an ECU (no uniqueness constraint).
-  - Conflict sets are handled in the RL environments (not in this ILP);
-    this ILP is therefore a capacity-only upper bound.
+  - Conflict constraints: at most one service from each conflict subset per ECU.
 """
 # ── path setup ────────────────────────────────────────────────────────────────────────────
 HERE = Path(__file__).parent
@@ -36,83 +35,133 @@ def read_config(config_path):
 
 def solve_service_deployment(M, N, e_list, n_list, conflict_sets=None, seed=None):
     """
-    Solve the service deployment optimization problem.
+    Maximise AR = total_util / active_ecus via Dinkelbach's algorithm.
+
+    AR is a fractional objective (denominator active_ecus depends on the solution),
+    so we cannot optimise it directly with a single ILP.  Dinkelbach's method
+    iteratively solves the parametric sub-problem:
+        max  F(x,y) - λ * G(y)
+    where F = Σ x[i][j]*req_i/cap_j  and  G = Σ y_j (active ECUs),
+    updating λ ← F/G at each step until |Δλ| < tol.
 
     Parameters:
     - M: number of services
-    - N: number of ECUs  (N >= M; multiple services may share one ECU)
-    - e_list: list of ECU vm capacity (length N)
-    - n_list: list of service vm requirement (length M)
-    - conflict_sets: list of lists of service indices (at most one per subset per ECU)
+    - N: number of ECUs  (N == M; 1-to-1 natural but sharing is allowed)
+    - e_list: list of ECU capacities (length N)
+    - n_list: list of service requirements (length M)
+    - conflict_sets: list of sets of service indices (at most one per subset per ECU)
     - seed: random seed (optional)
 
     Returns:
-    - Dictionary containing optimization results
-      avg_utilization = AR = total_utilization / active_ecus  (avg ECU utilization)
+    - dict with keys: status, total_utilization, active_ecus, avg_utilization, allocation
+      avg_utilization = AR = total_utilization / active_ecus
     """
-
     if seed is not None:
         random.seed(seed)
 
-    # Create a linear programming problem
-    problem = pulp.LpProblem("Maximize_Average_Resource_Utilization", pulp.LpMaximize)
+    lambda_val = 0.0
+    tol        = 1e-6
+    max_iter   = 20
+    best_x = best_y = None
+    prob   = None
 
-    # x[i][j] = 1 if service i is assigned to ECU j, 0 otherwise
-    x = pulp.LpVariable.dicts("x", (range(M), range(N)), cat='Binary')
+    for iteration in range(max_iter):
+        prob = pulp.LpProblem(f"Maximize_AR_iter{iteration}", pulp.LpMaximize)
 
-    # Objective: maximise sum of req/cap  (proportional to AR = total / M)
-    problem += pulp.lpSum((x[i][j] * n_list[i] / e_list[j])
-                          for i in range(M) for j in range(N)), "Total_Resource_Utilization"
+        # x[i][j] = 1 if service i assigned to ECU j
+        x = pulp.LpVariable.dicts("x", (range(M), range(N)), cat='Binary')
+        # y[j]    = 1 if ECU j has at least one service (active)
+        y = pulp.LpVariable.dicts("y", range(N), cat='Binary')
 
-    # Each service assigned to exactly one ECU
-    for i in range(M):
-        problem += pulp.lpSum(x[i][j] for j in range(N)) == 1, f"Service_{i}_Assignment"
+        # Parametric objective: F(x) - λ * G(y)
+        prob += (
+            pulp.lpSum(x[i][j] * n_list[i] / e_list[j]
+                       for i in range(M) for j in range(N))
+            - lambda_val * pulp.lpSum(y[j] for j in range(N))
+        )
 
-    # Capacity constraint per ECU (multiple services allowed)
-    for j in range(N):
-        problem += pulp.lpSum(x[i][j] * n_list[i] for i in range(M)) <= e_list[j], f"ECU_{j}_Capacity"
+        # Each service assigned to exactly one ECU
+        for i in range(M):
+            prob += pulp.lpSum(x[i][j] for j in range(N)) == 1, f"Assign_{i}"
 
-    # Hard-infeasible assignments
-    for i in range(M):
+        # Capacity constraint per ECU
         for j in range(N):
-            if n_list[i] > e_list[j]:
-                problem += x[i][j] == 0, f"Infeasible_s{i}_e{j}"
+            prob += pulp.lpSum(x[i][j] * n_list[i] for i in range(M)) <= e_list[j], f"Cap_{j}"
 
-    # Conflict constraints: at most one service from each conflict subset per ECU
-    if conflict_sets:
-        for k, subset in enumerate(conflict_sets):
-            valid = [i for i in subset if i < M]
-            if len(valid) >= 2:
-                for j in range(N):
-                    problem += pulp.lpSum(x[i][j] for i in valid) <= 1, f"Conflict_{k}_ECU_{j}"
+        # Linking: x[i][j]=1 forces y[j]=1; no service means y[j] must be 0
+        for j in range(N):
+            prob += pulp.lpSum(x[i][j] for i in range(M)) >= y[j], f"LinkLB_{j}"
+            for i in range(M):
+                prob += x[i][j] <= y[j], f"LinkUB_{i}_{j}"
 
-    # Solve
-    problem.solve(pulp.PULP_CBC_CMD(msg=False))
+        # Hard-infeasible assignments
+        for i in range(M):
+            for j in range(N):
+                if n_list[i] > e_list[j]:
+                    prob += x[i][j] == 0, f"Infeasible_{i}_{j}"
 
-    total_util = pulp.value(problem.objective) or 0.0
+        # Conflict constraints: at most one service from each conflict subset per ECU
+        if conflict_sets:
+            for k, subset in enumerate(conflict_sets):
+                valid = [i for i in subset if i < M]
+                if len(valid) >= 2:
+                    for j in range(N):
+                        prob += pulp.lpSum(x[i][j] for i in valid) <= 1, f"Conflict_{k}_ECU_{j}"
+
+        prob.solve(pulp.PULP_CBC_CMD(msg=False))
+
+        if pulp.LpStatus[prob.status] != 'Optimal':
+            break
+
+        best_x, best_y = x, y
+
+        active = sum(1 for j in range(N)
+                     if pulp.value(y[j]) is not None and pulp.value(y[j]) > 0.5)
+        total  = sum(
+            pulp.value(x[i][j]) * n_list[i] / e_list[j]
+            for i in range(M) for j in range(N)
+            if pulp.value(x[i][j]) is not None and pulp.value(x[i][j]) > 0.5
+        )
+
+        if active == 0:
+            break
+
+        new_lambda = total / active
+        if abs(new_lambda - lambda_val) < tol:
+            lambda_val = new_lambda
+            break
+        lambda_val = new_lambda
 
     result = {
-        'status':            pulp.LpStatus[problem.status],
-        'total_utilization': total_util,
+        'status':            pulp.LpStatus[prob.status] if prob else 'Not Solved',
+        'total_utilization': 0.0,
         'active_ecus':       0,
         'avg_utilization':   0.0,
         'allocation':        {}
     }
 
-    for j in range(N):
-        svcs = [i for i in range(M)
-                if pulp.value(x[i][j]) is not None and pulp.value(x[i][j]) > 0.5]
-        if svcs:
-            result['allocation'][j] = {
-                'services':    svcs,
-                'utilization': sum(n_list[i] for i in svcs) / e_list[j],
-                'capacity':    e_list[j],
-                'demand':      sum(n_list[i] for i in svcs),
-            }
+    if best_x is not None:
+        for j in range(N):
+            svcs = [i for i in range(M)
+                    if pulp.value(best_x[i][j]) is not None and pulp.value(best_x[i][j]) > 0.5]
+            if svcs:
+                result['allocation'][j] = {
+                    'services':    svcs,
+                    'utilization': sum(n_list[i] for i in svcs) / e_list[j],
+                    'capacity':    e_list[j],
+                    'demand':      sum(n_list[i] for i in svcs),
+                }
+        result['active_ecus']       = len(result['allocation'])
+        result['total_utilization'] = sum(
+            n_list[i] / e_list[j]
+            for j, info in result['allocation'].items()
+            for i in info['services']
+        )
+        result['avg_utilization'] = (
+            result['total_utilization'] / result['active_ecus']
+            if result['active_ecus'] > 0 else 0.0
+        )
 
-    result['active_ecus']     = len(result['allocation'])
-    # AR = average ECU utilization (denominator = active ECUs)
-    result['avg_utilization'] = total_util / result['active_ecus'] if result['active_ecus'] > 0 else 0.0
     return result
 
 
