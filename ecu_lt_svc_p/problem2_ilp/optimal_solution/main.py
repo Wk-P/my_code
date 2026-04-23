@@ -188,11 +188,18 @@ def _generate_summary_statistics(results, output_dir):
         print("No results to summarize")
         return
 
-    # Extract metrics from all scenarios
-    avg_utilizations = [r['avg_utilization'] * 100 for r in results]
-    total_utilizations = [r['total_utilization'] * 100 for r in results]
-    statuses = [r['status'] for r in results]
-    optimal_count = sum(1 for s in statuses if 'Optimal' in s)
+    # Only feasible (Optimal) scenarios count toward averages
+    feasible = [r for r in results if r.get('status') == 'Optimal']
+    infeasible_count = len(results) - len(feasible)
+    optimal_count = len(feasible)
+    print(f"\nFeasible scenarios : {optimal_count}/{len(results)}  "
+          f"(infeasible excluded from averages)")
+    if not feasible:
+        print("No feasible scenarios — nothing to plot.")
+        return
+    avg_utilizations   = [r['avg_utilization']   * 100 for r in feasible]
+    total_utilizations = [r['total_utilization']  * 100 for r in feasible]
+    statuses = [r['status'] for r in feasible]
 
     plt.style.use('seaborn-v0_8-darkgrid')
     plt.rcParams.update({'font.size': 12})
@@ -224,10 +231,11 @@ def _generate_summary_statistics(results, output_dir):
         else:
             patch.set_facecolor('#e74c3c')
 
-    density = stats.gaussian_kde(avg_utilizations)
-    x_range = np.linspace(min(avg_utilizations), max(avg_utilizations), 300)
     ax1_twin = ax1.twinx()
-    ax1_twin.plot(x_range, density(x_range), 'b-', linewidth=2.5, alpha=0.85)
+    if len(avg_utilizations) >= 2:
+        density = stats.gaussian_kde(avg_utilizations)
+        x_range = np.linspace(min(avg_utilizations), max(avg_utilizations), 300)
+        ax1_twin.plot(x_range, density(x_range), 'b-', linewidth=2.5, alpha=0.85)
     ax1_twin.set_ylabel('Density', fontsize=13)
     ax1_twin.tick_params(labelsize=12)
     ax1_twin.grid(False)
@@ -292,12 +300,12 @@ def _generate_summary_statistics(results, output_dir):
 
     stats_data = [
         ['Metric',         'Min',   'Max',   'Mean',  'Std',  'Scenarios', 'Optimal Rate'],
-        ['Avg Util (%)',
+        ['Avg Util (%)\n(feasible only)',
          f"{min(avg_utilizations):.1f}",
          f"{max(avg_utilizations):.1f}",
          f"{np.mean(avg_utilizations):.1f}",
          f"{np.std(avg_utilizations):.1f}",
-         str(len(results)),
+         f"{optimal_count}/{len(results)}",
          f"{optimal_count/len(results)*100:.0f}%"],
         ['Total Util (%)',
          f"{min(total_utilizations):.1f}",
@@ -338,11 +346,12 @@ def _generate_summary_statistics(results, output_dir):
 
     # Console summary
     print(f"\n{'='*60}")
-    print(f"SUMMARY STATISTICS")
+    print(f"SUMMARY STATISTICS  (feasible scenarios only)")
     print(f"{'='*60}")
     print(f"Total Scenarios   : {len(results)}")
-    print(f"Optimal Solutions : {optimal_count}/{len(results)} ({optimal_count/len(results)*100:.0f}%)")
-    print(f"\nAverage Utilization:")
+    print(f"Feasible (Optimal): {optimal_count}  ({optimal_count/len(results)*100:.0f}%)")
+    print(f"Infeasible (excl.) : {infeasible_count}")
+    print(f"\nAverage Utilization (feasible only):")
     print(f"  Min    : {min(avg_utilizations):.2f}%")
     print(f"  Max    : {max(avg_utilizations):.2f}%")
     print(f"  Mean   : {np.mean(avg_utilizations):.2f}%")

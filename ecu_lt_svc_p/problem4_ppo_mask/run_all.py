@@ -70,7 +70,7 @@ def _make_p4_env(seed: int) -> Monitor:
 
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs, mask) -> int"""
-    env = P4Env(ecus, services, scenarios=C.SCENARIOS)
+    env = P4Env(ecus, services, scenarios=C.FEASIBLE_SCENARIOS)
     ars, placed_list = [], []
     for _ in range(n_eps):
         obs, _ = env.reset()

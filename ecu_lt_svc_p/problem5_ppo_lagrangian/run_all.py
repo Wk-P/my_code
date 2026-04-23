@@ -77,7 +77,7 @@ def _make_lagrange_env(seed: int) -> Monitor:
 
 def run_episodes(ecus, services, policy_fn, n_eps, lambda_eval: float = 0.0):
     """policy_fn(obs) -> int. Evaluation uses a fixed λ value in the observation."""
-    env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS,
+    env = LagrangeEnv(ecus, services, scenarios=C.FEASIBLE_SCENARIOS,
                       lambda_init=lambda_eval, lambda_max=C.LAMBDA_MAX)
     ars, viol_rates, viols, placed_list, cap_viols, conflict_viols = [], [], [], [], [], []
     for _ in range(n_eps):

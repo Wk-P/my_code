@@ -31,6 +31,10 @@ with open(YAML_CONFIG) as f:
         )
         for sc in _all
     ]
+    # Only scenarios marked feasible — used for evaluation metrics
+    FEASIBLE_SCENARIOS = [
+        s for s, sc in zip(SCENARIOS, _all) if sc.get("feasible", True)
+    ]
     VMS_POOL = SCENARIOS[SCENARIO_IDX][0]
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 

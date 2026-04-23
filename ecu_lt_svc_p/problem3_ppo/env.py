@@ -7,6 +7,10 @@ Constraints:
     - Capacity violation → HARD (action masking prevents it; forced-overflow
       fallback triggers only when ALL ECUs are full, incurring a heavy penalty).
     - Conflict violation → SOFT (per-step penalty; placement continues).
+
+ecu_allowed[j]: dynamically maintained set of SVCs still placeable on ECU j
+without conflict; updated after each placement (O(1) conflict lookup).
+Conflict sets are capped at size N_ECUS to ensure feasibility.
 """
 
 import sys
@@ -24,7 +28,7 @@ class P3Env(gym.Env):
     Each episode assigns M services to N ECUs (N < M), one service per step.
     Multiple services share ECUs.
 
-    Observation (shape: 4N+6+M):
+    Observation (shape: 5N+6+M):
         [0]          current service demand (normalised)
         [1]          current cumulative AR
         [2]          sum of remaining ECU capacity (normalised, clipped ≥ 0)
@@ -33,9 +37,10 @@ class P3Env(gym.Env):
         [5]          fraction of services remaining
         [6:6+N]      initial capacity fraction per ECU
         [6+N:6+2N]   remaining capacity fraction per ECU
-        [6+2N:6+3N]  conflict flag per ECU
-        [6+3N:6+4N]  valid-action flags (1 = sufficient capacity)
-        [6+4N:6+4N+M] remaining service demands (sorted descending)
+        [6+2N:6+3N]  conflict flag per ECU (1 = placing current svc here violates a conflict set)
+        [6+3N:6+4N]  ECU allowed fraction (fraction of SVCs still placeable without conflict)
+        [6+4N:6+5N]  valid-action flags (1 = sufficient capacity)
+        [6+5N:6+5N+M] remaining service demands (sorted descending)
 
     Reward:
         +ru            valid assignment (req/cap_i)
@@ -56,13 +61,14 @@ class P3Env(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
-            low=-1.0, high=1.0, shape=(4 * self.N + 6 + self.M,), dtype=np.float32,
+            low=-1.0, high=1.0, shape=(5 * self.N + 6 + self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
         self.remaining_vms:   np.ndarray
         self.ecu_placements:  list[set]
         self.conflict_sets:   list[set]
+        self.ecu_allowed:     list[set]   # ecu_allowed[j] = svc indices still placeable without conflict
         self.ar:              float
         self._step:           int
         self.capacity_violations:  int
@@ -78,15 +84,12 @@ class P3Env(gym.Env):
         return sets
 
     def _has_conflict(self, ecu_idx: int, svc_idx: int) -> bool:
-        placed = self.ecu_placements[ecu_idx]
-        if not placed:
-            return False
+        return svc_idx not in self.ecu_allowed[ecu_idx]
+
+    def _update_ecu_allowed(self, ecu_idx: int, svc_idx: int) -> None:
         for subset in self.conflict_sets:
             if svc_idx in subset:
-                for p in placed:
-                    if p in subset:
-                        return True
-        return False
+                self.ecu_allowed[ecu_idx] -= (subset - {svc_idx})
 
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
@@ -109,6 +112,7 @@ class P3Env(gym.Env):
         self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
+        self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]
         self.ar              = 0.0
         self._total_ru       = 0.0
         self._step           = 0
@@ -168,6 +172,11 @@ class P3Env(gym.Env):
             dtype=np.float32,
         )
 
+        ecu_allowed_frac = np.array(
+            [len(self.ecu_allowed[j]) / self.M for j in range(self.N)],
+            dtype=np.float32,
+        )
+
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
@@ -178,6 +187,7 @@ class P3Env(gym.Env):
             initial_cap_pct,
             remaining_abs_norm,
             conflict_flag,
+            ecu_allowed_frac,
             valid_flag,
             remaining_svcs,
         ]).astype(np.float32)
@@ -204,6 +214,7 @@ class P3Env(gym.Env):
 
         self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
+        self._update_ecu_allowed(action, self._step)
         if ru > 0:
             self._total_ru += ru
         _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
@@ -253,7 +264,7 @@ if __name__ == "__main__":
 
     env = P3Env(ecus, services)
     obs, _ = env.reset()
-    print(f"\nObs shape : {obs.shape}  (expected {4 * N + 6 + M})")
+    print(f"\nObs shape : {obs.shape}  (expected {5 * N + 6 + M})")
 
     print("\n── Greedy-valid policy run ──")
     done = False

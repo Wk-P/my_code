@@ -70,7 +70,7 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
     Episodes always complete (M steps, no early termination in P3).
     policy_fn(obs) -> int
     """
-    env = P3Env(ecus, services, scenarios=C.SCENARIOS)
+    env = P3Env(ecus, services, scenarios=C.FEASIBLE_SCENARIOS)
     ars, cap_viols, conflict_viols, viol_rates, placed_list = [], [], [], [], []
 
     for _ in range(n_eps):

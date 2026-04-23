@@ -74,7 +74,7 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
     Episodes may terminate early if no valid action exists (both constraints hard).
     policy_fn(obs, mask) -> int
     """
-    env = P6Env(ecus, services, scenarios=C.SCENARIOS)
+    env = P6Env(ecus, services, scenarios=C.FEASIBLE_SCENARIOS)
     ars, cap_viols, conflict_viols, viol_rates, placed_list = [], [], [], [], []
 
     for _ in range(n_eps):

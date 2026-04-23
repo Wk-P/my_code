@@ -152,8 +152,10 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
         if cache.get("key") == cache_key and len(cache.get("results", [])) == len(scenarios):
             print("    [cache] Loaded ILP results from shared p2 cache")
             results = cache["results"]
-            ars = [r["avg_utilization"] for r in results]
-            return float(np.mean(ars)), results
+            ars = [r["avg_utilization"] for r in results if r.get("status") == "Optimal"]
+            mean_ar = float(np.mean(ars)) if ars else 0.0
+            print(f"    [cache] Feasible scenarios: {len(ars)}/{len(results)} — mean AR={mean_ar:.4f}")
+            return mean_ar, results
 
     # ─ 2. Own local incremental cache ─
     outdir.mkdir(parents=True, exist_ok=True)
@@ -165,8 +167,10 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
             results = cache.get("results", [])
             if len(results) == len(scenarios):
                 print(f"    [cache] Loaded ILP results from {cache_path}")
-                ars = [r["avg_utilization"] for r in results]
-                return float(np.mean(ars)), results
+                ars = [r["avg_utilization"] for r in results if r.get("status") == "Optimal"]
+                mean_ar = float(np.mean(ars)) if ars else 0.0
+                print(f"    [cache] Feasible scenarios: {len(ars)}/{len(results)} — mean AR={mean_ar:.4f}")
+                return mean_ar, results
             print(f"    [cache] Resuming from scenario {len(results) + 1}")
 
     # ─ 3. Compute remaining, save after each ─
@@ -180,8 +184,10 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
         _save_cache(cache_path, {"key": cache_key, "results": results})
 
     print(f"    [cache] Saved to {cache_path}")
-    ars = [r["avg_utilization"] for r in results]
-    return float(np.mean(ars)), results
+    ars = [r["avg_utilization"] for r in results if r.get("status") == "Optimal"]
+    mean_ar = float(np.mean(ars)) if ars else 0.0
+    print(f"    Feasible scenarios: {len(ars)}/{len(results)} — mean AR={mean_ar:.4f}")
+    return mean_ar, results
 
 
 # ── Plotting helper ───────────────────────────────────────────────────────────
