@@ -53,7 +53,7 @@ def _mask_fn(env) -> np.ndarray:
 
 
 def _make_p4_env(seed: int) -> Monitor:
-    """Module-level factory (picklable for SubprocVecEnv on Windows)."""
+    """Module-level factory."""
     import random
     random.seed(seed)
     caps, reqs, _ = C.SCENARIOS[C.SCENARIO_IDX]

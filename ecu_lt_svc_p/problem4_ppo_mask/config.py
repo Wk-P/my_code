@@ -52,7 +52,6 @@ TEST_SCENARIOS  = [FEASIBLE_SCENARIOS[i] for i in _idxs[_n_train:]]
 
 DEVICE      = "auto"
 N_ENVS      = 16
-SUBPROC_START_METHOD = "fork"
 TORCH_NUM_THREADS = 8        # DummyVecEnv: more threads for CPU inference
 PROGRESS_LOG_EVERY_STEPS = 200_000
 
