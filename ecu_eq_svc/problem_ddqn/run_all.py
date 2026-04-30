@@ -50,13 +50,52 @@ from problem2_ilp.objects import ECU, SVC
 from run_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
 
 
+# ── Double DQN ────────────────────────────────────────────────────────────────
+
+class DDQN(DQN):
+    """Double DQN: online network selects next action, target network evaluates it.
+
+    SB3's DQN uses q_net_target for both selection and evaluation (overestimation
+    bias). Here q_net selects the greedy action and q_net_target provides the value,
+    decoupling the two roles per the Double DQN paper (van Hasselt et al., 2016).
+    """
+
+    def train(self, gradient_steps: int, batch_size: int = 100) -> None:
+        import torch.nn.functional as F
+        self.policy.set_training_mode(True)
+        self._update_learning_rate(self.policy.optimizer)
+        losses = []
+        for _ in range(gradient_steps):
+            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+            discounts = getattr(replay_data, "discounts", None)
+            if discounts is None:
+                discounts = self.gamma
+            with torch.no_grad():
+                # Double DQN: online network selects the greedy next action
+                best_actions = self.q_net(replay_data.next_observations).argmax(dim=1, keepdim=True)
+                # Target network evaluates that action's value
+                next_q = self.q_net_target(replay_data.next_observations).gather(1, best_actions)
+                target_q = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q
+            current_q = self.q_net(replay_data.observations)
+            current_q = torch.gather(current_q, dim=1, index=replay_data.actions.long())
+            loss = F.smooth_l1_loss(current_q, target_q)
+            losses.append(loss.item())
+            self.policy.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+            self.policy.optimizer.step()
+        self._n_updates += gradient_steps
+        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+        self.logger.record("train/loss", float(np.mean(losses)))
+
+
 def _make_ddqn_env(seed: int) -> Monitor:
     import random
     random.seed(seed)
     caps, reqs = C.SCENARIOS[C.SCENARIO_IDX]
     ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    return Monitor(DDQNEnv(ecus, services, scenarios=C.SCENARIOS))
+    return Monitor(DDQNEnv(ecus, services, scenarios=C.TRAIN_SCENARIOS))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -65,7 +104,7 @@ def _make_ddqn_env(seed: int) -> Monitor:
 
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs) -> int   (no mask)"""
-    env = DDQNEnv(ecus, services, scenarios=C.SCENARIOS)
+    env = DDQNEnv(ecus, services, scenarios=C.TEST_SCENARIOS)
     ars, placed_list, viol_list = [], [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
@@ -134,7 +173,7 @@ def train_ddqn(ecus, services, device: str):
     )
     print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
     cb = DDQNCallback()
-    model = DQN(
+    model = DDQN(
         policy                 = "MlpPolicy",
         env                    = env,
         learning_rate          = C.DDQN_LR,
@@ -299,7 +338,7 @@ def main():
     print(f"\n{'='*60}")
     print(f"  DDQN run_all.py  — RL WITHOUT action masking")
     print(f"  Violation \u2192 reward=-1, episode terminates immediately.")
-    print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
+    print(f"  Config : {C.YAML_CONFIG.name}  |  train={len(C.TRAIN_SCENARIOS)}/test={len(C.TEST_SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
     device = resolve_device(C.DEVICE)
 
@@ -308,9 +347,9 @@ def main():
     N, M = len(ecus), len(services)
 
     # 2. ILP (all scenarios)
-    print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
-    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.SCENARIOS, C.OUTDIR)
-    print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
+    print(f"\n[1/4] Solving ILP for {len(C.TEST_SCENARIOS)} test scenarios ...")
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
+    print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
     # 3. Random baseline (no masking)
     print(f"\n[2/4] Random baseline ({C.EVAL_EPS} episodes, NO masking) ...")
@@ -364,6 +403,8 @@ def main():
         "scenario": sc_name,
         "prototype_scenario": prototype_name,
         "scenario_count": len(C.SCENARIOS),
+        "train_count": len(C.TRAIN_SCENARIOS),
+        "test_count": len(C.TEST_SCENARIOS),
         "N": N,
         "M": M,
         "ilp": {

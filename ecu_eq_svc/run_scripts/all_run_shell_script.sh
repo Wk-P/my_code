@@ -10,7 +10,7 @@ _copilot_all_run_main() {
 		local run_cleanup=0 cleanup_only=0 show_help=0
 		script_path="${BASH_SOURCE[0]}"
 		root_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
-		python_bin="$root_dir/.venv/bin/python"
+		python_bin="$root_dir/../.venv/bin/python"
 		cleanup_script="$root_dir/run_scripts/cleanup_results.py"
 		run_args=()
 		cleanup_args=()

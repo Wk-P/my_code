@@ -42,6 +42,15 @@ with open(YAML_CONFIG) as f:
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem5_ppo_lagrangian")
 SEED        = 42
+# ── Train / Test split (80/20, deterministic) ────────────────────────────────
+import random as _random
+_rng = _random.Random(SEED)
+_idxs = list(range(len(SCENARIOS)))
+_rng.shuffle(_idxs)
+_n_train = int(0.8 * len(SCENARIOS))
+TRAIN_SCENARIOS = [SCENARIOS[i] for i in _idxs[:_n_train]]
+TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train:]]
+
 DEVICE      = "cpu"
 N_ENVS      = 40
 SUBPROC_START_METHOD = "fork"
@@ -59,12 +68,12 @@ PPO_CLIP_RANGE = 0.2
 PPO_NET_ARCH   = dict(pi=[256, 256], vf=[512, 512])  # larger network for 43-dim obs
 
 # ── Lagrangian multiplier (dual variable) ─────────────────────────────────────
-LAMBDA_INIT          = 0.0    # initial λ value
-LAMBDA_LR            = 0.0003   # slower dual-ascent to avoid AR collapse after warmup
+LAMBDA_INIT          = 0.1    # start with small penalty to signal constraints from the start
+LAMBDA_LR            = 0.005  # faster dual-ascent to converge to zero violations
 LAMBDA_TARGET        = 0.0    # zero-violation objective
-LAMBDA_MAX           = 2.0    # keep penalty scale comparable to per-step utilisation gain
+LAMBDA_MAX           = 5.0    # higher cap so λ can grow large enough to enforce zero violations
 LAMBDA_UPDATE_WINDOW = 20     # update λ every 20 episodes after warmup
-LAMBDA_WARMUP_EPISODES = 20000 # longer unconstrained phase to learn high-AR structure first
+LAMBDA_WARMUP_EPISODES = 0    # no warmup: dual ascent starts from episode 1
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = 300

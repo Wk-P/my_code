@@ -2,18 +2,18 @@
 run_all.py — One-shot P6 full pipeline:
 
   1. Load a scenario from the same YAML used by problem2_ilp
-  2. Solve with ILP (PuLP)                   -> ilp_ar  (optimal upper bound)
-  3. Evaluate a random masked policy         -> random_ars + violations
-  4. Train MaskablePPO (both constraints hard) -> training curve
-  5. Evaluate the trained MaskablePPO agent  -> ppo_ars + violations
-  6. Produce two plots:
-       - comparison.png    — AR box plot + violation bar chart (3-way)
-       - training_curve.png — AR & violation count during training
+  2. Solve with ILP (PuLP)               -> ilp_ar  (optimal upper bound)
+  3. Train PPO + repair heuristic        -> training curve
+  4. Evaluate the trained PPO agent      -> ppo_ars + repair_rates
+  5. Produce two plots:
+       - comparison.png      — AR box plot + repair rate bar (2-way: ILP vs PPO+Repair)
+       - training_curve.png  — AR & repair rate during training
 
-P6 Design: BOTH capacity and conflict constraints are HARD (action masking).
-  - action_masks() returns True only for ECUs with sufficient capacity AND no conflict.
-  - Episode terminates early if no valid action exists.
-  - Reward = exact utilisation contribution req/cap per valid step.
+P6 Design: standard PPO + best-fit repair heuristic.
+  - Agent selects any ECU; on violation the env repairs to best-fit valid ECU.
+  - Repair incurs -0.1 penalty to encourage the agent to learn valid placements.
+  - If no repair is possible, episode terminates with demand penalty.
+  - Terminal bonus: +AR * (1 - repair_rate).
 
 Run:
     python problem6_ppo_opt/run_all.py
@@ -31,7 +31,6 @@ matplotlib.rcParams["agg.path.chunksize"] = 10000
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# ── path setup ────────────────────────────────────────────────────────────────────────────
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
@@ -39,18 +38,15 @@ sys.path.insert(0, str(HERE.parent))
 import timer_utils
 
 import torch
-import yaml
-import pulp
-from sb3_contrib import MaskablePPO
+from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from sb3_contrib.common.wrappers import ActionMasker
 
 import config as C
 from problem6_ppo_opt.env import P6Env
 from problem2_ilp.objects import ECU, SVC
-from run_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
+from run_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario, check_scenario_feasibility
 
 
 def _make_p6_env(seed: int) -> Monitor:
@@ -59,60 +55,53 @@ def _make_p6_env(seed: int) -> Monitor:
     caps, reqs, _ = C.SCENARIOS[C.SCENARIO_IDX]
     ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    env = P6Env(ecus, services, scenarios=C.SCENARIOS)
-    env = ActionMasker(env, lambda base_env: base_env.action_masks())
-    return Monitor(env)
+    return Monitor(P6Env(ecus, services, scenarios=C.TRAIN_SCENARIOS))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Step 3 & 5 — Evaluation (Random / PPO)
+#  Evaluation
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_episodes(ecus, services, policy_fn, n_eps: int):
-    """
-    Run n_eps episodes on a fixed problem instance.
-    Episodes may terminate early if no valid action exists (both constraints hard).
-    policy_fn(obs, mask) -> int
-    """
-    env = P6Env(ecus, services, scenarios=C.SCENARIOS)
-    ars, cap_viols, conflict_viols, viol_rates, placed_list = [], [], [], [], []
+    """policy_fn(obs) -> int"""
+    env = P6Env(ecus, services, scenarios=C.TEST_SCENARIOS)
+    ars, repair_rates, placed_list = [], [], []
+    cap_viol_list, conflict_viol_list = [], []
 
     for _ in range(n_eps):
         obs, _ = env.reset()
         done   = False
         info   = {}
         while not done:
-            mask = env.action_masks()
-            if not np.any(mask):
-                break
-            obs, _, done, _, info = env.step(policy_fn(obs, mask))
+            obs, _, done, _, info = env.step(policy_fn(obs))
         ars.append(info.get("ar", 0.0))
-        cap_viols.append(info.get("capacity_violations", 0))
-        conflict_viols.append(info.get("conflict_violations", 0))
-        viol_rates.append(float(info.get("violation_rate", 0.0)))
+        repair_rates.append(float(info.get("repair_rate", 0.0)))
         placed_list.append(int(info.get("services_placed", 0)))
+        cap_viol_list.append(int(info.get("cap_violations", 0)))
+        conflict_viol_list.append(int(info.get("conflict_violations", 0)))
 
     return {
-        "ars":            np.array(ars),
-        "cap_viols":      np.array(cap_viols),
-        "conflict_viols": np.array(conflict_viols),
-        "tot_viols":      np.array(cap_viols) + np.array(conflict_viols),
-        "viol_rates":     np.array(viol_rates),
-        "placed":         np.array(placed_list),
+        "ars":              np.array(ars),
+        "repair_rates":     np.array(repair_rates),
+        "placed":           np.array(placed_list),
+        "cap_violations":   np.array(cap_viol_list),
+        "conflict_violations": np.array(conflict_viol_list),
     }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Step 4 — PPO training
+#  PPO training
 # ══════════════════════════════════════════════════════════════════════════════
 
 class P6Callback(BaseCallback):
     def __init__(self):
         super().__init__()
-        self.episode_ars        : list[float] = []
-        self.episode_viol_rates : list[float] = []
-        self.episode_placed     : list[int]   = []
-        self.timesteps_at_ep    : list[int]   = []
+        self.episode_ars              : list[float] = []
+        self.episode_repair_rates     : list[float] = []
+        self.episode_placed           : list[int]   = []
+        self.episode_cap_violations      : list[int]   = []
+        self.episode_conflict_violations : list[int]   = []
+        self.timesteps_at_ep          : list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
 
@@ -123,8 +112,10 @@ class P6Callback(BaseCallback):
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self.episode_ars.append(float(info.get("ar", 0.0)))
-                self.episode_viol_rates.append(float(info.get("violation_rate", 0.0)))
+                self.episode_repair_rates.append(float(info.get("repair_rate", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
+                self.episode_cap_violations.append(int(info.get("cap_violations", 0)))
+                self.episode_conflict_violations.append(int(info.get("conflict_violations", 0)))
                 self.timesteps_at_ep.append(self.num_timesteps)
 
         if self.num_timesteps >= self._next_progress_step:
@@ -140,7 +131,7 @@ class P6Callback(BaseCallback):
         return True
 
 
-def train_ppo(ecus, services, device: str) -> tuple[MaskablePPO, P6Callback]:
+def train_ppo(ecus, services, device: str) -> tuple[PPO, P6Callback]:
     import torch as _torch
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
@@ -151,7 +142,7 @@ def train_ppo(ecus, services, device: str) -> tuple[MaskablePPO, P6Callback]:
     )
     print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
     cb    = P6Callback()
-    model = MaskablePPO(
+    model = PPO(
         policy        = "MlpPolicy",
         env           = env,
         learning_rate = C.PPO_LR,
@@ -185,11 +176,10 @@ def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_na
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     ts = np.array(cb.timesteps_at_ep)
 
-    # ── AR ────────────────────────────────────────────────────────────────────
     sm, off = moving_avg(cb.episode_ars, C.SMOOTH_W)
     ax1.plot(ts, cb.episode_ars, color="steelblue", alpha=0.2, linewidth=0.8)
     ax1.plot(ts[off:off+len(sm)], sm, color="steelblue", linewidth=2,
-             label=f"Method AR (smoothed w={C.SMOOTH_W})")
+             label=f"PPO+Repair AR (smoothed w={C.SMOOTH_W})")
     ax1.axhline(ilp_ar, color="red", linestyle="--", linewidth=1.5,
                 label=f"ILP Optimal  AR={ilp_ar:.4f}")
     ax1.set_ylabel("Episode AR", fontsize=11)
@@ -198,12 +188,11 @@ def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_na
     ax1.set_title(f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
     ax1.grid(alpha=0.3)
 
-    # ── Violations ────────────────────────────────────────────────────────────
-    sm_v, off_v = moving_avg(cb.episode_viol_rates, C.SMOOTH_W)
-    ax2.plot(ts, cb.episode_viol_rates, color="tomato", alpha=0.2, linewidth=0.8)
-    ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
-             label="Violation rate (smoothed)")
-    ax2.set_ylabel("Violation Rate", fontsize=11)
+    sm_r, off_r = moving_avg(cb.episode_repair_rates, C.SMOOTH_W)
+    ax2.plot(ts, cb.episode_repair_rates, color="darkorange", alpha=0.15, linewidth=0.6)
+    ax2.plot(ts[off_r:off_r+len(sm_r)], sm_r, color="darkorange", linewidth=2,
+             label="Repair rate (smoothed)")
+    ax2.set_ylabel("Repair Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3)
@@ -226,20 +215,19 @@ def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_na
     print(f"  Saved → {path}")
 
 
-def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_viol_std, outdir: Path, scenario_name: str):
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle(f"P2(ILP) vs Random(masked) vs P6(MaskablePPO, both hard) - {scenario_name}", fontsize=13, fontweight="bold")
+def plot_comparison(ilp_ar, ppo_res, ppo_train_repair_mean, ppo_train_repair_std,
+                    outdir: Path, scenario_name: str):
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig.suptitle(f"ILP vs PPO+Repair (P6) — {scenario_name}", fontsize=13, fontweight="bold")
 
-    colors = ["#e74c3c", "#3498db", "#2ecc71"]
-    labels = ["ILP\n(Optimal)", "Random\n(masked)", "MaskablePPO\n(P6, both hard)"]
+    colors = ["#e74c3c", "#2ecc71"]
+    labels = ["ILP\n(Optimal)", "PPO+Repair\n(P6)"]
 
     ax = axes[0]
-    rand_ars = rand_res["ars"]
-    ppo_ars  = ppo_res["ars"]
-
+    ppo_ars = ppo_res["ars"]
     bp = ax.boxplot(
-        [rand_ars, ppo_ars],
-        positions=[2, 3],
+        [ppo_ars],
+        positions=[2],
         widths=0.5,
         patch_artist=True,
         medianprops=dict(color="black", linewidth=2),
@@ -249,17 +237,13 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_vi
     for patch, color in zip(bp["boxes"], colors[1:]):
         patch.set_facecolor(color)
         patch.set_alpha(0.7)
-
     ax.axhline(ilp_ar, color=colors[0], linestyle="--", linewidth=2, alpha=0.9,
                label=f"ILP  AR={ilp_ar:.4f}")
     ax.plot(1, ilp_ar, marker="D", color=colors[0], markersize=10, zorder=5)
-
-    for pos, data, color in zip([2, 3], [rand_ars, ppo_ars], colors[1:]):
-        mv = np.mean(data)
-        ax.text(pos, mv + 0.02, f"μ={mv:.3f}", ha="center", va="bottom",
-                fontsize=9, fontweight="bold", color="black")
-
-    ax.set_xticks([1, 2, 3])
+    mv = np.mean(ppo_ars)
+    ax.text(2, mv + 0.02, f"μ={mv:.3f}", ha="center", va="bottom",
+            fontsize=9, fontweight="bold", color="black")
+    ax.set_xticks([1, 2])
     ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 1.1)
     ax.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
@@ -268,31 +252,22 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_vi
     ax.grid(axis="y", alpha=0.3)
 
     ax2 = axes[1]
-    vr_means = [
-        0.0,
-        np.mean(rand_res["viol_rates"]),
-        ppo_train_viol_mean,
-    ]
-    vr_stds = [
-        0.0,
-        np.std(rand_res["viol_rates"]),
-        ppo_train_viol_std,
-    ]
-    bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75,
-                   yerr=vr_stds, capsize=5, ecolor="black")
-    for bar, v in zip(bars, vr_means):
+    rr_means = [0.0, ppo_train_repair_mean]
+    rr_stds  = [0.0, ppo_train_repair_std]
+    bars = ax2.bar(labels, rr_means, color=colors, alpha=0.75,
+                   yerr=rr_stds, capsize=5, ecolor="black")
+    for bar, v in zip(bars, rr_means):
         ax2.text(bar.get_x() + bar.get_width() / 2,
-                 v + max(vr_means) * 0.02 + 0.01,
+                 v + max(rr_means) * 0.02 + 0.01,
                  f"{v:.2%}", ha="center", va="bottom", fontsize=10, fontweight="bold", color="black")
-
     ax2.set_ylim(0, 1.05)
-    ax2.set_ylabel("Violation Rate", fontsize=11)
-    ax2.set_title("Violation Rate (eval)", fontsize=11)
+    ax2.set_ylabel("Repair Rate", fontsize=11)
+    ax2.set_title("Repair Rate (eval)", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
 
     ax3 = axes[2]
-    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(ppo_res["placed"])]
-    pl_stds = [0.0, np.std(rand_res["placed"]), np.std(ppo_res["placed"])]
+    pl_means = [C.M, np.mean(ppo_res["placed"])]
+    pl_stds  = [0.0, np.std(ppo_res["placed"])]
     bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
                    yerr=pl_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, pl_means):
@@ -322,8 +297,8 @@ def main():
         C.TOTAL_STEPS = int(args.total_timesteps)
         print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
-    print(f"  P6 run_all.py  —  RL WITH both hard constraints (MaskablePPO)")
-    print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
+    print(f"  P6 run_all.py  —  PPO + Best-fit Repair Heuristic")
+    print(f"  Config : {C.YAML_CONFIG.name}  |  train={len(C.TRAIN_SCENARIOS)}/test={len(C.TEST_SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
     device = resolve_device(C.DEVICE)
 
@@ -332,54 +307,46 @@ def main():
     N = len(ecus)
     M = len(services)
 
-    # ── 2. ILP (all scenarios) ────────────────────────────────────────────
-    print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
-    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.SCENARIOS, C.OUTDIR)
-    print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
+    print("\n[Feasibility Check]")
+    train_feas = check_scenario_feasibility(C.TRAIN_SCENARIOS)
+    test_feas  = check_scenario_feasibility(C.TEST_SCENARIOS)
+    print(f"  Train: {train_feas['feasible']}/{train_feas['total']} feasible, {train_feas['infeasible']} infeasible (idx: {train_feas['infeasible_indices']})")
+    print(f"  Test:  {test_feas['feasible']}/{test_feas['total']} feasible, {test_feas['infeasible']} infeasible (idx: {test_feas['infeasible_indices']})")
 
-    # ── 3. Random baseline ───────────────────────────────────────────────────
-    print(f"\n[2/4] Random baseline evaluation ({C.EVAL_EPS} episodes) ...")
-    np.random.seed(C.SEED)
-    rand_res = run_episodes(
-        ecus, services,
-        policy_fn=lambda obs, mask: int(np.random.choice(np.flatnonzero(mask))),
-        n_eps=C.EVAL_EPS,
-    )
-    print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
-          f"std={np.std(rand_res['ars']):.4f}")
-    print(f"  Viol rate mean={np.mean(rand_res['viol_rates']):.2%}")
+    # ── 2. ILP (all test scenarios) ───────────────────────────────────────────
+    print(f"\n[1/3] Solving ILP for {len(C.TEST_SCENARIOS)} test scenarios ...")
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
+    print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
-    # ── 4. PPO training ──────────────────────────────────────────────────────
-    print(f"\n[3/4] PPO training ({C.TOTAL_STEPS:,} steps) ...")
+    # ── 3. PPO training ──────────────────────────────────────────────────────
+    print(f"\n[2/3] PPO training ({C.TOTAL_STEPS:,} steps) ...")
     model, cb = train_ppo(ecus, services, device)
     model.save(str(C.MODEL_PATH))
     print(f"  Model saved → {C.MODEL_PATH}.zip")
 
-    # ── 5. PPO evaluation ────────────────────────────────────────────────────
-    print(f"\n[4/4] PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
-    def ppo_policy(obs, mask):
-        action, _ = model.predict(obs, deterministic=True, action_masks=mask)
+    # ── 4. PPO evaluation ────────────────────────────────────────────────────
+    print(f"\n[3/3] PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    def ppo_policy(obs):
+        action, _ = model.predict(obs, deterministic=True)
         return int(action)
     ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
-    print(f"  PPO AR  mean={np.mean(ppo_res['ars']):.4f}  "
-          f"std={np.std(ppo_res['ars']):.4f}")
-    print(f"  Eval viol rate mean={np.mean(ppo_res['viol_rates']):.2%}")
+    p_rr      = float(np.mean(ppo_res["repair_rates"]))
+    p_rr_std  = float(np.std(ppo_res["repair_rates"]))
+    p_cap_viol = float(np.sum(ppo_res["cap_violations"]))
+    p_con_viol = float(np.sum(ppo_res["conflict_violations"]))
+    print(f"  PPO AR           mean={np.mean(ppo_res['ars']):.4f}  std={np.std(ppo_res['ars']):.4f}")
+    print(f"  Repair rate      mean={p_rr:.2%}")
+    print(f"  Cap violations   total={p_cap_viol:.0f}  (repaired by best-fit)")
+    print(f"  Conflict violations total={p_con_viol:.0f}  (repaired by best-fit)")
 
     # ── Summary table ─────────────────────────────────────────────────────────
-    M_total = M
     print(f"\n{'='*62}")
-    print(f"  {'Method':<24} {'AR (mean±std)':<22} {'ViolRate':<10}")
+    print(f"  {'Method':<24} {'AR (mean±std)':<22} {'RepairRate':<10}")
     print(f"  {'-'*24} {'-'*22} {'-'*10}")
-    print(f"  {'ILP (Optimal)':<24} {ilp_ar:.4f} ± 0.0000       {'0':<10}")
-    r_v = np.mean(rand_res['viol_rates'])
-    p_v = float(np.mean(ppo_res["viol_rates"]))
-    p_v_std = float(np.std(ppo_res["viol_rates"]))
-    print(f"  {'Random Baseline':<24} "
-          f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
-          f"  {r_v:<10.2%}")
-    print(f"  {'MaskablePPO (P6)':<24} "
+    print(f"  {'ILP (Optimal)':<24} {ilp_ar:.4f} ± 0.0000       {'0':<10}  cap=0   conf=0")
+    print(f"  {'PPO+Repair (P6)':<24} "
           f"{np.mean(ppo_res['ars']):.4f} ± {np.std(ppo_res['ars']):.4f}   "
-          f"  {p_v:<10.2%}")
+          f"  {p_rr:<10.2%}  cap={p_cap_viol:.0f}  conf={p_con_viol:.0f}")
     print(f"{'='*62}\n")
 
     # ── Save JSON ─────────────────────────────────────────────────────────────
@@ -387,31 +354,38 @@ def main():
         "scenario": sc_name,
         "prototype_scenario": prototype_name,
         "scenario_count": len(C.SCENARIOS),
+        "train_count": len(C.TRAIN_SCENARIOS),
+        "test_count": len(C.TEST_SCENARIOS),
         "N": N, "M": M,
-        "ilp":    {
+        "feasibility": {
+            "train_feasible": train_feas["feasible"],
+            "train_infeasible": train_feas["infeasible"],
+            "train_infeasible_indices": train_feas["infeasible_indices"],
+            "test_feasible": test_feas["feasible"],
+            "test_infeasible": test_feas["infeasible"],
+            "test_infeasible_indices": test_feas["infeasible_indices"],
+        },
+        "ilp": {
             "ar": round(ilp_ar, 6),
             "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
             "violations": 0,
         },
-        "random": {
-            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":             round(float(np.std(rand_res["ars"])),  6),
-            "viol_rate_mean":     round(float(r_v), 6),
-            "cap_viol_total":     int(np.sum(rand_res["cap_viols"])),
-            "conflict_viol_total": int(np.sum(rand_res["conflict_viols"])),
-        },
         "ppo": {
-            "ar_mean":            round(float(np.mean(ppo_res["ars"])), 6),
-            "ar_std":             round(float(np.std(ppo_res["ars"])),  6),
-            "viol_rate_mean":     round(float(p_v), 6),
-            "cap_viol_total":     int(np.sum(ppo_res["cap_viols"])),
-            "conflict_viol_total": int(np.sum(ppo_res["conflict_viols"])),
+            "ar_mean":                round(float(np.mean(ppo_res["ars"])), 6),
+            "ar_std":                 round(float(np.std(ppo_res["ars"])),  6),
+            "repair_rate_mean":       round(p_rr, 6),
+            "repair_rate_std":        round(p_rr_std, 6),
+            "cap_viol_total":         int(p_cap_viol),
+            "conflict_viol_total":    int(p_con_viol),
+            "placed_mean":            round(float(np.mean(ppo_res["placed"])), 2),
         },
         "training": {
-            "total_steps":  C.TOTAL_STEPS,
-            "n_episodes":   len(cb.episode_ars),
-            "ar_last50":    round(float(np.mean(cb.episode_ars[-50:])), 6),
-            "viol_rate_last50": round(float(np.mean(cb.episode_viol_rates[-50:])), 6),
+            "total_steps":            C.TOTAL_STEPS,
+            "n_episodes":             len(cb.episode_ars),
+            "ar_last50":              round(float(np.mean(cb.episode_ars[-50:])), 6),
+            "repair_rate_last50":     round(float(np.mean(cb.episode_repair_rates[-50:])), 6),
+            "cap_viol_last50":        round(float(np.mean(cb.episode_cap_violations[-50:])), 4),
+            "conflict_viol_last50":   round(float(np.mean(cb.episode_conflict_violations[-50:])), 4),
         }
     }
     log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "results.json"
@@ -421,33 +395,26 @@ def main():
         json.dump(log, f, indent=2)
     print(f"  JSON saved → {log_path}")
 
-    # ── Save CSV summary ────────────────────────────────────────────────────────────────────
+    # ── Save CSV summary ───────────────────────────────────────────────────────
     csv_path = run_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean",
+                         "repair_rate", "cap_viol_total", "conflict_viol_total"])
         writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
-            "Random Baseline",
-            round(float(np.mean(rand_res["ars"])), 6),
-            round(float(np.std(rand_res["ars"])), 6),
-            round(float(np.mean(rand_res["placed"])), 2),
-            round(float(r_v), 4),
-            int(np.sum(rand_res["cap_viols"])),
-            int(np.sum(rand_res["conflict_viols"])),
-        ])
-        writer.writerow([
-            "PPO (P6, best-fit)",
+            "PPO+Repair (P6)",
             round(float(np.mean(ppo_res["ars"])), 6),
             round(float(np.std(ppo_res["ars"])), 6),
             round(float(np.mean(ppo_res["placed"])), 2),
-            round(float(p_v), 4),
-            int(np.sum(ppo_res["cap_viols"])),
-            int(np.sum(ppo_res["conflict_viols"])),
+            round(p_rr, 4),
+            int(p_cap_viol),
+            int(p_con_viol),
         ])
     print(f"  CSV  saved → {csv_path}")
+
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, p_v, p_v_std, run_dir, sc_name)
+    plot_comparison(ilp_ar, ppo_res, p_rr, p_rr_std, run_dir, sc_name)
 
     print("\nAll done! Output files:")
     print(f"  {run_dir}/training_curve.png")

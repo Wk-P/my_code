@@ -184,6 +184,29 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
     return float(np.mean(ars)), results
 
 
+# ── Feasibility checker ───────────────────────────────────────────────────────
+
+def check_scenario_feasibility(scenarios: list) -> dict:
+    """Check each scenario for ILP feasibility. Returns counts and indices."""
+    from problem2_ilp.objects import ECU, SVC
+    feasible, infeasible = [], []
+    for idx, sc in enumerate(scenarios):
+        caps, reqs, conflict_sets = sc[0], sc[1], sc[2] if len(sc) > 2 else []
+        ecus_sc = [ECU(f"ECU{i}", c) for i, c in enumerate(caps)]
+        svcs_sc = [SVC(f"SVC{i}", r) for i, r in enumerate(reqs)]
+        res = solve_ilp(ecus_sc, svcs_sc, conflict_sets)
+        if res["status"] == "Optimal" and res["active_ecus"] > 0:
+            feasible.append(idx)
+        else:
+            infeasible.append(idx)
+    return {
+        "total": len(scenarios),
+        "feasible": len(feasible),
+        "infeasible": len(infeasible),
+        "infeasible_indices": infeasible,
+    }
+
+
 # ── Plotting helper ───────────────────────────────────────────────────────────
 
 def moving_avg(arr, w):

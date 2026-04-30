@@ -3,11 +3,10 @@ run_all.py — One-shot P4 full pipeline:
 
   1. Load scenario from YAML (same as P2/P3)
   2. Solve with ILP (PuLP)                        -> ilp_ar (optimal upper bound)
-  3. Evaluate random policy (with action masking)  -> random_ars
-  4. Train MaskablePPO (with action masking)       -> training curve
-  5. Evaluate trained MaskablePPO                  -> ppo_ars
-  6. Produce plots:
-       - comparison.png     — 3-way AR box plot + services placed
+  3. Train MaskablePPO (with action masking)       -> training curve
+  4. Evaluate trained MaskablePPO                  -> ppo_ars
+  5. Produce plots:
+       - comparison.png     — 2-way AR box plot + services placed (ILP vs MaskablePPO)
        - training_curve.png — AR during training
 
 P4 Design: constraints enforced via action masking -> 0 violations guaranteed.
@@ -59,7 +58,7 @@ def _make_p4_env(seed: int) -> Monitor:
     caps, reqs, _ = C.SCENARIOS[C.SCENARIO_IDX]
     ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    env = P4Env(ecus, services, scenarios=C.SCENARIOS)
+    env = P4Env(ecus, services, scenarios=C.TRAIN_SCENARIOS)
     env = ActionMasker(env, _mask_fn)
     return Monitor(env)
 
@@ -70,7 +69,7 @@ def _make_p4_env(seed: int) -> Monitor:
 
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs, mask) -> int"""
-    env = P4Env(ecus, services, scenarios=C.SCENARIOS)
+    env = P4Env(ecus, services, scenarios=C.TEST_SCENARIOS)
     ars, placed_list = [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
@@ -187,8 +186,8 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     ax1.grid(alpha=0.3)
 
     zero_viol = np.zeros_like(ts, dtype=float)
-    ax2.plot(ts, zero_viol, color="tomato", alpha=0.4, linewidth=1.5,
-             label="Violation rate (always 0 with masking)")
+    ax2.plot(ts, zero_viol, color="tomato",    alpha=0.6, linewidth=1.5, label="Cap viol rate (always 0 with masking)")
+    ax2.plot(ts, zero_viol, color="darkorange", alpha=0.6, linewidth=1.5, linestyle="--", label="Conflict viol rate (always 0 with masking)")
     ax2.set_ylabel("Violation Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)
@@ -212,18 +211,18 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     print(f"  Saved -> {path}")
 
 
-def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scenario_name):
-    colors = ["#e74c3c", "#3498db", "#2ecc71"]
-    labels = ["ILP\n(Optimal)", "Random\n(masked)", "MaskablePPO\n(P4)"]
+def plot_comparison(ilp_ar, ppo_res, ppo_train_viol_mean, outdir, scenario_name):
+    colors = ["#e74c3c", "#2ecc71"]
+    labels = ["ILP\n(Optimal)", "MaskablePPO\n(P4)"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle(f"P2(ILP) vs Random(masked) vs P4(MaskablePPO) - {scenario_name}",
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig.suptitle(f"P2(ILP) vs P4(MaskablePPO) - {scenario_name}",
                  fontsize=13, fontweight="bold")
 
     ax = axes[0]
     bp = ax.boxplot(
-        [rand_res["ars"], ppo_res["ars"]],
-        positions=[2, 3], widths=0.5, patch_artist=True,
+        [ppo_res["ars"]],
+        positions=[2], widths=0.5, patch_artist=True,
         medianprops=dict(color="black", linewidth=2),
     )
     for patch, color in zip(bp["boxes"], colors[1:]):
@@ -233,12 +232,11 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scen
                label=f"ILP  AR={ilp_ar:.4f}")
     ax.plot(1, ilp_ar, marker="D", color=colors[0], markersize=10, zorder=5)
 
-    for pos, data, color in zip([2, 3], [rand_res["ars"], ppo_res["ars"]], colors[1:]):
-        mv = np.mean(data)
-        ax.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
-                fontweight="bold", color="black")
+    mv = np.mean(ppo_res["ars"])
+    ax.text(2, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
+            fontweight="bold", color="black")
 
-    ax.set_xticks([1, 2, 3]); ax.set_xticklabels(labels, fontsize=10)
+    ax.set_xticks([1, 2]); ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 1.1)
     ax.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax.set_title("AR Distribution (0 violations)", fontsize=11)
@@ -246,7 +244,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scen
     ax.grid(axis="y", alpha=0.3)
 
     ax2 = axes[1]
-    vr_means = [0.0, 0.0, ppo_train_viol_mean]
+    vr_means = [0.0, ppo_train_viol_mean]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75)
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width()/2, v + 0.02,
@@ -257,8 +255,8 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scen
     ax2.grid(axis="y", alpha=0.3)
 
     ax3 = axes[2]
-    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(ppo_res["placed"])]
-    pl_stds  = [0.0, np.std(rand_res["placed"]), np.std(ppo_res["placed"])]
+    pl_means = [C.M, np.mean(ppo_res["placed"])]
+    pl_stds  = [0.0, np.std(ppo_res["placed"])]
     bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
                    yerr=pl_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, pl_means):
@@ -289,7 +287,7 @@ def main():
         print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
     print(f"  P4 run_all.py  —  RL WITH action masking (0 violations)")
-    print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
+    print(f"  Config : {C.YAML_CONFIG.name}  |  train={len(C.TRAIN_SCENARIOS)}/test={len(C.TEST_SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
     device = resolve_device(C.DEVICE)
 
@@ -297,32 +295,26 @@ def main():
     ecus, services, sc_name, prototype_name = load_scenario(C.YAML_CONFIG, C.SCENARIO_IDX, C.SCENARIOS)
     N, M = len(ecus), len(services)
 
+    from run_utils import check_scenario_feasibility
+    print("\n[Feasibility Check]")
+    train_feas = check_scenario_feasibility(C.TRAIN_SCENARIOS)
+    test_feas  = check_scenario_feasibility(C.TEST_SCENARIOS)
+    print(f"  Train: {train_feas['feasible']}/{train_feas['total']} feasible, {train_feas['infeasible']} infeasible (idx: {train_feas['infeasible_indices']})")
+    print(f"  Test:  {test_feas['feasible']}/{test_feas['total']} feasible, {test_feas['infeasible']} infeasible (idx: {test_feas['infeasible_indices']})")
+
     # 2. ILP (all scenarios)
-    print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
-    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.SCENARIOS, C.OUTDIR)
-    print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
+    print(f"\n[1/3] Solving ILP for {len(C.TEST_SCENARIOS)} test scenarios ...")
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
+    print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
-    # 3. Random (masked)
-    print(f"\n[2/4] Random masked baseline ({C.EVAL_EPS} episodes) ...")
-    np.random.seed(C.SEED)
-    rand_res = run_episodes(
-        ecus, services,
-        policy_fn=lambda obs, mask: int(np.random.choice(np.where(mask)[0]))
-                                    if np.any(mask) else 0,
-        n_eps=C.EVAL_EPS,
-    )
-    print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
-          f"std={np.std(rand_res['ars']):.4f}")
-    print(f"  Placed/ep  mean={np.mean(rand_res['placed']):.1f}/{M}")
-
-    # 4. MaskablePPO training
-    print(f"\n[3/4] MaskablePPO training ({C.TOTAL_STEPS:,} steps) ...")
+    # 3. MaskablePPO training
+    print(f"\n[2/3] MaskablePPO training ({C.TOTAL_STEPS:,} steps) ...")
     model, cb = train_maskppo(ecus, services, device)
     model.save(str(C.MODEL_PATH))
     print(f"  Model saved -> {C.MODEL_PATH}.zip")
 
-    # 5. MaskablePPO evaluation
-    print(f"\n[4/4] MaskablePPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    # 4. MaskablePPO evaluation
+    print(f"\n[3/3] MaskablePPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
     def ppo_policy(obs, mask):
         action, _ = model.predict(obs, deterministic=True, action_masks=mask)
         return int(action)
@@ -337,9 +329,6 @@ def main():
     print(f"  {'-'*28} {'-'*24} {'-'*10} {'-'*5}")
     print(f"  {'ILP (Optimal)':<28} {ilp_ar:.4f} +/- 0.0000       "
           f"{M}/{M:<7} 0")
-    print(f"  {'Random (masked)':<28} "
-          f"{np.mean(rand_res['ars']):.4f} +/- {np.std(rand_res['ars']):.4f}   "
-          f"  {np.mean(rand_res['placed']):.1f}/{M:<4}  0")
     print(f"  {'MaskablePPO (P4)':<28} "
           f"{np.mean(ppo_res['ars']):.4f} +/- {np.std(ppo_res['ars']):.4f}   "
             f"  {np.mean(ppo_res['placed']):.1f}/{M:<4}  0")
@@ -350,20 +339,22 @@ def main():
         "scenario": sc_name,
         "prototype_scenario": prototype_name,
         "scenario_count": len(C.SCENARIOS),
+        "train_count": len(C.TRAIN_SCENARIOS),
+        "test_count": len(C.TEST_SCENARIOS),
         "N": N,
         "M": M,
+        "feasibility": {
+            "train_feasible": train_feas["feasible"],
+            "train_infeasible": train_feas["infeasible"],
+            "train_infeasible_indices": train_feas["infeasible_indices"],
+            "test_feasible": test_feas["feasible"],
+            "test_infeasible": test_feas["infeasible"],
+            "test_infeasible_indices": test_feas["infeasible_indices"],
+        },
         "ilp": {
             "ar": round(ilp_ar, 6),
             "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
             "violations": 0,
-        },
-        "random_masked": {
-            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":             round(float(np.std(rand_res["ars"])), 6),
-            "placed_mean":        round(float(np.mean(rand_res["placed"])), 2),
-            "violations":         0,
-            "cap_viol_total":     0,
-            "conflict_viol_total": 0,
         },
         "maskable_ppo": {
             "ar_mean":            round(float(np.mean(ppo_res["ars"])), 6),
@@ -395,13 +386,6 @@ def main():
         writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
         writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
-            "Random (masked)",
-            round(float(np.mean(rand_res["ars"])), 6),
-            round(float(np.std(rand_res["ars"])), 6),
-            round(float(np.mean(rand_res["placed"])), 2),
-            0.0, 0, 0,
-        ])
-        writer.writerow([
             "MaskablePPO (P4)",
             round(float(np.mean(ppo_res["ars"])), 6),
             round(float(np.std(ppo_res["ars"])), 6),
@@ -412,7 +396,7 @@ def main():
 
     # Plots
     plot_training_curve(cb, ilp_ar, base_path, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, 0.0, base_path, sc_name)
+    plot_comparison(ilp_ar, ppo_res, 0.0, base_path, sc_name)
 
     print("\nAll done! Output files:")
     print(f"  {base_path}/training_curve.png")

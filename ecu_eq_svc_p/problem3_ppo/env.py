@@ -88,6 +88,16 @@ class P3Env(gym.Env):
                         return True
         return False
 
+    def action_masks(self) -> np.ndarray:
+        """Hard capacity mask: True = ECU has enough remaining capacity."""
+        if self._step >= self.M:
+            return np.zeros(self.N, dtype=bool)
+        svc = self.services[self._step]
+        mask = self.remaining_vms >= svc.requirement
+        if not np.any(mask):
+            return np.ones(self.N, dtype=bool)  # all infeasible: allow any (unavoidable)
+        return mask
+
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -167,7 +177,14 @@ class P3Env(gym.Env):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
 
-        cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
+        # Hard capacity enforcement: redirect to valid ECU if current action violates
+        mask = self.action_masks()
+        if not mask[action]:
+            valid = np.where(mask)[0]
+            if len(valid) > 0:
+                action = int(valid[np.argmax(self.remaining_vms[valid])])
+
+        cap_violated = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
 
         if cap_violated:
@@ -175,9 +192,8 @@ class P3Env(gym.Env):
         if conflict_violated:
             self.conflict_violations += 1
 
-        # Assignment always proceeds regardless of violations
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
-        self.remaining_vms[action] -= svc.requirement   # can go negative
+        self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
         self._total_ru += ru
         _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
@@ -185,22 +201,19 @@ class P3Env(gym.Env):
         self._step += 1
 
         done = self._step >= self.M
-        match_gain    = 0.0 if cap_violated else float(ru)
-        terminal_bonus = 0.0
-        if done:
-            # 无容量违规：给满额终局奖励；有违规：扣分表示策略失败
-            terminal_bonus = self.ar if self.capacity_violations == 0 else -self.ar
+        match_gain = float(ru)  # no capacity penalty (mask ensures valid placement)
+        terminal_bonus = self.ar if done else 0.0  # conflict violations not penalized in P3
         reward = float(match_gain + terminal_bonus)
 
         total_viol = self.capacity_violations + self.conflict_violations
         info = {
-            "ar":                 self.ar,
-            "step":               self._step,
-            "services_placed":    self._step,
-            "capacity_violations":  self.capacity_violations,
-            "conflict_violations":  self.conflict_violations,
-            "total_violations":     total_viol,
-            "violation_rate":       total_viol / self._step,
+            "ar":                  self.ar,
+            "step":                self._step,
+            "services_placed":     self._step,
+            "capacity_violations": self.capacity_violations,
+            "conflict_violations": self.conflict_violations,
+            "total_violations":    total_viol,
+            "violation_rate":      total_viol / self._step,
         }
         return self._obs(), reward, done, False, info
 

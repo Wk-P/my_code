@@ -92,6 +92,16 @@ class LagrangeEnv(gym.Env):
                         return True
         return False
 
+    def action_masks(self) -> np.ndarray:
+        """Hard capacity mask: True = ECU has enough remaining capacity."""
+        if self._step >= self.M:
+            return np.zeros(self.N, dtype=bool)
+        svc = self.services[self._step]
+        mask = self.remaining_vms >= svc.requirement
+        if not np.any(mask):
+            return np.ones(self.N, dtype=bool)  # unavoidable infeasibility
+        return mask
+
     # ── reset ─────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -173,28 +183,33 @@ class LagrangeEnv(gym.Env):
     def step(self, action: int):
         svc = self.services[self._step]
 
+        # Hard capacity enforcement
+        mask = self.action_masks()
+        if not mask[action]:
+            valid = np.where(mask)[0]
+            if len(valid) > 0:
+                action = int(valid[np.argmax(self.remaining_vms[valid])])
+
         cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
-        violated          = cap_violated or conflict_violated
-        c_t               = 1.0 if violated else 0.0
+        violated          = conflict_violated  # only conflict counts as violation now
+        c_t               = 1.0 if conflict_violated else 0.0  # Lagrangian only for conflict
 
-        # Assignment always proceeds
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
-        self.remaining_vms[action] -= svc.requirement   # may go negative
+        self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
         self._total_ru += ru
         _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
         self.ar = self._total_ru / _active
         self._step += 1
-        if violated:
-            self.episode_violations += 1
         if cap_violated:
             self.cap_violations += 1
         if conflict_violated:
             self.conflict_violations += 1
+            self.episode_violations += 1
 
         done = self._step >= self.M
-        match_gain     = 0.0 if (cap_violated or conflict_violated) else float(ru)
+        match_gain     = float(ru)  # no capacity penalty since mask enforces it
         base_penalty   = 0.2
         terminal_bonus = 0.0
         if done:
@@ -202,14 +217,14 @@ class LagrangeEnv(gym.Env):
         reward = float(match_gain - (self.lambda_val + base_penalty) * c_t + terminal_bonus)
 
         return self._obs(), reward, done, False, {
-            "ar":                self.ar,
-            "violated":          violated,
-            "violations_ep":     self.episode_violations,
-            "viol_rate_ep":      self.episode_violations / self._step,
-            "cap_violations":    self.cap_violations,
+            "ar":                  self.ar,
+            "violated":            violated,
+            "violations_ep":       self.episode_violations,
+            "viol_rate_ep":        self.episode_violations / self._step,
+            "cap_violations":      self.cap_violations,
             "conflict_violations": self.conflict_violations,
-            "services_placed":   self._step,
-            "lambda":            self.lambda_val,
+            "services_placed":     self._step,
+            "lambda":              self.lambda_val,
         }
 
     # ── render ────────────────────────────────────────────────────────────────

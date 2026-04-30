@@ -59,7 +59,7 @@ def _make_p6_env(seed: int) -> Monitor:
     caps, reqs, _ = C.SCENARIOS[C.SCENARIO_IDX]
     ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    env = P6Env(ecus, services, scenarios=C.SCENARIOS)
+    env = P6Env(ecus, services, scenarios=C.TRAIN_SCENARIOS)
     env = ActionMasker(env, lambda base_env: base_env.action_masks())
     return Monitor(env)
 
@@ -74,7 +74,7 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
     Episodes may terminate early if no valid action exists (both constraints hard).
     policy_fn(obs, mask) -> int
     """
-    env = P6Env(ecus, services, scenarios=C.FEASIBLE_SCENARIOS)
+    env = P6Env(ecus, services, scenarios=C.TEST_SCENARIOS)
     ars, cap_viols, conflict_viols, viol_rates, placed_list = [], [], [], [], []
 
     for _ in range(n_eps):
@@ -323,7 +323,7 @@ def main():
         print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
     print(f"  P6 run_all.py  —  RL WITH both hard constraints (MaskablePPO)")
-    print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
+    print(f"  Config : {C.YAML_CONFIG.name}  |  train={len(C.TRAIN_SCENARIOS)}/test={len(C.TEST_SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
     device = resolve_device(C.DEVICE)
 
@@ -333,9 +333,9 @@ def main():
     M = len(services)
 
     # ── 2. ILP (all scenarios) ────────────────────────────────────────────
-    print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
-    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.SCENARIOS, C.OUTDIR)
-    print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
+    print(f"\n[1/4] Solving ILP for {len(C.TEST_SCENARIOS)} test scenarios ...")
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
+    print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
     # ── 3. Random baseline ───────────────────────────────────────────────────
     print(f"\n[2/4] Random baseline evaluation ({C.EVAL_EPS} episodes) ...")
@@ -387,6 +387,8 @@ def main():
         "scenario": sc_name,
         "prototype_scenario": prototype_name,
         "scenario_count": len(C.SCENARIOS),
+        "train_count": len(C.TRAIN_SCENARIOS),
+        "test_count": len(C.TEST_SCENARIOS),
         "N": N, "M": M,
         "ilp":    {
             "ar": round(ilp_ar, 6),

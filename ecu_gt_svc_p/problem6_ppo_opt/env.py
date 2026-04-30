@@ -1,12 +1,12 @@
 """
-P6 Environment — RL WITH strict constraint enforcement (both hard).
+P6 Environment — PPO + Best-fit Repair Heuristic.
 
-Design intent:
-    • Capacity violation → hard (episode terminates immediately with penalty).
-    • Conflict violation → hard (episode terminates immediately with penalty).
-    • Multiple services may share an ECU; uniqueness is NOT a constraint.
-    • Reward equals the exact utilisation contribution of each valid step.
-    • Scenarios: reset() randomly picks one of the provided scenarios.
+Constraints:
+    - Capacity or conflict violation → best-fit repair heuristic relocates the
+      service to the valid ECU with the highest utilisation density (req/cap).
+    - A repaired step incurs a small penalty (-0.1) to signal suboptimal choice.
+    - If no valid ECU exists for repair → episode terminates with demand penalty.
+    - Terminal bonus: +AR * (1 - repair_rate), rewarding episodes with fewer repairs.
 """
 
 import sys
@@ -24,19 +24,21 @@ class P6Env(gym.Env):
     Observation (shape: 4N+6+M):
         [0]          current service demand (normalised)
         [1]          current cumulative AR
-        [2]          sum of remaining ECU capacity (normalised, clipped ≥ 0)
+        [2]          sum of remaining ECU capacity (normalised, clipped >= 0)
         [3]          sum of remaining service demand (normalised)
-        [4]          fraction of ECUs with sufficient capacity for current service
+        [4]          fraction of ECUs with sufficient capacity AND no conflict
         [5]          fraction of services remaining
         [6:6+N]      initial capacity fraction per ECU
         [6+N:6+2N]   remaining capacity fraction per ECU
-        [6+2N:6+3N]  conflict flag per ECU
+        [6+2N:6+3N]  conflict flag per ECU (1 = placing current svc here conflicts)
         [6+3N:6+4N]  valid-action flags (1 = sufficient capacity AND no conflict)
         [6+4N:6+4N+M] remaining service demands (sorted descending)
 
     Reward:
-        +ru   for each valid assignment (exact utilisation contribution)
-        demand_penalty when episode terminates early (capacity or conflict violation)
+        +ru               valid assignment (agent chose correctly)
+        +ru - 0.1         valid assignment after repair (agent chose poorly)
+        demand_penalty    episode terminated — no repair possible
+        terminal_bonus    +AR * (1 - repair_rate) at episode end
     """
 
     metadata = {"render_modes": []}
@@ -60,6 +62,9 @@ class P6Env(gym.Env):
         self.conflict_sets:  list[set]
         self.ar:             float
         self._step:          int
+        self.repairs:            int
+        self.cap_violations:     int
+        self.conflict_violations: int
         self.reset()
 
     # ── conflict helpers ─────────────────────────────────────────────────────
@@ -81,6 +86,19 @@ class P6Env(gym.Env):
                         return True
         return False
 
+    # ── best-fit repair ──────────────────────────────────────────────────────
+    def _best_fit_repair(self, svc_idx: int) -> int | None:
+        """Return ECU index with highest req/cap among capacity-valid, conflict-free ECUs."""
+        svc = self.services[svc_idx]
+        valid = [
+            j for j in range(self.N)
+            if self.remaining_vms[j] >= svc.requirement
+            and not self._has_conflict(j, svc_idx)
+        ]
+        if not valid:
+            return None
+        return max(valid, key=lambda j: svc.requirement / (self.initial_vms[j] + 1e-8))
+
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -98,20 +116,10 @@ class P6Env(gym.Env):
         self.ar              = 0.0
         self._total_ru       = 0.0
         self._step           = 0
-        self.capacity_violations = 0
+        self.repairs             = 0
+        self.cap_violations      = 0
         self.conflict_violations = 0
         return self._obs(), {}
-
-    # ── action mask ──────────────────────────────────────────────────────────
-    def action_masks(self) -> np.ndarray:
-        if self._step >= self.M:
-            return np.zeros(self.N, dtype=bool)
-        svc = self.services[self._step]
-        return np.array(
-            [(self.remaining_vms[j] >= svc.requirement) and (not self._has_conflict(j, self._step))
-             for j in range(self.N)],
-            dtype=bool,
-        )
 
     # ── observation ──────────────────────────────────────────────────────────
     def _obs(self) -> np.ndarray:
@@ -132,14 +140,16 @@ class P6Env(gym.Env):
                 [float(self._has_conflict(j, self._step)) for j in range(self.N)],
                 dtype=np.float32,
             )
-            valid_flag = self.action_masks().astype(np.float32)
+            valid_flag = np.array(
+                [(self.remaining_vms[j] >= svc.requirement) and (not self._has_conflict(j, self._step))
+                 for j in range(self.N)],
+                dtype=np.float32,
+            )
             remaining_service_demand_sum = np.float32(
                 sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
             )
             remaining_services_count   = np.float32((self.M - self._step) / max(self.M, 1))
-            remaining_usable_ecu_count = np.float32(
-                np.sum(self.remaining_vms >= svc.requirement) / max(self.N, 1)
-            )
+            remaining_usable_ecu_count = np.float32(np.sum(valid_flag) / max(self.N, 1))
 
         remaining_abs_norm = self.remaining_vms / max_cap
         initial_cap_pct    = self.initial_vms / max_cap
@@ -174,25 +184,31 @@ class P6Env(gym.Env):
         cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
 
-        if cap_violated:
-            self.capacity_violations += 1
-        if conflict_violated:
-            self.conflict_violations += 1
-
+        was_repaired = False
         if cap_violated or conflict_violated:
-            remaining_services = self.M - self._step
-            unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
-            penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
-            return self._obs(), penalty, True, False, {
-                "ar":                  self.ar,
-                "step":                self._step,
-                "services_placed":     self._step,
-                "capacity_violations": self.capacity_violations,
-                "conflict_violations": self.conflict_violations,
-                "total_violations":    self.capacity_violations + self.conflict_violations,
-                "violation_rate":      1.0 if remaining_services > 0 else 0.0,
-            }
+            repaired = self._best_fit_repair(self._step)
+            if repaired is None:
+                unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
+                penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
+                return self._obs(), penalty, True, False, {
+                    "ar":                self.ar,
+                    "step":              self._step,
+                    "services_placed":   self._step,
+                    "was_repaired":      False,
+                    "repairs":           self.repairs,
+                    "cap_violations":    self.cap_violations,
+                    "conflict_violations": self.conflict_violations,
+                    "repair_rate":       self.repairs / max(self._step, 1),
+                }
+            action = repaired
+            was_repaired = True
+            self.repairs += 1
+            if cap_violated:
+                self.cap_violations += 1
+            if conflict_violated:
+                self.conflict_violations += 1
 
+        repair_penalty = -0.1 if was_repaired else 0.0
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
@@ -201,28 +217,31 @@ class P6Env(gym.Env):
         self.ar = self._total_ru / _active
         self._step += 1
 
-        done  = self._step >= self.M
-        total_viol = self.capacity_violations + self.conflict_violations
-        info = {
+        done = self._step >= self.M
+        terminal_bonus = 0.0
+        if done:
+            repair_rate = self.repairs / max(self.M, 1)
+            terminal_bonus = self.ar * max(0.0, 1.0 - repair_rate)
+
+        return self._obs(), float(ru + repair_penalty + terminal_bonus), done, False, {
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,
-            "capacity_violations": self.capacity_violations,
+            "was_repaired":        was_repaired,
+            "repairs":             self.repairs,
+            "cap_violations":      self.cap_violations,
             "conflict_violations": self.conflict_violations,
-            "total_violations":    total_viol,
-            "violation_rate":      total_viol / self._step,
+            "repair_rate":         self.repairs / self._step,
         }
-        return self._obs(), float(ru), done, False, info
 
     # ── render ────────────────────────────────────────────────────────────────
     def render(self):
         if self._step < self.M:
             svc = self.services[self._step]
             print(f"  Step {self._step}/{self.M} | need {svc.requirement} VMs | AR={self.ar:.4f} "
-                  f"| cap_viol={self.capacity_violations} conflict_viol={self.conflict_violations}")
+                  f"| repairs={self.repairs}")
         else:
-            print(f"  Done | AR={self.ar:.4f} "
-                  f"| cap_viol={self.capacity_violations} conflict_viol={self.conflict_violations}")
+            print(f"  Done | AR={self.ar:.4f} | repairs={self.repairs}/{self.M}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -241,18 +260,13 @@ if __name__ == "__main__":
     obs, _ = env.reset()
     print(f"\nObs shape : {obs.shape}  (expected {4*N + 6 + M})")
 
-    print("\n── Valid greedy policy run ──")
+    print("\n── Random policy run (repair heuristic active) ──")
     done = False
     while not done:
-        mask  = env.action_masks()
-        valid = np.where(mask)[0]
-        if len(valid) == 0:
-            print("  No valid actions remaining!")
-            break
-        a = int(valid[0])
+        a = env.action_space.sample()
         obs, r, done, _, info = env.step(a)
         env.render()
 
-    print(f"\nFinal AR             : {info['ar']:.4f}")
-    print(f"Capacity violations  : {info['capacity_violations']}")
-    print(f"Conflict violations  : {info['conflict_violations']}")
+    print(f"\nFinal AR     : {info['ar']:.4f}")
+    print(f"Repairs      : {info['repairs']}/{M}")
+    print(f"Repair rate  : {info['repair_rate']:.2%}")

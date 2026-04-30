@@ -37,6 +37,15 @@ with open(YAML_CONFIG) as f:
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem_ddqn")
 SEED        = 42
+# ── Train / Test split (80/20, deterministic) ────────────────────────────────
+import random as _random
+_rng = _random.Random(SEED)
+_idxs = list(range(len(SCENARIOS)))
+_rng.shuffle(_idxs)
+_n_train = int(0.8 * len(SCENARIOS))
+TRAIN_SCENARIOS = [SCENARIOS[i] for i in _idxs[:_n_train]]
+TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train:]]
+
 DEVICE      = "auto"
 N_ENVS      = 12
 SUBPROC_START_METHOD = "fork"
@@ -46,14 +55,14 @@ PROGRESS_LOG_EVERY_STEPS = 200_000
 # ── DDQN hyperparameters ──────────────────────────────────────────────────────────────────
 DDQN_LR                    = 1e-3
 DDQN_BUFFER_SIZE           = 100_000
-DDQN_LEARNING_STARTS       = 2_000
+DDQN_LEARNING_STARTS       = 64   # minimum: just enough to fill one batch
 DDQN_BATCH_SIZE            = 64
 DDQN_TAU                   = 1.0
 DDQN_GAMMA                 = 0.99
 DDQN_TRAIN_FREQ            = 4
 DDQN_GRADIENT_STEPS        = 1
 DDQN_TARGET_UPDATE         = 500
-DDQN_EXPLORATION_FRACTION  = 0.5
+DDQN_EXPLORATION_FRACTION  = 0.1  # epsilon decays to final value in first 10% of training
 DDQN_EXPLORATION_FINAL_EPS = 0.05
 DDQN_NET_ARCH              = [128, 128]
 

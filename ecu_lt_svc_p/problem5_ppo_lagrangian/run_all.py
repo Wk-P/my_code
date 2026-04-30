@@ -65,7 +65,7 @@ def _make_lagrange_env(seed: int) -> Monitor:
     caps, reqs, _ = C.SCENARIOS[C.SCENARIO_IDX]
     ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    env = LagrangeEnv(ecus, services, scenarios=C.SCENARIOS,
+    env = LagrangeEnv(ecus, services, scenarios=C.TRAIN_SCENARIOS,
                       lambda_init=C.LAMBDA_INIT,
                       lambda_max=C.LAMBDA_MAX)
     return Monitor(env)
@@ -77,7 +77,7 @@ def _make_lagrange_env(seed: int) -> Monitor:
 
 def run_episodes(ecus, services, policy_fn, n_eps, lambda_eval: float = 0.0):
     """policy_fn(obs) -> int. Evaluation uses a fixed λ value in the observation."""
-    env = LagrangeEnv(ecus, services, scenarios=C.FEASIBLE_SCENARIOS,
+    env = LagrangeEnv(ecus, services, scenarios=C.TEST_SCENARIOS,
                       lambda_init=lambda_eval, lambda_max=C.LAMBDA_MAX)
     ars, viol_rates, viols, placed_list, cap_viols, conflict_viols = [], [], [], [], [], []
     for _ in range(n_eps):
@@ -345,7 +345,7 @@ def main():
     print(f"\n{'='*60}")
     print(f"  P5 run.py  —  Lagrangian Constraint Relaxation")
     n_envs = max(1, int(C.N_ENVS))
-    print(f"  Config : {C.YAML_CONFIG.name}  |  scenario pool size={len(C.SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
+    print(f"  Config : {C.YAML_CONFIG.name}  |  train={len(C.TRAIN_SCENARIOS)}/test={len(C.TEST_SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"  λ_init={C.LAMBDA_INIT}  lr={C.LAMBDA_LR}  target={C.LAMBDA_TARGET}  max={C.LAMBDA_MAX}")
     print(f"  CPU cores detected: {os.cpu_count()}  →  configured parallel envs: {n_envs}")
     print(f"{'='*60}\n")
@@ -355,9 +355,9 @@ def main():
     N, M = len(ecus), len(services)
 
     # 2. ILP (all scenarios)
-    print(f"\n[1/4] Solving ILP for all {len(C.SCENARIOS)} scenarios ...")
-    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.SCENARIOS, C.OUTDIR)
-    print(f"  ILP mean AR across {len(C.SCENARIOS)} scenarios: {ilp_ar:.4f}")
+    print(f"\n[1/4] Solving ILP for {len(C.TEST_SCENARIOS)} test scenarios ...")
+    ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
+    print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
     # 3. Random baseline (no masking)
     print(f"\n[2/4] Random baseline ({C.EVAL_EPS} episodes, no masking) ...")
@@ -410,6 +410,8 @@ def main():
         "scenario": sc_name,
         "prototype_scenario": prototype_name,
         "scenario_count": len(C.SCENARIOS),
+        "train_count": len(C.TRAIN_SCENARIOS),
+        "test_count": len(C.TEST_SCENARIOS),
         "N": N,
         "M": M,
         "ilp": {

@@ -37,6 +37,15 @@ with open(YAML_CONFIG) as f:
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem4_ppo_mask")
 SEED        = 42
+# ── Train / Test split (80/20, deterministic) ────────────────────────────────
+import random as _random
+_rng = _random.Random(SEED)
+_idxs = list(range(len(SCENARIOS)))
+_rng.shuffle(_idxs)
+_n_train = int(0.8 * len(SCENARIOS))
+TRAIN_SCENARIOS = [SCENARIOS[i] for i in _idxs[:_n_train]]
+TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train:]]
+
 DEVICE      = "auto"
 N_ENVS      = 40
 SUBPROC_START_METHOD = "fork"

@@ -46,6 +46,15 @@ with open(YAML_CONFIG) as f:
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem5_ppo_lagrangian")
 SEED        = 42
+# ── Train / Test split (80/20 of feasible scenarios, deterministic) ──────────
+import random as _random
+_rng = _random.Random(SEED)
+_idxs = list(range(len(FEASIBLE_SCENARIOS)))
+_rng.shuffle(_idxs)
+_n_train = int(0.8 * len(FEASIBLE_SCENARIOS))
+TRAIN_SCENARIOS = [FEASIBLE_SCENARIOS[i] for i in _idxs[:_n_train]]
+TEST_SCENARIOS  = [FEASIBLE_SCENARIOS[i] for i in _idxs[_n_train:]]
+
 DEVICE      = "cpu"
 N_ENVS      = 40
 SUBPROC_START_METHOD = "fork"
