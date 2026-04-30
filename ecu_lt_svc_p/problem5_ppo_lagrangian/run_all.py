@@ -47,7 +47,7 @@ import pulp
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import random
 import config as C
@@ -117,11 +117,13 @@ class LagrangeCallback(BaseCallback):
         self._viol_window        = deque(maxlen=C.LAMBDA_UPDATE_WINDOW)
         self._episode_count      = 0
         self._episodes_since_lambda_update = 0
-        self.episode_ars:        list[float] = []
-        self.episode_viol_rates: list[float] = []
-        self.episode_placed:     list[int]   = []
-        self.episode_lambdas:    list[float] = []
-        self.timesteps_at_ep:    list[int]   = []
+        self.episode_ars:             list[float] = []
+        self.episode_viol_rates:      list[float] = []
+        self.episode_cap_viol_rates:  list[float] = []
+        self.episode_conf_viol_rates: list[float] = []
+        self.episode_placed:          list[int]   = []
+        self.episode_lambdas:         list[float] = []
+        self.timesteps_at_ep:         list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
 
@@ -137,6 +139,8 @@ class LagrangeCallback(BaseCallback):
             viol_rate = float(info.get("viol_rate_ep", 0.0))
             self.episode_ars.append(ar)
             self.episode_viol_rates.append(viol_rate)
+            self.episode_cap_viol_rates.append(info.get("cap_violations", 0) / C.M)
+            self.episode_conf_viol_rates.append(info.get("conflict_violations", 0) / C.M)
             self.episode_placed.append(int(info.get("services_placed", 0)))
             self.episode_lambdas.append(self.lambda_val)
             self.timesteps_at_ep.append(self.num_timesteps)
@@ -174,8 +178,8 @@ def train_lagrange(device: str, n_envs: int = 1):
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
     env_fns = [functools.partial(_make_lagrange_env, C.SEED + i) for i in range(n_envs)]
-    env = SubprocVecEnv(env_fns, start_method=C.SUBPROC_START_METHOD)
-    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
+    env = DummyVecEnv(env_fns)
+    print(f"  Using DummyVecEnv: n_envs={n_envs}")
     cb  = LagrangeCallback()
 
     model = PPO(
@@ -237,10 +241,14 @@ def plot_training_curve(cb: LagrangeCallback, ilp_ar: float,
     )
     ax1.grid(alpha=0.3)
 
-    sm_v, off_v = moving_avg(vrs, C.SMOOTH_W)
-    ax2.plot(ts, vrs, color="tomato", alpha=0.2, linewidth=0.8)
-    ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
-             label="Viol rate (smoothed)")
+    cap_rates  = np.array(cb.episode_cap_viol_rates)
+    conf_rates = np.array(cb.episode_conf_viol_rates)
+    sm_cap,  off_cap  = moving_avg(cap_rates,  C.SMOOTH_W)
+    sm_conf, off_conf = moving_avg(conf_rates, C.SMOOTH_W)
+    ax2.plot(ts, cap_rates,  color="tomato",    alpha=0.15, linewidth=0.6)
+    ax2.plot(ts, conf_rates, color="darkorange", alpha=0.15, linewidth=0.6)
+    ax2.plot(ts[off_cap:off_cap+len(sm_cap)],   sm_cap,  color="tomato",    linewidth=2, label="Cap viol rate (smoothed)")
+    ax2.plot(ts[off_conf:off_conf+len(sm_conf)], sm_conf, color="darkorange", linewidth=2, label="Conflict viol rate (smoothed)")
     ax2.set_ylabel("Violation Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.1)
     ax2.legend(fontsize=9, loc="upper right")

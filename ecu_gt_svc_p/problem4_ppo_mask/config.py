@@ -49,7 +49,7 @@ TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train:]]
 DEVICE      = "auto"
 N_ENVS      = 40
 SUBPROC_START_METHOD = "fork"
-TORCH_NUM_THREADS = 4        # leave cores for SubprocVecEnv workers
+TORCH_NUM_THREADS = 8        # DummyVecEnv: more threads for CPU inference
 PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── MaskablePPO hyperparameters ───────────────────────────────────────────────

@@ -3,17 +3,18 @@ run_all.py — One-shot P6 full pipeline:
 
   1. Load a scenario from the same YAML used by problem2_ilp
   2. Solve with ILP (PuLP)                   -> ilp_ar  (optimal upper bound)
-  3. Evaluate a random masked policy         -> random_ars + violations
-  4. Train MaskablePPO (both constraints hard) -> training curve
-  5. Evaluate the trained MaskablePPO agent  -> ppo_ars + violations
+  3. Evaluate a random policy                -> random_ars + repairs
+  4. Train PPO + best-fit repair             -> training curve
+  5. Evaluate the trained PPO agent          -> ppo_ars + repairs
   6. Produce two plots:
-       - comparison.png    — AR box plot + violation bar chart (3-way)
-       - training_curve.png — AR & violation count during training
+       - comparison.png    — AR box plot + repair bar chart (3-way)
+       - training_curve.png — AR & repair rate during training
 
-P6 Design: BOTH capacity and conflict constraints are HARD (action masking).
-  - action_masks() returns True only for ECUs with sufficient capacity AND no conflict.
-  - Episode terminates early if no valid action exists.
-  - Reward = exact utilisation contribution req/cap per valid step.
+P6 Design: PPO + best-fit repair heuristic, NO action masking.
+  - When agent chooses an invalid ECU (cap or conflict), env auto-repairs
+    to the best valid ECU and applies a -0.1 penalty.
+  - If no valid ECU exists for repair → episode terminates with demand penalty.
+  - Terminal bonus: AR * (1 - repair_rate).
 
 Run:
     python problem6_ppo_opt/run_all.py
@@ -41,11 +42,10 @@ import timer_utils
 import torch
 import yaml
 import pulp
-from sb3_contrib import MaskablePPO
+from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
-from sb3_contrib.common.wrappers import ActionMasker
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import config as C
 from problem6_ppo_opt.env import P6Env
@@ -60,7 +60,6 @@ def _make_p6_env(seed: int) -> Monitor:
     ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
     env = P6Env(ecus, services, scenarios=C.TRAIN_SCENARIOS)
-    env = ActionMasker(env, lambda base_env: base_env.action_masks())
     return Monitor(env)
 
 
@@ -71,8 +70,8 @@ def _make_p6_env(seed: int) -> Monitor:
 def run_episodes(ecus, services, policy_fn, n_eps: int):
     """
     Run n_eps episodes on a fixed problem instance.
-    Episodes may terminate early if no valid action exists (both constraints hard).
-    policy_fn(obs, mask) -> int
+    Episodes may terminate early if no repair is possible.
+    policy_fn(obs) -> int
     """
     env = P6Env(ecus, services, scenarios=C.TEST_SCENARIOS)
     ars, cap_viols, conflict_viols, viol_rates, placed_list = [], [], [], [], []
@@ -82,14 +81,11 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
         done   = False
         info   = {}
         while not done:
-            mask = env.action_masks()
-            if not np.any(mask):
-                break
-            obs, _, done, _, info = env.step(policy_fn(obs, mask))
+            obs, _, done, _, info = env.step(policy_fn(obs))
         ars.append(info.get("ar", 0.0))
-        cap_viols.append(info.get("capacity_violations", 0))
+        cap_viols.append(info.get("cap_violations", 0))
         conflict_viols.append(info.get("conflict_violations", 0))
-        viol_rates.append(float(info.get("violation_rate", 0.0)))
+        viol_rates.append(float(info.get("repair_rate", 0.0)))
         placed_list.append(int(info.get("services_placed", 0)))
 
     return {
@@ -109,10 +105,10 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
 class P6Callback(BaseCallback):
     def __init__(self):
         super().__init__()
-        self.episode_ars        : list[float] = []
-        self.episode_viol_rates : list[float] = []
-        self.episode_placed     : list[int]   = []
-        self.timesteps_at_ep    : list[int]   = []
+        self.episode_ars          : list[float] = []
+        self.episode_repair_rates : list[float] = []
+        self.episode_placed       : list[int]   = []
+        self.timesteps_at_ep      : list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
 
@@ -123,7 +119,7 @@ class P6Callback(BaseCallback):
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self.episode_ars.append(float(info.get("ar", 0.0)))
-                self.episode_viol_rates.append(float(info.get("violation_rate", 0.0)))
+                self.episode_repair_rates.append(float(info.get("repair_rate", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
                 self.timesteps_at_ep.append(self.num_timesteps)
 
@@ -140,18 +136,17 @@ class P6Callback(BaseCallback):
         return True
 
 
-def train_ppo(ecus, services, device: str) -> tuple[MaskablePPO, P6Callback]:
+def train_ppo(ecus, services, device: str) -> tuple[PPO, P6Callback]:
     import torch as _torch
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
     n_envs = max(1, int(C.N_ENVS))
-    env = SubprocVecEnv(
+    env = DummyVecEnv(
         [functools.partial(_make_p6_env, C.SEED + i) for i in range(n_envs)],
-        start_method=C.SUBPROC_START_METHOD,
     )
-    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
+    print(f"  Using DummyVecEnv: n_envs={n_envs}")
     cb    = P6Callback()
-    model = MaskablePPO(
+    model = PPO(
         policy        = "MlpPolicy",
         env           = env,
         learning_rate = C.PPO_LR,
@@ -198,12 +193,12 @@ def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_na
     ax1.set_title(f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
     ax1.grid(alpha=0.3)
 
-    # ── Violations ────────────────────────────────────────────────────────────
-    sm_v, off_v = moving_avg(cb.episode_viol_rates, C.SMOOTH_W)
-    ax2.plot(ts, cb.episode_viol_rates, color="tomato", alpha=0.2, linewidth=0.8)
-    ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
-             label="Violation rate (smoothed)")
-    ax2.set_ylabel("Violation Rate", fontsize=11)
+    # ── Repair rate ───────────────────────────────────────────────────────────
+    sm_r, off_r = moving_avg(cb.episode_repair_rates, C.SMOOTH_W)
+    ax2.plot(ts, cb.episode_repair_rates, color="darkorange", alpha=0.15, linewidth=0.6)
+    ax2.plot(ts[off_r:off_r+len(sm_r)], sm_r, color="darkorange", linewidth=2,
+             label="Repair rate (smoothed)")
+    ax2.set_ylabel("Repair Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3)
@@ -228,10 +223,10 @@ def plot_training_curve(cb: P6Callback, ilp_ar: float, outdir: Path, scenario_na
 
 def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_viol_std, outdir: Path, scenario_name: str):
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle(f"P2(ILP) vs Random(masked) vs P6(MaskablePPO, both hard) - {scenario_name}", fontsize=13, fontweight="bold")
+    fig.suptitle(f"P2(ILP) vs Random vs P6(PPO+repair) - {scenario_name}", fontsize=13, fontweight="bold")
 
     colors = ["#e74c3c", "#3498db", "#2ecc71"]
-    labels = ["ILP\n(Optimal)", "Random\n(masked)", "MaskablePPO\n(P6, both hard)"]
+    labels = ["ILP\n(Optimal)", "Random", "PPO\n(P6, repair)"]
 
     ax = axes[0]
     rand_ars = rand_res["ars"]
@@ -322,7 +317,7 @@ def main():
         C.TOTAL_STEPS = int(args.total_timesteps)
         print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
     print(f"\n{'='*60}")
-    print(f"  P6 run_all.py  —  RL WITH both hard constraints (MaskablePPO)")
+    print(f"  P6 run_all.py  —  PPO + best-fit repair heuristic")
     print(f"  Config : {C.YAML_CONFIG.name}  |  train={len(C.TRAIN_SCENARIOS)}/test={len(C.TEST_SCENARIOS)}  |  prototype idx={C.SCENARIO_IDX}")
     print(f"{'='*60}\n")
     device = resolve_device(C.DEVICE)
@@ -342,7 +337,7 @@ def main():
     np.random.seed(C.SEED)
     rand_res = run_episodes(
         ecus, services,
-        policy_fn=lambda obs, mask: int(np.random.choice(np.flatnonzero(mask))),
+        policy_fn=lambda obs: int(np.random.randint(0, N)),
         n_eps=C.EVAL_EPS,
     )
     print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
@@ -357,8 +352,8 @@ def main():
 
     # ── 5. PPO evaluation ────────────────────────────────────────────────────
     print(f"\n[4/4] PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
-    def ppo_policy(obs, mask):
-        action, _ = model.predict(obs, deterministic=True, action_masks=mask)
+    def ppo_policy(obs):
+        action, _ = model.predict(obs, deterministic=True)
         return int(action)
     ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
     print(f"  PPO AR  mean={np.mean(ppo_res['ars']):.4f}  "
@@ -377,7 +372,7 @@ def main():
     print(f"  {'Random Baseline':<24} "
           f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
           f"  {r_v:<10.2%}")
-    print(f"  {'MaskablePPO (P6)':<24} "
+    print(f"  {'PPO (P6, repair)':<24} "
           f"{np.mean(ppo_res['ars']):.4f} ± {np.std(ppo_res['ars']):.4f}   "
           f"  {p_v:<10.2%}")
     print(f"{'='*62}\n")
@@ -413,7 +408,7 @@ def main():
             "total_steps":  C.TOTAL_STEPS,
             "n_episodes":   len(cb.episode_ars),
             "ar_last50":    round(float(np.mean(cb.episode_ars[-50:])), 6),
-            "viol_rate_last50": round(float(np.mean(cb.episode_viol_rates[-50:])), 6),
+            "repair_rate_last50": round(float(np.mean(cb.episode_repair_rates[-50:])), 6),
         }
     }
     log_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}" / "results.json"

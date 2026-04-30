@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>experiments_cn_lt.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="ecu_lt_svc_p-程序设计文档">ecu_lt_svc_p 程序设计文档</h1>
+<h2 id="核心场景定义">核心场景定义</h2>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>N &lt; M</code></td>
+<td>ECU 数<strong>少于</strong>服务数，每台 ECU 必须承载多个服务</td>
+</tr>
+<tr>
+<td><code>sum(cap) &gt; sum(req)</code></td>
+<td>总容量大于总需求，理论上全部可放置</td>
+</tr>
+<tr>
+<td>冲突约束</td>
+<td>K 个子集，同子集服务不能共 ECU</td>
+</tr>
+</tbody>
+</table>
+<p>相比 <code>ecu_gt_svc_p</code>（N &gt; M 可一机一服务），lt 变体最大的难点是 <strong>bin packing + 冲突</strong> 的组合：需要把多个服务塞进少数 ECU，同时避免冲突对。</p>
+<hr>
+<h2 id="状态空间5n--6--mp3p4p6">状态空间：<code>5N + 6 + M</code>（P3/P4/P6）</h2>
+<p>比 <code>ecu_gt_svc_p</code> 多一维 <code>ecu_allowed_frac[j]</code>：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>变量名</th>
+<th>含义</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[0]</code></td>
+<td><code>service_demand_norm</code></td>
+<td>当前服务需求（归一化）</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[1]</code></td>
+<td><code>ar</code></td>
+<td>累计 AR</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[2]</code></td>
+<td><code>remaining_usable_capacity_sum</code></td>
+<td>剩余可用容量总和</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[3]</code></td>
+<td><code>remaining_service_demand_sum</code></td>
+<td>剩余服务需求总和</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[4]</code></td>
+<td><code>remaining_usable_ecu_count</code></td>
+<td>容量充足 ECU 占比</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[5]</code></td>
+<td><code>remaining_services_count</code></td>
+<td>剩余服务占比</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[6:6+N]</code></td>
+<td><code>initial_cap_pct[j]</code></td>
+<td>各 ECU 初始容量占比</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[6+N:6+2N]</code></td>
+<td><code>remaining_pct[j]</code></td>
+<td>各 ECU 剩余容量占比</td>
+<td>通用</td>
+</tr>
+<tr>
+<td><code>[6+2N:6+3N]</code></td>
+<td><code>conflict_flag[j]</code></td>
+<td>当前服务放该 ECU 是否冲突</td>
+<td>_p 系列</td>
+</tr>
+<tr>
+<td><strong><code>[6+3N:6+4N]</code></strong></td>
+<td><strong><code>ecu_allowed_frac[j]</code></strong></td>
+<td><strong>仍可无冲突放置的服务比例</strong></td>
+<td><strong>lt 专有</strong></td>
+</tr>
+<tr>
+<td><code>[6+4N:6+5N]</code></td>
+<td><code>valid_flag[j]</code></td>
+<td>有效动作标志（容量 + 冲突双满足）</td>
+<td>_p 系列</td>
+</tr>
+<tr>
+<td><code>[6+5N:6+5N+M]</code></td>
+<td><code>remaining_svcs[t]</code></td>
+<td>剩余服务需求序列（M 维）</td>
+<td>通用</td>
+</tr>
+</tbody>
+</table>
+<p><strong>为什么需要 <code>ecu_allowed_frac</code></strong>：在 lt 场景中，一台 ECU 放了若干服务后，它对未来服务的冲突状态会逐步收窄（<code>ecu_allowed</code> 集合随每次放置缩小）。这个动态信息让智能体知道&quot;这台 ECU 未来还能接多少类服务&quot;，从而做更长远的规划。</p>
+<p>P5 在此基础上额外追加 <code>lambda_norm</code> 标量，观测维度为 <code>5N + 7 + M</code>。</p>
+<hr>
+<h2 id="ar-计算与-eq-变体的关键差异">AR 计算（与 eq 变体的关键差异）</h2>
+<pre class="hljs"><code><div>AR = Σ_j (total_req_on_j / cap_j) / active_ecus
+</div></code></pre>
+<ul>
+<li>分子：每台<strong>活跃</strong> ECU 的资源利用率之和</li>
+<li>分母：<strong>活跃 ECU 数</strong>（有服务的 ECU 数，不是 N）</li>
+<li>目标：把服务紧凑地集中到少数高匹配度的 ECU 上</li>
+</ul>
+<p>这个分数目标（fractional objective）ILP 侧通过 Dinkelbach 迭代求解，RL 侧通过 <code>_total_ru / active_ecus</code> 增量维护。</p>
+<p>代码实现（env.py 中）：</p>
+<pre class="hljs"><code><div>_active = <span class="hljs-built_in">sum</span>(<span class="hljs-number">1</span> <span class="hljs-keyword">for</span> j <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(<span class="hljs-variable language_">self</span>.N) <span class="hljs-keyword">if</span> <span class="hljs-variable language_">self</span>.ecu_placements[j])
+<span class="hljs-variable language_">self</span>.ar = <span class="hljs-variable language_">self</span>._total_ru / _active <span class="hljs-keyword">if</span> _active &gt; <span class="hljs-number">0</span> <span class="hljs-keyword">else</span> <span class="hljs-number">0.0</span>
+</div></code></pre>
+<hr>
+<h2 id="各问题的约束处理策略">各问题的约束处理策略</h2>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>容量约束</th>
+<th>冲突约束</th>
+<th>主要特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td>硬终止</td>
+<td>无</td>
+<td>基础原型（单服 per ECU 旧逻辑，仅教学用）</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>ILP 强约束</td>
+<td>ILP 强约束</td>
+<td>Dinkelbach 全局最优，oracle 基线</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>硬掩码（容量不足强制跳转最大余量 ECU）</td>
+<td>软惩罚（<code>-req/total_cap</code>）</td>
+<td>容量安全，冲突可探索</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>硬掩码</td>
+<td>硬掩码（双掩码合并）</td>
+<td>两类约束都强制，最保守</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>硬掩码</td>
+<td>Lagrangian 自适应惩罚（<code>λ</code> 对偶上升）</td>
+<td>软冲突 + obs 含 <code>λ_norm</code>，维度 <code>5N+7+M</code></td>
+</tr>
+<tr>
+<td>P6</td>
+<td>硬掩码</td>
+<td>硬掩码</td>
+<td>terminal bonus 按违规率连续缩放，奖励更丰富</td>
+</tr>
+<tr>
+<td>DQN/DDQN</td>
+<td>硬终止（非法即 done）</td>
+<td>硬终止</td>
+<td>离策略值函数，经验回放</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="forced-overflow-fallback-设计">Forced-overflow Fallback 设计</h2>
+<p>当 <code>action_masks()</code> 全为 False（所有 ECU 都超容量或冲突）时：</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># 选剩余容量最大的 ECU 作为 fallback</span>
+best = <span class="hljs-built_in">int</span>(np.argmax(<span class="hljs-variable language_">self</span>.remaining_vms))
+mask[best] = <span class="hljs-literal">True</span>
+<span class="hljs-comment"># step 内给予重惩罚 -2.0</span>
+</div></code></pre>
+<p>这保证 episode <strong>始终跑满 M 步</strong>，不会因为无可行动作而提前终止（避免 sparse signal 问题）。</p>
+<hr>
+<h2 id="ecu_allowed-集合的增量维护"><code>ecu_allowed</code> 集合的增量维护</h2>
+<p>冲突状态的核心数据结构：</p>
+<pre class="hljs"><code><div><span class="hljs-variable language_">self</span>.ecu_allowed = [<span class="hljs-built_in">set</span>(<span class="hljs-built_in">range</span>(<span class="hljs-variable language_">self</span>.M)) <span class="hljs-keyword">for</span> _ <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(<span class="hljs-variable language_">self</span>.N)]
+<span class="hljs-comment"># ecu_allowed[j] 初始包含所有服务索引；</span>
+<span class="hljs-comment"># 每次在 ECU j 放置服务 i 后，从所有含 i 的冲突子集中</span>
+<span class="hljs-comment"># 移除同子集的其他服务索引。</span>
+</div></code></pre>
+<p>更新函数（O(K) 时间复杂度，K 为冲突集数量）：</p>
+<pre class="hljs"><code><div><span class="hljs-keyword">def</span> <span class="hljs-title function_">_update_ecu_allowed</span>(<span class="hljs-params">self, ecu_idx: <span class="hljs-built_in">int</span>, svc_idx: <span class="hljs-built_in">int</span></span>) -&gt; <span class="hljs-literal">None</span>:
+    <span class="hljs-keyword">for</span> subset <span class="hljs-keyword">in</span> <span class="hljs-variable language_">self</span>.conflict_sets:
+        <span class="hljs-keyword">if</span> svc_idx <span class="hljs-keyword">in</span> subset:
+            <span class="hljs-variable language_">self</span>.ecu_allowed[ecu_idx] -= (subset - {svc_idx})
+</div></code></pre>
+<p>冲突检查退化为 O(1)：</p>
+<pre class="hljs"><code><div><span class="hljs-keyword">def</span> <span class="hljs-title function_">_has_conflict</span>(<span class="hljs-params">self, ecu_idx: <span class="hljs-built_in">int</span>, svc_idx: <span class="hljs-built_in">int</span></span>) -&gt; <span class="hljs-built_in">bool</span>:
+    <span class="hljs-keyword">return</span> svc_idx <span class="hljs-keyword">not</span> <span class="hljs-keyword">in</span> <span class="hljs-variable language_">self</span>.ecu_allowed[ecu_idx]
+</div></code></pre>
+<hr>
+<h2 id="冲突集索引重映射">冲突集索引重映射</h2>
+<p>从 YAML 加载场景时，冲突集用的是原始服务顺序的索引。但 reset 时服务会按需求降序重排，<code>self._step</code> 代表的是排序后的位置，需要映射：</p>
+<pre class="hljs"><code><div>sorted_order = <span class="hljs-built_in">sorted</span>(<span class="hljs-built_in">range</span>(<span class="hljs-built_in">len</span>(<span class="hljs-variable language_">self</span>.services)),
+                      key=<span class="hljs-keyword">lambda</span> i: <span class="hljs-variable language_">self</span>.services[i].requirement, reverse=<span class="hljs-literal">True</span>)
+orig_to_new = {orig: new <span class="hljs-keyword">for</span> new, orig <span class="hljs-keyword">in</span> <span class="hljs-built_in">enumerate</span>(sorted_order)}
+<span class="hljs-variable language_">self</span>.conflict_sets = [
+    {orig_to_new[i] <span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> cs <span class="hljs-keyword">if</span> i &lt; <span class="hljs-built_in">len</span>(<span class="hljs-variable language_">self</span>.services)} <span class="hljs-keyword">for</span> cs <span class="hljs-keyword">in</span> _cs
+]
+</div></code></pre>
+<p>如果跳过此重映射，冲突检查会错位（用新位置索引去查旧索引定义的冲突集）。</p>
+<hr>
+<h2 id="与-ecu_gt_svc_p-的核心设计差异对比">与 <code>ecu_gt_svc_p</code> 的核心设计差异对比</h2>
+<table>
+<thead>
+<tr>
+<th>方面</th>
+<th><code>ecu_gt_svc_p</code>（N &gt; M）</th>
+<th><code>ecu_lt_svc_p</code>（N &lt; M）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每 ECU 服务数</td>
+<td>最多 1 个</td>
+<td>多个（bin packing）</td>
+</tr>
+<tr>
+<td>占用标志 <code>occupied_flag</code></td>
+<td>有（一机一服务核心信息）</td>
+<td>无（ECU 可多次使用）</td>
+</tr>
+<tr>
+<td><code>ecu_allowed_frac</code></td>
+<td>无</td>
+<td>有（冲突状态动态演化）</td>
+</tr>
+<tr>
+<td>obs 维度（P3/P4/P6）</td>
+<td><code>5N+6+M</code></td>
+<td><code>5N+6+M</code>（但含义不同）</td>
+</tr>
+<tr>
+<td>AR 分母</td>
+<td>active ECUs（通常接近 M）</td>
+<td>active ECUs（通常接近 N，所有 ECU 都会活跃）</td>
+</tr>
+<tr>
+<td>主要优化难点</td>
+<td>一对一最优匹配 + 冲突</td>
+<td>Bin packing + 冲突交叉限制</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="各问题奖励函数汇总">各问题奖励函数汇总</h2>
+<h3 id="p3">P3</h3>
+<pre class="hljs"><code><div>reward = ru                          # 合法步（req/cap_i）
+       + conflict_penalty            # 冲突步：-req/total_cap
+       + forced_overflow_penalty     # 全满 fallback：-2.0
+       + terminal_bonus              # 结束时：+ar（无容量违规）或 -ar
+</div></code></pre>
+<h3 id="p4">P4</h3>
+<pre class="hljs"><code><div>reward = ru                          # 合法步（0 if violated）
+       + violation_penalty           # 违规：-2.0
+       + terminal_bonus              # +ar（零违规）或 +0.1*ar（有违规）
+</div></code></pre>
+<h3 id="p5">P5</h3>
+<pre class="hljs"><code><div>reward = match_gain                  # ru（无违规时）
+       - (lambda_val + base_penalty) * c_t   # 冲突软惩罚（自适应 λ）
+       - forced_overflow_penalty     # 全满 fallback：-2.0
+       + terminal_bonus              # +ar（零违规）或 -ar
+</div></code></pre>
+<h3 id="p6">P6</h3>
+<pre class="hljs"><code><div>reward = ru                          # 合法步
+       + violation_penalty           # 违规：-2.0
+       + terminal_bonus              # ar * max(0, 1 - violation_rate)（连续缩放）
+</div></code></pre>
+<hr>
+<h2 id="场景生成约束generate_configpy">场景生成约束（<code>generate_config.py</code>）</h2>
+<p>每个场景需同时满足：</p>
+<ol>
+<li><code>N &lt; M</code>（ECU 数严格小于服务数）</li>
+<li><code>sum(ecu_capacity) &gt; sum(svc_requirement)</code>（总容量大于总需求）</li>
+<li>冲突集中每个子集大小随机（2 到 M 之间），共 K 个子集</li>
+</ol>
+<p>场景数量与 <code>ecu_eq_svc</code> 保持一致（200 个场景）。</p>
+<hr>
+<h2 id="设计原则总结">设计原则总结</h2>
+<ol>
+<li>
+<p><strong>Large-first 排序</strong>：reset 时服务按需求降序排列，让大需求服务优先分配，早期步骤更容易满足容量约束，减少 forced-overflow 概率。</p>
+</li>
+<li>
+<p><strong><code>ecu_allowed</code> 增量更新而非重算</strong>：每次放置后 O(K) 更新，避免每步 O(K×M) 的全量扫描。</p>
+</li>
+<li>
+<p><strong>Fallback 保证 M 步完整执行</strong>：即使所有 ECU 都无可行动作，也不提前终止，保持训练信号的稳定性。</p>
+</li>
+<li>
+<p><strong>P5 将 <code>λ</code> 放入观测</strong>：让策略网络感知当前惩罚强度，动态调整对冲突的容忍度。</p>
+</li>
+<li>
+<p><strong>ILP 用 Dinkelbach 迭代</strong>：AR 是分数目标（分母 active_ecus 依赖解），单次 LP 无法直接优化，Dinkelbach 方法每轮收敛后更新参数 λ ← total_util / active_ecus。</p>
+</li>
+</ol>
+
+</body>
+</html>

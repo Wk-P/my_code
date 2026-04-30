@@ -39,7 +39,7 @@ import pulp
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import config as C
 from problem4_ppo_mask.env import P4Env
@@ -130,11 +130,10 @@ def train_maskppo(ecus, services, device: str):
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
     n_envs = max(1, int(C.N_ENVS))
-    env = SubprocVecEnv(
+    env = DummyVecEnv(
         [functools.partial(_make_p4_env, C.SEED + i) for i in range(n_envs)],
-        start_method=C.SUBPROC_START_METHOD,
     )
-    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
+    print(f"  Using DummyVecEnv: n_envs={n_envs}")
 
     cb  = P4Callback()
     model = MaskablePPO(
@@ -187,8 +186,8 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     ax1.grid(alpha=0.3)
 
     zero_viol = np.zeros_like(ts, dtype=float)
-    ax2.plot(ts, zero_viol, color="tomato", alpha=0.4, linewidth=1.5,
-             label="Violation rate (always 0 with masking)")
+    ax2.plot(ts, zero_viol, color="tomato",    alpha=0.6, linewidth=1.5, label="Cap viol rate (always 0 with masking)")
+    ax2.plot(ts, zero_viol, color="darkorange", alpha=0.6, linewidth=1.5, linestyle="--", label="Conflict viol rate (always 0 with masking)")
     ax2.set_ylabel("Violation Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)

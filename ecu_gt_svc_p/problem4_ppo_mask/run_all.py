@@ -38,7 +38,7 @@ import pulp
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import config as C
 from problem4_ppo_mask.env import P4Env
@@ -129,11 +129,10 @@ def train_maskppo(ecus, services, device: str):
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
     n_envs = max(1, int(C.N_ENVS))
-    env = SubprocVecEnv(
+    env = DummyVecEnv(
         [functools.partial(_make_p4_env, C.SEED + i) for i in range(n_envs)],
-        start_method=C.SUBPROC_START_METHOD,
     )
-    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
+    print(f"  Using DummyVecEnv: n_envs={n_envs}")
 
     cb  = P4Callback()
     model = MaskablePPO(

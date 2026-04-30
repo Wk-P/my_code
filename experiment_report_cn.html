@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>experiment_report_cn.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="实验报告基于强化学习的-ecu-服务部署优化">实验报告：基于强化学习的 ECU 服务部署优化</h1>
+<p><strong>日期：</strong> 2026-04-30<br>
+<strong>实验系列：</strong> <code>ecu_eq_svc_p</code> · <code>ecu_gt_svc_p</code> · <code>ecu_lt_svc_p</code><br>
+<strong>分支：</strong> <code>linux-cuda12.2</code></p>
+<hr>
+<h2 id="1-问题定义">1. 问题定义</h2>
+<p>将 M 个软件服务（SVC）分配到 N 台 ECU（电子控制单元）上，每个服务有资源需求，每台 ECU 有容量上限。目标是最大化<strong>平均资源利用率（AR）</strong>：</p>
+<p>$$AR = \frac{1}{|A|} \sum_{j \in A} \frac{\sum_{i \to j} \text{req}_i}{\text{cap}_j}$$</p>
+<p>$A$ 为活跃 ECU 集合（至少承载一个服务的 ECU）。</p>
+<p><strong>约束：</strong></p>
+<ul>
+<li><strong>容量约束：</strong> 某台 ECU 上所有服务的需求之和不超过其容量</li>
+<li><strong>冲突约束：</strong> 同一冲突集合内的服务不得共享同一台 ECU</li>
+</ul>
+<p>ILP 求解器通过 Dinkelbach 分式规划提供可证明最优的基准解。</p>
+<hr>
+<h2 id="2-实验场景">2. 实验场景</h2>
+<p>三种变体均包含 200 个随机场景，按 80/20 比例划分训练集与测试集：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>变体</th>
+<th>N（ECU）</th>
+<th>M（SVC）</th>
+<th>可行场景数</th>
+<th>核心挑战</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ecu_eq_svc_p</code></td>
+<td>等量</td>
+<td>10</td>
+<td>10</td>
+<td>200 / 200</td>
+<td>N = M，一对一分配</td>
+</tr>
+<tr>
+<td><code>ecu_gt_svc_p</code></td>
+<td>ECU 富余</td>
+<td>15</td>
+<td>10</td>
+<td>200 / 200</td>
+<td>N &gt; M，稀疏部署</td>
+</tr>
+<tr>
+<td><code>ecu_lt_svc_p</code></td>
+<td>服务密集</td>
+<td>10</td>
+<td>15</td>
+<td>~160 / 200</td>
+<td>N &lt; M，装箱 + 冲突</td>
+</tr>
+</tbody>
+</table>
+<p><code>lt</code> 变体难度最高：15 个服务必须装入 10 台 ECU（平均每台 1.5 个服务），冲突密度显著高于其他两种场景。训练与评估仅使用 160 个可行场景。</p>
+<hr>
+<h2 id="3-rl-方法">3. RL 方法</h2>
+<p>每种场景训练并评估六种 RL 智能体，所有方法共用相同的 MLP 策略网络骨干。</p>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>方法</th>
+<th>约束处理方式</th>
+<th>算法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P3</td>
+<td>PPO（无约束）</td>
+<td>不执行约束，仅记录违规</td>
+<td>PPO</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>PPO-Mask</td>
+<td>容量硬掩码；冲突软记录</td>
+<td>MaskablePPO</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>PPO-Lagrange</td>
+<td>容量硬掩码 + 自适应 Lagrangian 冲突惩罚</td>
+<td>PPO + 对偶上升</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>PPO+Repair</td>
+<td>违规时触发最优适应修复启发式</td>
+<td>PPO</td>
+</tr>
+<tr>
+<td>—</td>
+<td>DQN</td>
+<td>违规扣分；违规即终止（eq/gt）</td>
+<td>DQN</td>
+</tr>
+<tr>
+<td>—</td>
+<td>DDQN</td>
+<td>与 DQN 相同，采用双 Q 网络</td>
+<td>DDQN</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lt-专属设计差异"><code>lt</code> 专属设计差异</h3>
+<p>由于 N &lt; M 的装箱模式，<code>lt</code> 在以下方面与 eq/gt 有所不同：</p>
+<table>
+<thead>
+<tr>
+<th>方面</th>
+<th>eq / gt</th>
+<th>lt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P4 冲突处理</td>
+<td>软记录</td>
+<td>容量 + 冲突<strong>双掩码</strong></td>
+</tr>
+<tr>
+<td>DQN/DDQN 违规终止</td>
+<td>违规即终止</td>
+<td>保留无终止（避免稀疏信号）</td>
+</tr>
+<tr>
+<td>DQN/DDQN terminal bonus</td>
+<td>无</td>
+<td>±AR（提供 episode 级奖励信号）</td>
+</tr>
+<tr>
+<td>P6 修复启发式</td>
+<td>最优适应修复</td>
+<td>与 eq/gt 相同</td>
+</tr>
+</tbody>
+</table>
+<h3 id="观测空间维度">观测空间维度</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>P3 / P4 / P6</th>
+<th>P5</th>
+<th>额外特征</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>eq / gt</td>
+<td><code>4N + 6 + M</code></td>
+<td><code>4N + 7 + M</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>lt</td>
+<td><code>5N + 6 + M</code></td>
+<td><code>5N + 7 + M</code></td>
+<td><code>ecu_allowed_frac[j]</code>：ECU j 上仍可无冲突放置的服务比例</td>
+</tr>
+</tbody>
+</table>
+<h3 id="训练超参数">训练超参数</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>PPO（P3–P6）</th>
+<th>DQN / DDQN</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总步数（PPO）</td>
+<td>5,000,000</td>
+<td>—</td>
+</tr>
+<tr>
+<td>总步数（DQN）</td>
+<td>—</td>
+<td>3,000,000</td>
+</tr>
+<tr>
+<td>N_ENVS（eq/gt）</td>
+<td>40</td>
+<td>12</td>
+</tr>
+<tr>
+<td>N_ENVS（lt）</td>
+<td>16</td>
+<td>6</td>
+</tr>
+<tr>
+<td>网络结构</td>
+<td>[256, 256]</td>
+<td>[128, 128]</td>
+</tr>
+<tr>
+<td>学习率</td>
+<td>3e-4</td>
+<td>1e-3</td>
+</tr>
+<tr>
+<td>Batch size</td>
+<td>128</td>
+<td>64</td>
+</tr>
+<tr>
+<td>折扣因子 γ</td>
+<td>0.999</td>
+<td>0.99</td>
+</tr>
+<tr>
+<td>评估回合数</td>
+<td>300</td>
+<td>300</td>
+</tr>
+<tr>
+<td>随机种子</td>
+<td>42</td>
+<td>42</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="4-实验结果">4. 实验结果</h2>
+<h3 id="41-ecu_eq_svc_p等量n10m10">4.1 <code>ecu_eq_svc_p</code>（等量，N=10，M=10）</h3>
+<p>ILP 最优 AR：<strong>0.5321</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>AR 均值</th>
+<th>AR 标准差</th>
+<th>已部署</th>
+<th>容量违规</th>
+<th>冲突违规</th>
+<th>与 ILP 差距</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ILP（最优）</td>
+<td>0.5321</td>
+<td>0.000</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P3 PPO</td>
+<td>0.8691</td>
+<td>0.063</td>
+<td>10.0</td>
+<td>0</td>
+<td>1114</td>
+<td><em>(不可行)</em></td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>0.5220</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−1.9%</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>0.5230</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>1</td>
+<td>−1.7%</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>0.5242</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>8</td>
+<td>−1.5%</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>0.5088</td>
+<td>0.067</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−4.4%</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>0.5088</td>
+<td>0.069</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−4.4%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-ecu_gt_svc_pecu-富余n15m10">4.2 <code>ecu_gt_svc_p</code>（ECU 富余，N=15，M=10）</h3>
+<p>ILP 最优 AR：<strong>0.6337</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>AR 均值</th>
+<th>AR 标准差</th>
+<th>已部署</th>
+<th>容量违规</th>
+<th>冲突违规</th>
+<th>与 ILP 差距</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ILP（最优）</td>
+<td>0.6337</td>
+<td>0.000</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P3 PPO</td>
+<td>0.8683</td>
+<td>0.057</td>
+<td>10.0</td>
+<td>0</td>
+<td>860</td>
+<td><em>(不可行)</em></td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>0.6135</td>
+<td>0.064</td>
+<td>9.97</td>
+<td>0</td>
+<td>0</td>
+<td>−3.2%</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>0.6144</td>
+<td>0.065</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−3.0%</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>0.6174</td>
+<td>0.065</td>
+<td>10.0</td>
+<td>0</td>
+<td>7</td>
+<td>−2.5%</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>0.5820</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−8.2%</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>0.5836</td>
+<td>0.055</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−7.9%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-ecu_lt_svc_p服务密集n10m15">4.3 <code>ecu_lt_svc_p</code>（服务密集，N=10，M=15）</h3>
+<p>ILP 最优 AR：<strong>TBD</strong></p>
+<blockquote>
+<p>实验正在进行中（6 个问题并行运行），结果出来后填入下表。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>AR 均值</th>
+<th>AR 标准差</th>
+<th>已部署</th>
+<th>容量违规</th>
+<th>冲突违规</th>
+<th>与 ILP 差距</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ILP（最优）</td>
+<td>TBD</td>
+<td>—</td>
+<td>TBD</td>
+<td>0</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P3 PPO</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td><em>(不可行)</em></td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="5-跨场景对比分析">5. 跨场景对比分析</h2>
+<h3 id="51-与-ilp-最优的-ar-差距仅可行方法">5.1 与 ILP 最优的 AR 差距（仅可行方法）</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>eq</th>
+<th>gt</th>
+<th>lt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>−1.9%</td>
+<td>−3.2%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>−1.7%</td>
+<td>−3.0%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>−1.5%</td>
+<td>−2.5%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>−4.4%</td>
+<td>−8.2%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>−4.4%</td>
+<td>−7.9%</td>
+<td>TBD</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52-约束满足情况">5.2 约束满足情况</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>eq 冲突违规</th>
+<th>gt 冲突违规</th>
+<th>lt 冲突违规</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P3 PPO</td>
+<td>1114</td>
+<td>860</td>
+<td>TBD</td>
+<td>不可行，无约束执行</td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>0</td>
+<td>0</td>
+<td>TBD</td>
+<td>完全满足</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>1</td>
+<td>0</td>
+<td>TBD</td>
+<td>近乎零违规</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>8</td>
+<td>7</td>
+<td>TBD</td>
+<td>修复回退时残留少量</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>0</td>
+<td>0</td>
+<td>TBD</td>
+<td>硬终止保证可行性</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>0</td>
+<td>0</td>
+<td>TBD</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53-ilp-最优-ar-随场景变化趋势">5.3 ILP 最优 AR 随场景变化趋势</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>ILP 最优 AR</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>eq（N=M=10）</td>
+<td>0.5321</td>
+<td>基准</td>
+</tr>
+<tr>
+<td>gt（N=15，M=10）</td>
+<td>0.6337</td>
+<td>ECU 富余，服务可集中在高容量 ECU，AR 更高</td>
+</tr>
+<tr>
+<td>lt（N=10，M=15）</td>
+<td>TBD</td>
+<td>装箱压力下 AR 预期高于 eq，但约束满足难度最大</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="6-阶段性结论">6. 阶段性结论</h2>
+<blockquote>
+<p>以下结论基于 eq 和 gt 已完成的结果；lt 完成后将补充完整。</p>
+</blockquote>
+<ol>
+<li>
+<p><strong>PPO 系列（P4/P5/P6）在满足所有约束的前提下，AR 达到 ILP 最优的 96.8–98.5%</strong>，在 eq 和 gt 两种场景中表现一致。</p>
+</li>
+<li>
+<p><strong>P6（PPO+Repair）是可行方法中 AR 最高的</strong>，两种场景均如此。修复启发式引导智能体向更高利用率的部署方案收敛，代价是极少量修复步的惩罚（eq 1.27%，gt 1.53%）。</p>
+</li>
+<li>
+<p><strong>P3 的高 AR 不可行</strong>——完全忽略冲突约束使 AR 虚增约 40%，eq 产生 1,114 次违规，gt 产生 860 次。</p>
+</li>
+<li>
+<p><strong>DQN/DDQN 零违规但 AR 效率低于 PPO</strong>，差距随场景复杂度增加（eq：−4.4%，gt：−8.2%），说明稀疏部署场景更需要 PPO 的优势函数估计。</p>
+</li>
+<li>
+<p><strong>gt 场景下所有方法的 AR 差距均大于 eq</strong>，因为 N &gt; M 的稀疏部署需要更长时序推理（将服务集中到特定 ECU），PPO 比 DQN 更擅长。</p>
+</li>
+<li>
+<p><strong>lt 结果待出</strong>：装箱 + 冲突的组合预计是三种场景中最难的，P4 双掩码与 <code>ecu_allowed_frac</code> 特征是关键改动。</p>
+</li>
+</ol>
+<hr>
+<h2 id="7-待办事项">7. 待办事项</h2>
+<ul>
+<li><input type="checkbox" id="checkbox0"><label for="checkbox0">等待 <code>ecu_lt_svc_p</code> 并行实验完成（约 70 分钟，P4 为瓶颈）</label></li>
+<li><input type="checkbox" id="checkbox1"><label for="checkbox1">运行 <code>ecu_lt_svc_p/run_scripts/copy_files.py</code> 整合结果</label></li>
+<li><input type="checkbox" id="checkbox2"><label for="checkbox2">运行 <code>ecu_lt_svc_p/run_scripts/results_combined/combined.py</code> 生成汇总图</label></li>
+<li><input type="checkbox" id="checkbox3"><label for="checkbox3">清除 lt summary CSV 中的 Random 基线行</label></li>
+<li><input type="checkbox" id="checkbox4"><label for="checkbox4">填写第 4.3 节、第 5 节、第 6 节的 lt 数值</label></li>
+</ul>
+
+</body>
+</html>

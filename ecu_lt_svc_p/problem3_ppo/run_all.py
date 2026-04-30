@@ -43,7 +43,7 @@ import pulp
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import config as C
 from problem3_ppo.env import P3Env
@@ -102,10 +102,12 @@ def run_episodes(ecus, services, policy_fn, n_eps: int):
 class P3Callback(BaseCallback):
     def __init__(self):
         super().__init__()
-        self.episode_ars        : list[float] = []
-        self.episode_viol_rates : list[float] = []
-        self.episode_placed     : list[int]   = []
-        self.timesteps_at_ep    : list[int]   = []
+        self.episode_ars             : list[float] = []
+        self.episode_viol_rates      : list[float] = []
+        self.episode_cap_viol_rates  : list[float] = []
+        self.episode_conf_viol_rates : list[float] = []
+        self.episode_placed          : list[int]   = []
+        self.timesteps_at_ep         : list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
 
@@ -117,6 +119,8 @@ class P3Callback(BaseCallback):
             if "episode" in info:
                 self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_viol_rates.append(float(info.get("violation_rate", 0.0)))
+                self.episode_cap_viol_rates.append(info.get("capacity_violations", 0) / C.M)
+                self.episode_conf_viol_rates.append(info.get("conflict_violations", 0) / C.M)
                 self.episode_placed.append(int(info.get("services_placed", 0)))
                 self.timesteps_at_ep.append(self.num_timesteps)
 
@@ -138,11 +142,10 @@ def train_ppo(ecus, services, device: str) -> tuple[PPO, P3Callback]:
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
     n_envs = max(1, int(C.N_ENVS))
-    env = SubprocVecEnv(
+    env = DummyVecEnv(
         [functools.partial(_make_p3_env, C.SEED + i) for i in range(n_envs)],
-        start_method=C.SUBPROC_START_METHOD,
     )
-    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
+    print(f"  Using DummyVecEnv: n_envs={n_envs}")
     cb    = P3Callback()
     model = PPO(
         policy        = "MlpPolicy",
@@ -190,10 +193,12 @@ def plot_training_curve(cb: P3Callback, ilp_ar: float, outdir: Path, scenario_na
     ax1.set_title(f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
     ax1.grid(alpha=0.3)
 
-    sm_v, off_v = moving_avg(cb.episode_viol_rates, C.SMOOTH_W)
-    ax2.plot(ts, cb.episode_viol_rates, color="tomato", alpha=0.2, linewidth=0.8)
-    ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
-             label="Violation rate (smoothed)")
+    sm_cap,  off_cap  = moving_avg(cb.episode_cap_viol_rates,  C.SMOOTH_W)
+    sm_conf, off_conf = moving_avg(cb.episode_conf_viol_rates, C.SMOOTH_W)
+    ax2.plot(ts, cb.episode_cap_viol_rates,  color="tomato",    alpha=0.15, linewidth=0.6)
+    ax2.plot(ts, cb.episode_conf_viol_rates, color="darkorange", alpha=0.15, linewidth=0.6)
+    ax2.plot(ts[off_cap:off_cap+len(sm_cap)],   sm_cap,  color="tomato",    linewidth=2, label="Cap viol rate (smoothed)")
+    ax2.plot(ts[off_conf:off_conf+len(sm_conf)], sm_conf, color="darkorange", linewidth=2, label="Conflict viol rate (smoothed)")
     ax2.set_ylabel("Violation Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)

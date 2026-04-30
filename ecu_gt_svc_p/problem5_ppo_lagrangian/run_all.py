@@ -46,7 +46,7 @@ import pulp
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import random
 import config as C
@@ -177,8 +177,8 @@ def train_lagrange(device: str, n_envs: int = 1):
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
     env_fns = [functools.partial(_make_lagrange_env, C.SEED + i) for i in range(n_envs)]
-    env = SubprocVecEnv(env_fns, start_method=C.SUBPROC_START_METHOD)
-    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
+    env = DummyVecEnv(env_fns)
+    print(f"  Using DummyVecEnv: n_envs={n_envs}")
     cb  = LagrangeCallback()
 
     model = PPO(

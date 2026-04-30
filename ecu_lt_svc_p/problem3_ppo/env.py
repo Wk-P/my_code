@@ -1,16 +1,19 @@
 """
-P3 Environment — Hard capacity (masked), soft conflict (penalty).
+P3 Environment — Unconstrained baseline (violations recorded, never penalized).
 
 N < M: each ECU hosts multiple services.
 
 Constraints:
-    - Capacity violation → HARD (action masking prevents it; forced-overflow
-      fallback triggers only when ALL ECUs are full, incurring a heavy penalty).
-    - Conflict violation → SOFT (per-step penalty; placement continues).
+    - Capacity violation → RECORDED only. Capacity redirect in step avoids
+      violations when possible; forced-overflow fallback (all ECUs full) still
+      places the service, allowing remaining_vms to go negative.
+    - Conflict violation → RECORDED only. No penalty applied.
 
-ecu_allowed[j]: dynamically maintained set of SVCs still placeable on ECU j
-without conflict; updated after each placement (O(1) conflict lookup).
-Conflict sets are capped at size N_ECUS to ensure feasibility.
+ru is always computed and added to _total_ru regardless of violations.
+Terminal bonus: always +AR (unconstrained upper bound).
+
+This matches the eq/gt P3 design: maximum AR achievable without constraint
+enforcement, serving as a reference ceiling for the constrained methods.
 """
 
 import sys
@@ -205,29 +208,22 @@ class P3Env(gym.Env):
         if conflict_violated:
             self.conflict_violations += 1
 
-        # Heavy penalty for forced overflow (all ECUs were full).
-        forced_overflow_penalty = -2.0 if cap_violated else 0.0
-        # Soft conflict penalty.
-        conflict_penalty = -(svc.requirement / (np.sum(self.initial_vms) + 1e-8)) if conflict_violated else 0.0
-        # Utilisation reward: zero if any violation.
-        ru = 0.0 if (cap_violated or conflict_violated) else svc.requirement / (self.initial_vms[action] + 1e-8)
+        # Violations are recorded only — no penalties applied in P3.
+        ru = svc.requirement / (self.initial_vms[action] + 1e-8)
 
         self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
         self._update_ecu_allowed(action, self._step)
-        if ru > 0:
-            self._total_ru += ru
+        self._total_ru += ru  # always add — unconstrained baseline
         _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
         self.ar = self._total_ru / _active if _active > 0 else 0.0
         self._step += 1
 
         done = self._step >= self.M
-        terminal_bonus = 0.0
-        if done:
-            terminal_bonus = self.ar if self.capacity_violations == 0 else -self.ar
+        terminal_bonus = self.ar if done else 0.0  # always +AR
 
         total_viol = self.capacity_violations + self.conflict_violations
-        reward = float(ru + forced_overflow_penalty + conflict_penalty + terminal_bonus)
+        reward = float(ru + terminal_bonus)
         info = {
             "ar":                  self.ar,
             "step":                self._step,

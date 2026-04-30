@@ -42,7 +42,7 @@ import pulp
 from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import config as C
 from problem_ddqn.env import DDQNEnv
@@ -105,7 +105,7 @@ def _make_ddqn_env(seed: int) -> Monitor:
 def run_episodes(ecus, services, policy_fn, n_eps):
     """policy_fn(obs) -> int   (no mask)"""
     env = DDQNEnv(ecus, services, scenarios=C.TEST_SCENARIOS)
-    ars, placed_list, viol_list, conflict_viol_list = [], [], [], []
+    ars, placed_list, viol_list, cap_viol_list, conflict_viol_list = [], [], [], [], []
     for _ in range(n_eps):
         obs, _ = env.reset()
         done = False
@@ -114,12 +114,14 @@ def run_episodes(ecus, services, policy_fn, n_eps):
             obs, _, done, _, info = env.step(policy_fn(obs))
         ars.append(info.get("ar", 0.0))
         placed_list.append(info.get("services_placed", 0))
-        viol_list.append(1 if info.get("violated", False) else 0)
+        viol_list.append(1 if int(info.get("total_violations", 0)) > 0 else 0)
+        cap_viol_list.append(int(info.get("capacity_violations", 0)))
         conflict_viol_list.append(int(info.get("conflict_violations", 0)))
     return {
         "ars":           np.array(ars),
         "placed":        np.array(placed_list),
         "viols":         np.array(viol_list),
+        "cap_viols":     np.array(cap_viol_list),
         "conflict_viols": np.array(conflict_viol_list),
     }
 
@@ -131,11 +133,13 @@ def run_episodes(ecus, services, policy_fn, n_eps):
 class DDQNCallback(BaseCallback):
     def __init__(self):
         super().__init__()
-        self.episode_rewards:  list[float] = []
-        self.episode_ars:      list[float] = []
-        self.episode_placed:   list[int]   = []
-        self.episode_violated: list[int]   = []
-        self.timesteps_at_ep:  list[int]   = []
+        self.episode_rewards:       list[float] = []
+        self.episode_ars:           list[float] = []
+        self.episode_placed:        list[int]   = []
+        self.episode_violated:      list[int]   = []
+        self.episode_cap_violated:  list[int]   = []
+        self.episode_conf_violated: list[int]   = []
+        self.timesteps_at_ep:       list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
 
@@ -148,7 +152,11 @@ class DDQNCallback(BaseCallback):
                 self.episode_rewards.append(float(info["episode"]["r"]))
                 self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
-                self.episode_violated.append(1 if info.get("violated", False) else 0)
+                cap_viols  = int(info.get("capacity_violations", 0))
+                conf_viols = int(info.get("conflict_violations", 0))
+                self.episode_violated.append(1 if (cap_viols + conf_viols) > 0 else 0)
+                self.episode_cap_violated.append(1 if cap_viols > 0 else 0)
+                self.episode_conf_violated.append(1 if conf_viols > 0 else 0)
                 self.timesteps_at_ep.append(self.num_timesteps)
 
         if self.num_timesteps >= self._next_progress_step:
@@ -169,11 +177,10 @@ def train_ddqn(ecus, services, device: str):
     _torch.set_num_threads(C.TORCH_NUM_THREADS)
     sys.stdout.flush()
     n_envs = max(1, int(C.N_ENVS))
-    env = SubprocVecEnv(
+    env = DummyVecEnv(
         [functools.partial(_make_ddqn_env, C.SEED + i) for i in range(n_envs)],
-        start_method=C.SUBPROC_START_METHOD,
     )
-    print(f"  Using SubprocVecEnv: n_envs={n_envs}, start_method={C.SUBPROC_START_METHOD}")
+    print(f"  Using DummyVecEnv: n_envs={n_envs}")
     cb = DDQNCallback()
     model = DDQN(
         policy                 = "MlpPolicy",
@@ -229,11 +236,14 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     ax1.set_title(f"Training Metrics — {scenario_name}  ({C.TOTAL_STEPS:,} steps)", fontsize=12)
     ax1.grid(alpha=0.3)
 
-    viol_rate = np.array(cb.episode_violated, dtype=float)
-    sm_v, off_v = moving_avg(viol_rate, C.SMOOTH_W)
-    ax2.plot(ts, viol_rate, color="tomato", alpha=0.2, linewidth=0.8)
-    ax2.plot(ts[off_v:off_v+len(sm_v)], sm_v, color="tomato", linewidth=2,
-             label="violation rate (smoothed)")
+    cap_rate  = np.array(cb.episode_cap_violated,  dtype=float)
+    conf_rate = np.array(cb.episode_conf_violated, dtype=float)
+    sm_cap,  off_cap  = moving_avg(cap_rate,  C.SMOOTH_W)
+    sm_conf, off_conf = moving_avg(conf_rate, C.SMOOTH_W)
+    ax2.plot(ts, cap_rate,  color="tomato",    alpha=0.15, linewidth=0.6)
+    ax2.plot(ts, conf_rate, color="darkorange", alpha=0.15, linewidth=0.6)
+    ax2.plot(ts[off_cap:off_cap+len(sm_cap)],   sm_cap,  color="tomato",    linewidth=2, label="Cap viol rate (smoothed)")
+    ax2.plot(ts[off_conf:off_conf+len(sm_conf)], sm_conf, color="darkorange", linewidth=2, label="Conflict viol rate (smoothed)")
     ax2.set_ylabel("Violation Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.1)
     ax2.legend(fontsize=9)

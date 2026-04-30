@@ -209,21 +209,19 @@ class LagrangeEnv(gym.Env):
             self.conflict_violations += 1
             self.episode_violations += 1
 
-        # Lagrangian penalty for conflict; heavy fixed penalty for forced overflow.
-        base_penalty   = 0.2
-        c_t = 1.0 if conflict_violated else 0.0
-        lagrange_penalty = -(self.lambda_val + base_penalty) * c_t
+        # Lagrangian penalty for conflict only; -2.0 for forced overflow (cap).
+        # match_gain is always computed — conflict violation is penalized separately
+        # via Lagrangian, not by zeroing out the utilisation reward (aligns with eq P5).
+        base_penalty            = 0.2
+        c_t                     = 1.0 if conflict_violated else 0.0
+        lagrange_penalty        = -(self.lambda_val + base_penalty) * c_t
         forced_overflow_penalty = -2.0 if cap_violated else 0.0
-
-        # Utilisation reward: zero if any violation.
-        violated   = cap_violated or conflict_violated
-        match_gain = 0.0 if violated else svc.requirement / (self.initial_vms[action] + 1e-8)
+        match_gain              = svc.requirement / (self.initial_vms[action] + 1e-8)
 
         self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
         self._update_ecu_allowed(action, self._step)
-        if match_gain > 0:
-            self._total_ru += match_gain
+        self._total_ru += match_gain  # always add (conflict penalized via λ, not ru=0)
         _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
         self.ar = self._total_ru / _active if _active > 0 else 0.0
         self._step += 1
@@ -233,6 +231,7 @@ class LagrangeEnv(gym.Env):
         if done:
             terminal_bonus = self.ar if self.episode_violations == 0 else -self.ar
 
+        violated = cap_violated or conflict_violated
         reward = float(match_gain + lagrange_penalty + forced_overflow_penalty + terminal_bonus)
         return self._obs(), reward, done, False, {
             "ar":                  self.ar,

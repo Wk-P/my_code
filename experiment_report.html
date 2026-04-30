@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>experiment_report.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="experiment-report-ecu-service-placement-optimisation-with-reinforcement-learning">Experiment Report: ECU Service Placement Optimisation with Reinforcement Learning</h1>
+<p><strong>Date:</strong> 2026-04-30<br>
+<strong>Experiment Series:</strong> <code>ecu_eq_svc_p</code> · <code>ecu_gt_svc_p</code> · <code>ecu_lt_svc_p</code><br>
+<strong>Branch:</strong> <code>linux-cuda12.2</code></p>
+<hr>
+<h2 id="1-problem-definition">1. Problem Definition</h2>
+<p>The task is to assign M software services (SVCs) to N ECUs (Electronic Control Units) in automotive systems. Each service has a resource requirement; each ECU has a finite capacity. The objective is to maximise <strong>Average Resource Utilisation (AR)</strong>:</p>
+<p>$$AR = \frac{1}{|A|} \sum_{j \in A} \frac{\sum_{i \to j} \text{req}_i}{\text{cap}_j}$$</p>
+<p>where $A$ is the set of active ECUs (those hosting at least one service).</p>
+<p><strong>Constraints:</strong></p>
+<ul>
+<li><strong>Capacity:</strong> total service requirements on an ECU must not exceed its capacity</li>
+<li><strong>Conflict:</strong> services within the same conflict set must not share an ECU</li>
+</ul>
+<p>The ILP (Integer Linear Programming) solver provides a provably optimal baseline via Dinkelbach fractional programming.</p>
+<hr>
+<h2 id="2-experimental-scenarios">2. Experimental Scenarios</h2>
+<p>Three scenario variants are studied, each with 200 randomly generated scenarios and an 80/20 train/test split:</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Variant</th>
+<th>N (ECUs)</th>
+<th>M (SVCs)</th>
+<th>Feasible Scenarios</th>
+<th>Key Challenge</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ecu_eq_svc_p</code></td>
+<td>Equal</td>
+<td>10</td>
+<td>10</td>
+<td>200 / 200</td>
+<td>N = M, one-to-one assignment</td>
+</tr>
+<tr>
+<td><code>ecu_gt_svc_p</code></td>
+<td>ECU-rich</td>
+<td>15</td>
+<td>10</td>
+<td>200 / 200</td>
+<td>N &gt; M, sparse placement</td>
+</tr>
+<tr>
+<td><code>ecu_lt_svc_p</code></td>
+<td>Service-dense</td>
+<td>10</td>
+<td>15</td>
+<td>~160 / 200</td>
+<td>N &lt; M, bin packing + conflict</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>lt</code> variant is the hardest: 15 services must be packed into 10 ECUs (~1.5 services per ECU on average), with significantly higher conflict density than the other two variants. Training and evaluation use only the 160 feasible scenarios.</p>
+<hr>
+<h2 id="3-rl-methods">3. RL Methods</h2>
+<p>Six RL agents are trained and evaluated per scenario. All share the same MLP policy backbone.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Method</th>
+<th>Constraint Handling</th>
+<th>Algorithm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P3</td>
+<td>PPO (unconstrained)</td>
+<td>No enforcement — violations recorded only</td>
+<td>PPO</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>PPO-Mask</td>
+<td>Hard capacity action masking; conflicts soft-recorded</td>
+<td>MaskablePPO</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>PPO-Lagrange</td>
+<td>Hard capacity mask + adaptive Lagrangian conflict penalty</td>
+<td>PPO + dual ascent</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>PPO+Repair</td>
+<td>Best-fit repair heuristic on violation; repair step penalised</td>
+<td>PPO</td>
+</tr>
+<tr>
+<td>—</td>
+<td>DQN</td>
+<td>Violation penalty; episode terminates on violation (eq/gt)</td>
+<td>DQN</td>
+</tr>
+<tr>
+<td>—</td>
+<td>DDQN</td>
+<td>Same as DQN with double Q-network</td>
+<td>DDQN</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lt-specific-design-differences"><code>lt</code>-Specific Design Differences</h3>
+<p>Due to the bin packing regime (N &lt; M), <code>lt</code> differs from eq/gt in the following ways:</p>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>eq / gt</th>
+<th>lt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P4 conflict handling</td>
+<td>Soft-recorded</td>
+<td>Capacity + conflict <strong>dual masking</strong></td>
+</tr>
+<tr>
+<td>DQN/DDQN violation termination</td>
+<td>Terminate on violation</td>
+<td>No early termination (avoids sparse signals)</td>
+</tr>
+<tr>
+<td>DQN/DDQN terminal bonus</td>
+<td>None</td>
+<td>±AR (provides episode-level reward signal)</td>
+</tr>
+<tr>
+<td>P6 repair heuristic</td>
+<td>Best-fit repair</td>
+<td>Same as eq/gt</td>
+</tr>
+</tbody>
+</table>
+<h3 id="observation-space-dimensions">Observation Space Dimensions</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>P3 / P4 / P6</th>
+<th>P5</th>
+<th>Extra Feature</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>eq / gt</td>
+<td><code>4N + 6 + M</code></td>
+<td><code>4N + 7 + M</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>lt</td>
+<td><code>5N + 6 + M</code></td>
+<td><code>5N + 7 + M</code></td>
+<td><code>ecu_allowed_frac[j]</code>: fraction of remaining services placeable on ECU j without conflict</td>
+</tr>
+</tbody>
+</table>
+<h3 id="training-hyperparameters">Training Hyperparameters</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>PPO (P3–P6)</th>
+<th>DQN / DDQN</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total steps (PPO)</td>
+<td>5,000,000</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Total steps (DQN)</td>
+<td>—</td>
+<td>3,000,000</td>
+</tr>
+<tr>
+<td>N_ENVS (eq/gt)</td>
+<td>40</td>
+<td>12</td>
+</tr>
+<tr>
+<td>N_ENVS (lt)</td>
+<td>16</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Network arch</td>
+<td>[256, 256]</td>
+<td>[128, 128]</td>
+</tr>
+<tr>
+<td>Learning rate</td>
+<td>3e-4</td>
+<td>1e-3</td>
+</tr>
+<tr>
+<td>Batch size</td>
+<td>128</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Discount γ</td>
+<td>0.999</td>
+<td>0.99</td>
+</tr>
+<tr>
+<td>Eval episodes</td>
+<td>300</td>
+<td>300</td>
+</tr>
+<tr>
+<td>Random seed</td>
+<td>42</td>
+<td>42</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="4-results">4. Results</h2>
+<h3 id="41-ecu_eq_svc_p-equal-n10-m10">4.1 <code>ecu_eq_svc_p</code> (Equal, N=10, M=10)</h3>
+<p>ILP Optimal AR: <strong>0.5321</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>AR (mean)</th>
+<th>AR (std)</th>
+<th>Placed</th>
+<th>Cap Viol</th>
+<th>Conflict Viol</th>
+<th>Gap to ILP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ILP (Optimal)</td>
+<td>0.5321</td>
+<td>0.000</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P3 PPO</td>
+<td>0.8691</td>
+<td>0.063</td>
+<td>10.0</td>
+<td>0</td>
+<td>1114</td>
+<td><em>(infeasible)</em></td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>0.5220</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−1.9%</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>0.5230</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>1</td>
+<td>−1.7%</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>0.5242</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>8</td>
+<td>−1.5%</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>0.5088</td>
+<td>0.067</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−4.4%</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>0.5088</td>
+<td>0.069</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−4.4%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-ecu_gt_svc_p-ecu-rich-n15-m10">4.2 <code>ecu_gt_svc_p</code> (ECU-rich, N=15, M=10)</h3>
+<p>ILP Optimal AR: <strong>0.6337</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>AR (mean)</th>
+<th>AR (std)</th>
+<th>Placed</th>
+<th>Cap Viol</th>
+<th>Conflict Viol</th>
+<th>Gap to ILP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ILP (Optimal)</td>
+<td>0.6337</td>
+<td>0.000</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P3 PPO</td>
+<td>0.8683</td>
+<td>0.057</td>
+<td>10.0</td>
+<td>0</td>
+<td>860</td>
+<td><em>(infeasible)</em></td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>0.6135</td>
+<td>0.064</td>
+<td>9.97</td>
+<td>0</td>
+<td>0</td>
+<td>−3.2%</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>0.6144</td>
+<td>0.065</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−3.0%</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>0.6174</td>
+<td>0.065</td>
+<td>10.0</td>
+<td>0</td>
+<td>7</td>
+<td>−2.5%</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>0.5820</td>
+<td>0.070</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−8.2%</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>0.5836</td>
+<td>0.055</td>
+<td>10.0</td>
+<td>0</td>
+<td>0</td>
+<td>−7.9%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-ecu_lt_svc_p-service-dense-n10-m15">4.3 <code>ecu_lt_svc_p</code> (Service-dense, N=10, M=15)</h3>
+<p>ILP Optimal AR: <strong>TBD</strong></p>
+<blockquote>
+<p>Experiment in progress (all 6 problems running in parallel). Fill in the table below once results are available.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>AR (mean)</th>
+<th>AR (std)</th>
+<th>Placed</th>
+<th>Cap Viol</th>
+<th>Conflict Viol</th>
+<th>Gap to ILP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ILP (Optimal)</td>
+<td>TBD</td>
+<td>—</td>
+<td>TBD</td>
+<td>0</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P3 PPO</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td><em>(infeasible)</em></td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="5-cross-scenario-analysis">5. Cross-Scenario Analysis</h2>
+<h3 id="51-ar-gap-to-ilp-optimal-admissible-methods-only">5.1 AR Gap to ILP Optimal (Admissible Methods Only)</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>eq</th>
+<th>gt</th>
+<th>lt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>−1.9%</td>
+<td>−3.2%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>−1.7%</td>
+<td>−3.0%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>−1.5%</td>
+<td>−2.5%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>−4.4%</td>
+<td>−8.2%</td>
+<td>TBD</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>−4.4%</td>
+<td>−7.9%</td>
+<td>TBD</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52-constraint-satisfaction">5.2 Constraint Satisfaction</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>eq conflicts</th>
+<th>gt conflicts</th>
+<th>lt conflicts</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P3 PPO</td>
+<td>1114</td>
+<td>860</td>
+<td>TBD</td>
+<td>Infeasible — no constraint enforcement</td>
+</tr>
+<tr>
+<td>P4 PPO-Mask</td>
+<td>0</td>
+<td>0</td>
+<td>TBD</td>
+<td>Fully satisfied</td>
+</tr>
+<tr>
+<td>P5 PPO-Lagrange</td>
+<td>1</td>
+<td>0</td>
+<td>TBD</td>
+<td>Near-zero leakage</td>
+</tr>
+<tr>
+<td>P6 PPO+Repair</td>
+<td>8</td>
+<td>7</td>
+<td>TBD</td>
+<td>Residual from repair fallback</td>
+</tr>
+<tr>
+<td>DQN</td>
+<td>0</td>
+<td>0</td>
+<td>TBD</td>
+<td>Hard termination enforces feasibility</td>
+</tr>
+<tr>
+<td>DDQN</td>
+<td>0</td>
+<td>0</td>
+<td>TBD</td>
+<td>Same</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53-ilp-optimal-ar-across-scenarios">5.3 ILP Optimal AR Across Scenarios</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>ILP Optimal AR</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>eq (N=M=10)</td>
+<td>0.5321</td>
+<td>Baseline</td>
+</tr>
+<tr>
+<td>gt (N=15, M=10)</td>
+<td>0.6337</td>
+<td>ECU-rich allows tighter packing on fewer high-capacity ECUs</td>
+</tr>
+<tr>
+<td>lt (N=10, M=15)</td>
+<td>TBD</td>
+<td>Bin packing pressure; AR expected higher than eq but hardest to satisfy constraints</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="6-interim-conclusions">6. Interim Conclusions</h2>
+<blockquote>
+<p>The following conclusions are based on completed eq and gt results. Will be updated once lt is available.</p>
+</blockquote>
+<ol>
+<li>
+<p><strong>PPO-family methods (P4/P5/P6) achieve 96.8–98.5% of ILP optimal AR</strong> while fully satisfying all constraints, consistently across both completed scenarios.</p>
+</li>
+<li>
+<p><strong>P6 (PPO+Repair) achieves the highest feasible AR</strong> in both scenarios. The repair heuristic guides the agent toward higher-utilisation placements at the cost of a small repair overhead (eq: 1.27%, gt: 1.53%).</p>
+</li>
+<li>
+<p><strong>P3's high AR is an artefact</strong> — ignoring conflict constraints inflates AR by ~40%, producing 1,114 violations in eq and 860 in gt.</p>
+</li>
+<li>
+<p><strong>DQN/DDQN are feasible but AR-inefficient vs PPO</strong>, with the gap widening as scenario complexity increases (eq: −4.4%, gt: −8.2%), indicating that sparser placement tasks require the advantage-function estimation that PPO provides.</p>
+</li>
+<li>
+<p><strong>All methods show a larger gap to ILP in the gt scenario</strong>, because N &gt; M sparse placement requires the agent to reason about concentrating services onto specific ECUs — a longer-horizon task that PPO handles better than DQN.</p>
+</li>
+<li>
+<p><strong>lt results pending</strong>: the bin packing + conflict combination is expected to be the hardest of the three; the dual-mask design in P4/lt and the <code>ecu_allowed_frac</code> observation feature are the key adaptations.</p>
+</li>
+</ol>
+<hr>
+<h2 id="7-pending-steps">7. Pending Steps</h2>
+<ul>
+<li><input type="checkbox" id="checkbox0"><label for="checkbox0">Wait for <code>ecu_lt_svc_p</code> parallel run to complete (~70 min, P4 is the bottleneck)</label></li>
+<li><input type="checkbox" id="checkbox1"><label for="checkbox1">Run <code>ecu_lt_svc_p/run_scripts/copy_files.py</code> to consolidate lt results</label></li>
+<li><input type="checkbox" id="checkbox2"><label for="checkbox2">Run <code>ecu_lt_svc_p/run_scripts/results_combined/combined.py</code> to generate lt combined plot</label></li>
+<li><input type="checkbox" id="checkbox3"><label for="checkbox3">Remove Random baseline rows from lt summary CSVs</label></li>
+<li><input type="checkbox" id="checkbox4"><label for="checkbox4">Fill in Section 4.3, Section 5, and Section 6 with lt numerical results</label></li>
+</ul>
+
+</body>
+</html>

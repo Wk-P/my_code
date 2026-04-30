@@ -56,9 +56,9 @@ TRAIN_SCENARIOS = [FEASIBLE_SCENARIOS[i] for i in _idxs[:_n_train]]
 TEST_SCENARIOS  = [FEASIBLE_SCENARIOS[i] for i in _idxs[_n_train:]]
 
 DEVICE      = "cpu"
-N_ENVS      = 40
+N_ENVS      = 16
 SUBPROC_START_METHOD = "fork"
-TORCH_NUM_THREADS = 4        # leave cores for SubprocVecEnv workers
+TORCH_NUM_THREADS = 8        # DummyVecEnv: more threads for CPU inference
 PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────

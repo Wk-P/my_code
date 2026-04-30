@@ -1,5 +1,5 @@
 """
-DQN Environment — heavy penalty for both capacity and conflict violations.
+DQN Environment — heavy penalty for violations + terminal bonus.
 
 N < M: each ECU hosts multiple services.
 
@@ -12,6 +12,11 @@ Constraints:
       (remaining_vms may go negative; visible in observation).
     - Conflict violation → heavy penalty (-2.0), placement still proceeds.
     - A well-trained agent should achieve zero violations on feasible scenarios.
+
+Terminal bonus (lt-specific adaptation, aligns reward scale with PPO methods):
+    +AR if zero violations, -AR if any violations.
+    Episode always runs M steps (no early termination) — appropriate for
+    multi-service bin packing where ECUs naturally fill across the episode.
 """
 
 import sys
@@ -204,7 +209,10 @@ class DQNEnv(gym.Env):
 
         done = self._step >= self.M
         total_viol = self.capacity_violations + self.conflict_violations
-        return self._obs(), float(ru + cap_penalty + conflict_penalty), done, False, {
+        terminal_bonus = 0.0
+        if done:
+            terminal_bonus = self.ar if total_viol == 0 else -self.ar
+        return self._obs(), float(ru + cap_penalty + conflict_penalty + terminal_bonus), done, False, {
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,

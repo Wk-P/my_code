@@ -1,4 +1,5 @@
 import os
+from typing import Any
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -68,21 +69,16 @@ def plot_combined(records):
 
     n  = len(PROBLEM_ORDER)
     xs = np.arange(n)
-    w  = 0.25
+    w  = 0.4
 
-    keys = ["ilp_ar", "ilp_std", "ilp_placed",
-            "rl_ar",  "rl_std",  "rl_placed",
-            "rl_cap_viol", "rl_conflict_viol"]
-    data = {k: [] for k in keys}
+    keys = ["ilp_ar", "rl_ar", "rl_placed", "rl_cap_viol", "rl_conflict_viol"]
+    data: dict[str, Any] = {k: [] for k in keys}
 
     for folder, _ in PROBLEM_ORDER:
         df = records.get(folder, pd.DataFrame())
         ilp, rl = _get_rows(df) if not df.empty else (None, None)
-        data["ilp_ar"].append(_val(ilp,  "ar_mean"))
-        data["ilp_std"].append(_val(ilp, "ar_std"))
-        data["ilp_placed"].append(_val(ilp, "placed_mean"))
+        data["ilp_ar"].append(_val(ilp, "ar_mean"))
         data["rl_ar"].append(_val(rl,  "ar_mean"))
-        data["rl_std"].append(_val(rl, "ar_std"))
         data["rl_placed"].append(_val(rl, "placed_mean"))
         data["rl_cap_viol"].append(_val(rl, "cap_viol_total"))
         data["rl_conflict_viol"].append(_val(rl, "conflict_viol_total"))
@@ -99,14 +95,11 @@ def plot_combined(records):
     ax = axes[0]
     ax.axhline(ilp_mean, color="#d62728", linestyle="--", linewidth=1.2, alpha=0.7,
                label=f"ILP mean={ilp_mean:.3f}")
-    b_ilp = ax.bar(xs - w / 2, data["ilp_ar"], width=w, yerr=data["ilp_std"],
-                   color="#d62728", capsize=3, edgecolor="black", linewidth=0.5,
-                   label="ILP (Optimal)")
-    b_rl  = ax.bar(xs + w / 2, data["rl_ar"],  width=w, yerr=data["rl_std"],
-                   color="C0", capsize=3, edgecolor="black", linewidth=0.5, label="RL Method")
+    b_rl = ax.bar(xs, data["rl_ar"], width=w,
+                  color="C0", edgecolor="black", linewidth=0.5, label="RL Method")
 
-    for bar, v, e in zip(b_rl, data["rl_ar"], data["rl_std"]):
-        ax.text(bar.get_x() + bar.get_width() / 2, v + e + 0.005,
+    for bar, v in zip(b_rl, data["rl_ar"]):
+        ax.text(bar.get_x() + bar.get_width() / 2, v + 0.005,
                 f"{v:.3f}", ha="center", va="bottom", fontsize=7, fontweight="bold", color="C0")
 
     ax.set_xticks(xs)

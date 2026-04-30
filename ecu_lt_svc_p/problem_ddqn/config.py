@@ -52,9 +52,9 @@ TRAIN_SCENARIOS = [FEASIBLE_SCENARIOS[i] for i in _idxs[:_n_train]]
 TEST_SCENARIOS  = [FEASIBLE_SCENARIOS[i] for i in _idxs[_n_train:]]
 
 DEVICE      = "auto"
-N_ENVS      = 12
+N_ENVS      = 6
 SUBPROC_START_METHOD = "fork"
-TORCH_NUM_THREADS = 4        # leave cores for SubprocVecEnv workers
+TORCH_NUM_THREADS = 8        # DummyVecEnv: more threads for CPU inference
 PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── DDQN hyperparameters ──────────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ DDQN_TRAIN_FREQ            = 4
 DDQN_GRADIENT_STEPS        = 1
 DDQN_TARGET_UPDATE         = 500
 DDQN_EXPLORATION_FRACTION  = 0.5
-DDQN_EXPLORATION_FINAL_EPS = 0.05
+DDQN_EXPLORATION_FINAL_EPS = 0.0
 DDQN_NET_ARCH              = [128, 128]
 
 # ── Evaluation ──────────────────────────────────────────────────────────────────
