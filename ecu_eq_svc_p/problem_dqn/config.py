@@ -6,6 +6,7 @@ Edit ONLY this file to change problem size, training length, etc.
 
 from pathlib import Path
 import sys
+import os
 
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT.parent))
@@ -36,7 +37,7 @@ with open(YAML_CONFIG) as f:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem_dqn")
-SEED        = 42
+SEED        = int(os.environ.get("TRAIN_SEED", "42"))
 # ── Train / Test split (80/20, deterministic) ────────────────────────────────
 import random as _random
 _rng = _random.Random(SEED)
@@ -66,7 +67,7 @@ DQN_EXPLORATION_FINAL_EPS = 0.0
 DQN_NET_ARCH              = [128, 128]
 
 # ── Evaluation ──────────────────────────────────────────────────────────────────
-EVAL_EPS  = 300
+EVAL_EPS  = len(TEST_SCENARIOS)
 SMOOTH_W  = 1000
 
 # ── Paths ───────────────────────────────────────────────────────────────────────

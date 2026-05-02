@@ -102,11 +102,14 @@ def _make_ddqn_env(seed: int) -> Monitor:
 #  Step 3 & 5 — Episode runner
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_episodes(ecus, services, policy_fn, n_eps):
+def run_episodes(ecus, services, policy_fn):
     """policy_fn(obs) -> int   (no mask)"""
-    env = DDQNEnv(ecus, services, scenarios=C.TEST_SCENARIOS)
     ars, placed_list, viol_list, cap_viol_list, conflict_viol_list = [], [], [], [], []
-    for _ in range(n_eps):
+    for scenario in C.TEST_SCENARIOS:
+        caps, reqs, cs = scenario
+        _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+        _svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+        env = DDQNEnv(_ecus, _svcs, scenarios=[scenario])
         obs, _ = env.reset()
         done = False
         info = {}
@@ -364,12 +367,11 @@ def main():
     print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
     # 3. Random baseline (no masking)
-    print(f"\n[2/4] Random baseline ({C.EVAL_EPS} episodes, NO masking) ...")
+    print(f"\n[2/4] Random baseline ({len(C.TEST_SCENARIOS)} episodes, NO masking) ...")
     np.random.seed(C.SEED)
     rand_res = run_episodes(
         ecus, services,
         policy_fn=lambda obs: int(np.random.randint(0, N)),
-        n_eps=C.EVAL_EPS,
     )
     print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
           f"std={np.std(rand_res['ars']):.4f}")
@@ -384,11 +386,11 @@ def main():
     print(f"  Model saved -> {model_path}.zip")
 
     # 5. DDQN evaluation
-    print(f"\n[4/4] DDQN evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    print(f"\n[4/4] DDQN evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
     def ddqn_policy(obs):
         action, _ = model.predict(obs, deterministic=True)
         return int(action)
-    ddqn_res = run_episodes(ecus, services, ddqn_policy, C.EVAL_EPS)
+    ddqn_res = run_episodes(ecus, services, ddqn_policy)
     print(f"  DDQN AR  mean={np.mean(ddqn_res['ars']):.4f}  "
           f"std={np.std(ddqn_res['ars']):.4f}")
     print(f"  Placed/ep  mean={np.mean(ddqn_res['placed']):.1f}/{M}")

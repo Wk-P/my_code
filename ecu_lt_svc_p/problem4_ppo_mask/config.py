@@ -6,6 +6,7 @@ Edit ONLY this file to change problem size, training length, etc.
 
 from pathlib import Path
 import sys
+import os
 
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT.parent))
@@ -40,7 +41,7 @@ with open(YAML_CONFIG) as f:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem4_ppo_mask")
-SEED        = 42
+SEED        = int(os.environ.get("TRAIN_SEED", "42"))
 # ── Train / Test split (80/20 of feasible scenarios, deterministic) ──────────
 import random as _random
 _rng = _random.Random(SEED)
@@ -67,7 +68,7 @@ PPO_CLIP_RANGE  = 0.2
 PPO_NET_ARCH    = dict(pi=[256, 256], vf=[256, 256])
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
-EVAL_EPS  = 300
+EVAL_EPS  = len(TEST_SCENARIOS)
 SMOOTH_W  = 1000
 
 # ── Paths ─────────────────────────────────────────────────────────────────────

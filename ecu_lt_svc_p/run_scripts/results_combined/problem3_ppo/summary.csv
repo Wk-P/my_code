@@ -1,4 +1,4 @@
 method,ar_mean,ar_std,placed_mean,viol_rate,cap_viol_total,conflict_viol_total
 ILP (Optimal),0.73903,0.0,15,0.0,0,0
-Random Baseline,0.960887,0.202759,15.0,0.7002,1479,1672
-"PPO (P3, no constr)",12.555804,2.647487,15.0,1.8762,4495,3948
+Random Baseline,0.988457,0.21603,15.0,0.7146,163,180
+"PPO (P3, no constr)",12.357912,2.852177,15.0,1.8771,479,422

@@ -12,6 +12,7 @@ P5 = PPO with adaptive Lagrangian multiplier λ.
 
 from pathlib import Path
 import sys
+import os
 
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT.parent))
@@ -45,7 +46,7 @@ with open(YAML_CONFIG) as f:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 TOTAL_STEPS = get_total_steps("problem5_ppo_lagrangian")
-SEED        = 42
+SEED        = int(os.environ.get("TRAIN_SEED", "42"))
 # ── Train / Test split (80/20 of feasible scenarios, deterministic) ──────────
 import random as _random
 _rng = _random.Random(SEED)
@@ -79,7 +80,7 @@ LAMBDA_UPDATE_WINDOW = 20     # update λ every 20 episodes after warmup
 LAMBDA_WARMUP_EPISODES = 20000 # longer unconstrained phase to learn high-AR structure first
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
-EVAL_EPS = 300
+EVAL_EPS = len(TEST_SCENARIOS)
 SMOOTH_W = 1000
 
 # ── Paths ─────────────────────────────────────────────────────────────────────

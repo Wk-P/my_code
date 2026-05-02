@@ -1,4 +1,4 @@
 method,ar_mean,ar_std,placed_mean,viol_rate,cap_viol_total,conflict_viol_total
 ILP (Optimal),0.73903,0.0,15,0.0,0,0
-Random (no mask),0.947825,0.196719,15.0,0.7078,1501,1684
-Lagrange PPO,0.707002,0.055863,15.0,0.0827,8,364
+Random (no mask),0.988457,0.21603,15.0,0.7146,163,180
+Lagrange PPO,0.709883,0.060741,15.0,0.0979,5,42

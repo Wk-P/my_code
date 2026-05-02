@@ -101,11 +101,14 @@ def _make_ddqn_env(seed: int) -> Monitor:
 #  Step 3 & 5 — Episode runner
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_episodes(ecus, services, policy_fn, n_eps):
+def run_episodes(ecus, services, policy_fn):
     """policy_fn(obs) -> int   (no mask)"""
-    env = DDQNEnv(ecus, services, scenarios=C.TEST_SCENARIOS)
-    ars, placed_list, viol_list, conflict_viol_list = [], [], [], []
-    for _ in range(n_eps):
+    ars, placed_list, viol_list, cap_viol_list, conflict_viol_list = [], [], [], [], []
+    for scenario in C.TEST_SCENARIOS:
+        caps, reqs, cs = scenario
+        _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+        _svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+        env = DDQNEnv(_ecus, _svcs, scenarios=[scenario])
         obs, _ = env.reset()
         done = False
         info = {}
@@ -113,12 +116,14 @@ def run_episodes(ecus, services, policy_fn, n_eps):
             obs, _, done, _, info = env.step(policy_fn(obs))
         ars.append(info.get("ar", 0.0))
         placed_list.append(info.get("services_placed", 0))
-        viol_list.append(1 if info.get("violated", False) else 0)
+        viol_list.append(1 if int(info.get("total_violations", 0)) > 0 else 0)
+        cap_viol_list.append(int(info.get("capacity_violations", 0)))
         conflict_viol_list.append(int(info.get("conflict_violations", 0)))
     return {
         "ars":           np.array(ars),
         "placed":        np.array(placed_list),
         "viols":         np.array(viol_list),
+        "cap_viols":     np.array(cap_viol_list),
         "conflict_viols": np.array(conflict_viol_list),
     }
 
@@ -149,10 +154,10 @@ class DDQNCallback(BaseCallback):
                 self.episode_rewards.append(float(info["episode"]["r"]))
                 self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
-                violated     = info.get("violated", False)
-                conf_viols   = int(info.get("conflict_violations", 0))
-                self.episode_violated.append(1 if violated else 0)
-                self.episode_cap_violated.append(1 if (violated and conf_viols == 0) else 0)
+                cap_viols  = int(info.get("capacity_violations", 0))
+                conf_viols = int(info.get("conflict_violations", 0))
+                self.episode_violated.append(1 if (cap_viols + conf_viols) > 0 else 0)
+                self.episode_cap_violated.append(1 if cap_viols > 0 else 0)
                 self.episode_conf_violated.append(1 if conf_viols > 0 else 0)
                 self.timesteps_at_ep.append(self.num_timesteps)
 
@@ -374,11 +379,11 @@ def main():
     print(f"  Model saved -> {model_path}.zip")
 
     # 4. DDQN evaluation
-    print(f"\n[3/3] DDQN evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    print(f"\n[3/3] DDQN evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
     def ddqn_policy(obs):
         action, _ = model.predict(obs, deterministic=True)
         return int(action)
-    ddqn_res = run_episodes(ecus, services, ddqn_policy, C.EVAL_EPS)
+    ddqn_res = run_episodes(ecus, services, ddqn_policy)
     print(f"  DDQN AR  mean={np.mean(ddqn_res['ars']):.4f}  "
           f"std={np.std(ddqn_res['ars']):.4f}")
     print(f"  Placed/ep  mean={np.mean(ddqn_res['placed']):.1f}/{M}")
@@ -424,7 +429,7 @@ def main():
             "ar_std":             round(float(np.std(ddqn_res["ars"])), 6),
             "placed_mean":        round(float(np.mean(ddqn_res["placed"])), 2),
             "viol_rate":          round(float(ddqn_train_v), 4),
-            "cap_viol_total":     int(np.sum(ddqn_res["viols"])),
+            "cap_viol_total":     int(np.sum(ddqn_res["cap_viols"])),
             "conflict_viol_total": int(np.sum(ddqn_res["conflict_viols"])),
         },
         "training": {
@@ -452,7 +457,7 @@ def main():
             round(float(np.std(ddqn_res["ars"])), 6),
             round(float(np.mean(ddqn_res["placed"])), 2),
             round(float(ddqn_train_v), 4),
-            int(np.sum(ddqn_res["viols"])),
+            int(np.sum(ddqn_res["cap_viols"])),
             int(np.sum(ddqn_res["conflict_viols"])),
         ])
     print(f"  CSV  saved -> {csv_path}")

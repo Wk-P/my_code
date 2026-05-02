@@ -62,13 +62,16 @@ def _make_p6_env(seed: int) -> Monitor:
 #  Evaluation
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_episodes(ecus, services, policy_fn, n_eps: int):
+def run_episodes(ecus, services, policy_fn):
     """policy_fn(obs) -> int"""
-    env = P6Env(ecus, services, scenarios=C.TEST_SCENARIOS)
     ars, repair_rates, placed_list = [], [], []
     cap_viol_list, conflict_viol_list = [], []
 
-    for _ in range(n_eps):
+    for scenario in C.TEST_SCENARIOS:
+        caps, reqs, cs = scenario
+        _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+        _svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+        env = P6Env(_ecus, _svcs, scenarios=[scenario])
         obs, _ = env.reset()
         done   = False
         info   = {}
@@ -324,11 +327,11 @@ def main():
     print(f"  Model saved → {C.MODEL_PATH}.zip")
 
     # ── 4. PPO evaluation ────────────────────────────────────────────────────
-    print(f"\n[3/3] PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    print(f"\n[3/3] PPO evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
     def ppo_policy(obs):
         action, _ = model.predict(obs, deterministic=True)
         return int(action)
-    ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
+    ppo_res = run_episodes(ecus, services, ppo_policy)
     p_rr      = float(np.mean(ppo_res["repair_rates"]))
     p_rr_std  = float(np.std(ppo_res["repair_rates"]))
     p_cap_viol = float(np.sum(ppo_res["cap_violations"]))

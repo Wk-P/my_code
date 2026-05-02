@@ -63,16 +63,19 @@ def _make_p3_env(seed: int) -> Monitor:
 #  Step 3 & 5 — Evaluation (Random / PPO)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_episodes(ecus, services, policy_fn, n_eps: int):
+def run_episodes(ecus, services, policy_fn):
     """
-    Run n_eps episodes on a fixed problem instance.
+    Run one episode per scenario in C.TEST_SCENARIOS (deterministic traversal).
     Episodes always complete (M steps, no early termination in P3).
     policy_fn(obs) -> int
     """
-    env = P3Env(ecus, services, scenarios=C.TEST_SCENARIOS)
     ars, cap_viols, conflict_viols, viol_rates, placed_list = [], [], [], [], []
 
-    for _ in range(n_eps):
+    for scenario in C.TEST_SCENARIOS:
+        caps, reqs, cs = scenario
+        _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+        _svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+        env = P3Env(_ecus, _svcs, scenarios=[scenario])
         obs, _ = env.reset()
         done   = False
         info   = {}
@@ -336,11 +339,11 @@ def main():
     print(f"  Model saved → {C.MODEL_PATH}.zip")
 
     # ── 4. PPO evaluation ────────────────────────────────────────────────────
-    print(f"\n[3/3] PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    print(f"\n[3/3] PPO evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
     def ppo_policy(obs):
         action, _ = model.predict(obs, deterministic=True)
         return int(action)
-    ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS)
+    ppo_res = run_episodes(ecus, services, ppo_policy)
     print(f"  PPO AR  mean={np.mean(ppo_res['ars']):.4f}  "
           f"std={np.std(ppo_res['ars']):.4f}")
     print(f"  Eval conflict viol rate mean={np.mean(ppo_res['viol_rates']):.2%}")

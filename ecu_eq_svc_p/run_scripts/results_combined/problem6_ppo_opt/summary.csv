@@ -1,3 +1,3 @@
 method,ar_mean,ar_std,placed_mean,repair_rate,cap_viol_total,conflict_viol_total
 ILP (Optimal),0.532098,0.0,10,0.0,0,0
-PPO+Repair (P6),0.524177,0.069957,10.0,0.0127,38,8
+PPO+Repair (P6),0.527243,0.069984,10.0,0.0025,1,0

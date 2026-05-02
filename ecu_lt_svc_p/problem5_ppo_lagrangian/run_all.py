@@ -75,12 +75,15 @@ def _make_lagrange_env(seed: int) -> Monitor:
 #  Step 3 & 5 — Episode runner
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_episodes(ecus, services, policy_fn, n_eps, lambda_eval: float = 0.0):
+def run_episodes(ecus, services, policy_fn, lambda_eval: float = 0.0):
     """policy_fn(obs) -> int. Evaluation uses a fixed λ value in the observation."""
-    env = LagrangeEnv(ecus, services, scenarios=C.TEST_SCENARIOS,
-                      lambda_init=lambda_eval, lambda_max=C.LAMBDA_MAX)
     ars, viol_rates, viols, placed_list, cap_viols, conflict_viols = [], [], [], [], [], []
-    for _ in range(n_eps):
+    for scenario in C.TEST_SCENARIOS:
+        caps, reqs, cs = scenario
+        _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+        _svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+        env = LagrangeEnv(_ecus, _svcs, scenarios=[scenario],
+                          lambda_init=lambda_eval, lambda_max=C.LAMBDA_MAX)
         obs, _ = env.reset()
         done = False
         info = {}
@@ -368,12 +371,11 @@ def main():
     print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
     # 3. Random baseline (no masking)
-    print(f"\n[2/4] Random baseline ({C.EVAL_EPS} episodes, no masking) ...")
+    print(f"\n[2/4] Random baseline ({len(C.TEST_SCENARIOS)} episodes, no masking) ...")
     np.random.seed(C.SEED)
     rand_res = run_episodes(
         ecus, services,
         policy_fn=lambda obs: int(np.random.randint(0, N)),
-        n_eps=C.EVAL_EPS,
         lambda_eval=0.0,
     )
     print(f"  Random  AR mean={np.mean(rand_res['ars']):.4f}  "
@@ -386,11 +388,11 @@ def main():
     print(f"  Model saved -> {C.MODEL_PATH}.zip")
 
     # 5. Lagrangian PPO evaluation
-    print(f"\n[4/4] Lagrangian PPO evaluation ({C.EVAL_EPS} episodes, deterministic) ...")
+    print(f"\n[4/4] Lagrangian PPO evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
     def ppo_policy(obs):
         action, _ = model.predict(obs, deterministic=True)
         return int(action)
-    ppo_res = run_episodes(ecus, services, ppo_policy, C.EVAL_EPS, lambda_eval=cb.lambda_val)
+    ppo_res = run_episodes(ecus, services, ppo_policy, lambda_eval=cb.lambda_val)
     print(f"  PPO  AR mean={np.mean(ppo_res['ars']):.4f}  "
           f"Eval viol={np.mean(ppo_res['viol_rates']):.2%}")
 

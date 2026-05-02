@@ -6,6 +6,7 @@ from subprocess import PIPE, STDOUT, CalledProcessError, Popen
 import os
 import sys
 import time
+from datetime import datetime
 
 BASE_PATH = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_PATH))
@@ -59,7 +60,7 @@ def main(total_timesteps: int | None = None):
     print("All run scripts exist. Starting execution...\n")
 
     for run_script in RUN_LIST:
-        print(f"\n=== Running {run_script} ===\n", flush=True)
+        print(f"\n=== Running {run_script} [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ===\n", flush=True)
         # Use unbuffered child stdout so progress lines are visible immediately.
         cmd = [str(PYTHON_PATH), "-u", str(BASE_PATH / run_script)]
         if total_timesteps is not None:
@@ -82,14 +83,14 @@ def main(total_timesteps: int | None = None):
             line = proc.stdout.readline()
             if not line:
                 break
-            print(f"[{run_script}] {line}", end="", flush=True)
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [{run_script}] {line}", end="", flush=True)
 
         rc = proc.wait()
         elapsed = time.time() - t0
         if rc != 0:
             print(f"Error: {run_script} failed with exit code {rc}.")
             return rc
-        print(f"=== Finished {run_script} in {elapsed:.1f}s ===", flush=True)
+        print(f"=== Finished {run_script} in {elapsed:.1f}s [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ===", flush=True)
 
     return 0
 

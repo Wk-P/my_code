@@ -101,6 +101,7 @@ class DDQNEnv(gym.Env):
         self.ar              = 0.0
         self._total_ru       = 0.0
         self._step           = 0
+        self.capacity_violations = 0
         self.conflict_violations = 0
         return self._obs(), {}
 
@@ -161,41 +162,41 @@ class DDQNEnv(gym.Env):
     def step(self, action: int):
         svc = self.services[self._step]
 
-        if self.remaining_vms[action] < svc.requirement:
-            remaining_services = self.M - self._step
-            return self._obs(), -float(remaining_services), True, False, {
-                "ar":                  self.ar,
-                "services_placed":     self._step,
-                "violated":            True,
-                "conflict_violations": self.conflict_violations,
-            }
-
+        cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
+
+        if cap_violated:
+            self.capacity_violations += 1
         if conflict_violated:
             self.conflict_violations += 1
-            remaining_services = self.M - self._step
-            return self._obs(), -float(remaining_services), True, False, {
-                "ar":                  self.ar,
-                "services_placed":     self._step,
-                "violated":            True,
-                "conflict_violations": self.conflict_violations,
-            }
 
-        ru = svc.requirement / (self.initial_vms[action] + 1e-8)
+        cap_penalty      = -2.0 if cap_violated else 0.0
+        conflict_penalty = -2.0 if conflict_violated else 0.0
+        ru = 0.0 if (cap_violated or conflict_violated) else svc.requirement / (self.initial_vms[action] + 1e-8)
+
         self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
-        self._total_ru += ru
+        if ru > 0:
+            self._total_ru += ru
         _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
-        self.ar = self._total_ru / _active
+        self.ar = self._total_ru / _active if _active > 0 else 0.0
         self._step += 1
 
         done = self._step >= self.M
-        return self._obs(), float(ru), done, False, {
+        total_viol = self.capacity_violations + self.conflict_violations
+        terminal_bonus = 0.0
+        if done:
+            terminal_bonus = self.ar if total_viol == 0 else -self.ar
+        return self._obs(), float(ru + cap_penalty + conflict_penalty + terminal_bonus), done, False, {
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,
-            "violated":            False,
+            "cap_violated":        cap_violated,
+            "conflict_violated":   conflict_violated,
+            "capacity_violations": self.capacity_violations,
             "conflict_violations": self.conflict_violations,
+            "total_violations":    total_viol,
+            "violation_rate":      total_viol / self._step,
         }
 
     # ── render ────────────────────────────────────────────────────────────────
