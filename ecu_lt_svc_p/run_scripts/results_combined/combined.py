@@ -32,7 +32,7 @@ def load_all():
 
 def _get_rows(df):
     ilp_df = df[df["method"].str.contains("ILP|Optimal", regex=True, na=False)]
-    rl_df  = df[~df["method"].str.contains("ILP|Optimal|Random", regex=True, na=False)]
+    rl_df  = df[~df["method"].str.contains("ILP|Optimal", regex=True, na=False)]
     return (
         ilp_df.iloc[0] if not ilp_df.empty else None,
         rl_df.iloc[0]  if not rl_df.empty  else None,
@@ -160,7 +160,7 @@ def print_summary_table(df):
     print(df[available].to_string(index=False, float_format="%.4f"))
 
     print("\n===== Best RL Agent per Problem =====")
-    rl = df[~df["method"].str.contains("ILP|Optimal|Random", regex=True, na=False)]
+    rl = df[~df["method"].str.contains("ILP|Optimal", regex=True, na=False)]
     if not rl.empty:
         best = rl.loc[rl.groupby("folder")["ar_mean"].idxmax()]
         print(best[available].to_string(index=False, float_format="%.4f"))

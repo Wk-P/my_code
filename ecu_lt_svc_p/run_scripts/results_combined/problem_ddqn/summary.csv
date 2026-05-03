@@ -1,4 +1,4 @@
 method,ar_mean,ar_std,placed_mean,viol_rate,cap_viol_total,conflict_viol_total
-ILP (Optimal),0.73903,0.0,15,0.0,0,0
-Random (no mask),0.457654,0.096049,15.0,1.0,32,180
-DDQN (no mask),0.659339,0.059963,15.0,0.7812,25,36
+ILP (Optimal),0.751347,0.0,15,0.0,0,0
+Random (no mask),0.476765,0.107886,15.0,1.0,32,169
+DDQN (no mask),0.682037,0.050347,15.0,0.5938,19,24

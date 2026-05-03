@@ -1,0 +1,37 @@
+group,problem,method,n_seeds,ar_mean_avg,ar_mean_std,placed_mean_avg,placed_mean_std,viol_rate_avg,viol_rate_std,cap_viol_avg,cap_viol_std,conflict_viol_avg,conflict_viol_std
+ecu_eq_svc_p,problem3_ppo,ILP (Optimal),5,0.541810,0.004930,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_eq_svc_p,problem3_ppo,"PPO (P3, cap masked)",5,0.865164,0.014420,10.0000,0.0000,0.3585,0.0117,0.00,0.00,143.40,4.67
+ecu_eq_svc_p,problem4_ppo_mask,ILP (Optimal),5,0.541810,0.004930,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_eq_svc_p,problem4_ppo_mask,MaskablePPO (P4),5,0.534791,0.005347,9.9900,0.0224,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_eq_svc_p,problem5_ppo_lagrangian,ILP (Optimal),5,0.541810,0.004930,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_eq_svc_p,problem5_ppo_lagrangian,Lagrange PPO,5,0.536813,0.004439,10.0000,0.0000,0.0015,0.0022,0.00,0.00,0.60,0.89
+ecu_eq_svc_p,problem6_ppo_opt,ILP (Optimal),5,0.541810,0.004930,10.0000,0.0000,nan,0.0000,0.00,0.00,0.00,0.00
+ecu_eq_svc_p,problem6_ppo_opt,PPO+Repair (P6),5,0.537046,0.004933,10.0000,0.0000,nan,0.0000,2.80,2.17,0.00,0.00
+ecu_eq_svc_p,problem_ddqn,DDQN (no mask),5,0.531572,0.006479,10.0000,0.0000,0.0350,0.0285,1.20,0.84,0.20,0.45
+ecu_eq_svc_p,problem_ddqn,ILP (Optimal),5,0.541810,0.004930,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_eq_svc_p,problem_dqn,DQN (no mask),5,0.528108,0.007136,10.0000,0.0000,0.0550,0.0542,1.80,1.92,0.60,0.89
+ecu_eq_svc_p,problem_dqn,ILP (Optimal),5,0.541810,0.004930,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_gt_svc_p,problem3_ppo,ILP (Optimal),5,0.630065,0.017207,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_gt_svc_p,problem3_ppo,"PPO (P3, cap masked)",5,0.873476,0.019983,10.0000,0.0000,0.2790,0.0292,0.00,0.00,111.60,11.70
+ecu_gt_svc_p,problem4_ppo_mask,ILP (Optimal),5,0.630065,0.017207,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_gt_svc_p,problem4_ppo_mask,MaskablePPO (P4),5,0.615538,0.015980,9.9800,0.0308,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_gt_svc_p,problem5_ppo_lagrangian,ILP (Optimal),5,0.630065,0.017207,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_gt_svc_p,problem5_ppo_lagrangian,Lagrange PPO,5,0.616910,0.016624,10.0000,0.0000,0.0040,0.0052,0.00,0.00,1.60,2.07
+ecu_gt_svc_p,problem6_ppo_opt,ILP (Optimal),5,0.630065,0.017207,10.0000,0.0000,nan,0.0000,0.00,0.00,0.00,0.00
+ecu_gt_svc_p,problem6_ppo_opt,PPO+Repair (P6),5,0.617766,0.017233,10.0000,0.0000,nan,0.0000,7.00,4.90,1.00,1.73
+ecu_gt_svc_p,problem_ddqn,DDQN (no mask),5,0.609999,0.017058,10.0000,0.0000,0.0450,0.0326,1.00,1.00,0.80,0.84
+ecu_gt_svc_p,problem_ddqn,ILP (Optimal),5,0.630065,0.017207,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_gt_svc_p,problem_dqn,DQN (no mask),5,0.609949,0.017682,10.0000,0.0000,0.0650,0.0224,1.60,0.55,1.20,0.45
+ecu_gt_svc_p,problem_dqn,ILP (Optimal),5,0.630065,0.017207,10.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_lt_svc_p,problem3_ppo,ILP (Optimal),5,0.736088,0.012842,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_lt_svc_p,problem3_ppo,"PPO (P3, no constr)",5,11.836445,0.404368,15.0000,0.0000,1.8858,0.0088,476.60,2.51,428.60,2.61
+ecu_lt_svc_p,problem4_ppo_mask,ILP (Optimal),5,0.736088,0.012842,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_lt_svc_p,problem4_ppo_mask,MaskablePPO (P4),5,0.672662,0.011759,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_lt_svc_p,problem5_ppo_lagrangian,ILP (Optimal),5,0.736088,0.012842,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_lt_svc_p,problem5_ppo_lagrangian,Lagrange PPO,5,0.700560,0.014349,15.0000,0.0000,0.0888,0.0116,5.00,1.87,37.60,4.22
+ecu_lt_svc_p,problem6_ppo_opt,ILP (Optimal),5,0.736088,0.012842,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_lt_svc_p,problem6_ppo_opt,"PPO (P6, best-fit)",5,0.679176,0.009845,12.8900,0.1091,0.0122,0.0039,4.60,1.52,1.00,0.71
+ecu_lt_svc_p,problem_ddqn,DDQN (no mask),5,0.659082,0.018423,15.0000,0.0000,0.6437,0.0844,20.60,2.70,27.80,6.76
+ecu_lt_svc_p,problem_ddqn,ILP (Optimal),5,0.736088,0.012842,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
+ecu_lt_svc_p,problem_dqn,DQN (no mask),5,0.666982,0.013707,15.0000,0.0000,0.6813,0.0408,21.80,1.30,31.80,2.05
+ecu_lt_svc_p,problem_dqn,ILP (Optimal),5,0.736088,0.012842,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00

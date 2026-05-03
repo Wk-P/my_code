@@ -60,7 +60,7 @@ def _make_p3_env(seed: int) -> Monitor:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Step 3 & 5 — Evaluation (Random / PPO)
+#  Step 3 & 5 — Evaluation (PPO)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_episodes(ecus, services, policy_fn):

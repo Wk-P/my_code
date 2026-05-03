@@ -231,18 +231,18 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     print(f"  Saved -> {path}")
 
 
-def plot_comparison(ilp_ar, rand_res, dqn_res, dqn_train_viol_mean, dqn_train_viol_std, outdir, scenario_name):
-    colors = ["#e74c3c", "#3498db", "#2ecc71"]
-    labels = ["ILP\n(Optimal)", "Random\n(no mask)", "DQN\n(no mask)"]
+def plot_comparison(ilp_ar, dqn_res, dqn_train_viol_mean, dqn_train_viol_std, outdir, scenario_name):
+    colors = ["#e74c3c", "#2ecc71"]
+    labels = ["ILP\n(Optimal)", "DQN\n(no mask)"]
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle(f"ILP vs Random vs DQN - {scenario_name}", fontsize=13, fontweight="bold")
+    fig.suptitle(f"ILP vs DQN - {scenario_name}", fontsize=13, fontweight="bold")
 
     # AR box plot
     ax = axes[0]
     bp = ax.boxplot(
-        [rand_res["ars"], dqn_res["ars"]],
-        positions=[2, 3], widths=0.5, patch_artist=True,
+        [dqn_res["ars"]],
+        positions=[2], widths=0.5, patch_artist=True,
         medianprops=dict(color="black", linewidth=2),
     )
     for patch, color in zip(bp["boxes"], colors[1:]):
@@ -252,12 +252,12 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, dqn_train_viol_mean, dqn_train_vi
                label=f"ILP  AR={ilp_ar:.4f}")
     ax.plot(1, ilp_ar, marker="D", color=colors[0], markersize=10, zorder=5)
 
-    for pos, data, color in zip([2, 3], [rand_res["ars"], dqn_res["ars"]], colors[1:]):
+    for pos, data, color in zip([2], [dqn_res["ars"]], colors[1:]):
         mv = np.mean(data)
         ax.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
                 fontweight="bold", color="black")
 
-    ax.set_xticks([1, 2, 3]); ax.set_xticklabels(labels, fontsize=10)
+    ax.set_xticks([1, 2]); ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 1.1)
     ax.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax.set_title("Episode-end AR Distribution", fontsize=11)
@@ -265,8 +265,8 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, dqn_train_viol_mean, dqn_train_vi
     ax.grid(axis="y", alpha=0.3)
 
     ax2 = axes[1]
-    vr_means = [0.0, np.mean(rand_res["viols"]), dqn_train_viol_mean]
-    vr_stds  = [0.0, np.std(rand_res["viols"]),  dqn_train_viol_std]
+    vr_means = [0.0, dqn_train_viol_mean]
+    vr_stds  = [0.0, dqn_train_viol_std]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75,
                    yerr=vr_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, vr_means):
@@ -278,8 +278,8 @@ def plot_comparison(ilp_ar, rand_res, dqn_res, dqn_train_viol_mean, dqn_train_vi
     ax2.grid(axis="y", alpha=0.3)
 
     ax3 = axes[2]
-    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(dqn_res["placed"])]
-    pl_stds = [0.0, np.std(rand_res["placed"]), np.std(dqn_res["placed"])]
+    pl_means = [C.M, np.mean(dqn_res["placed"])]
+    pl_stds = [0.0, np.std(dqn_res["placed"])]
     bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
                    yerr=pl_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, pl_means):
@@ -327,18 +327,6 @@ def main():
     ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
     print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
-    # 3. Random baseline (no masking)
-    print(f"\n[2/4] Random baseline ({len(C.TEST_SCENARIOS)} episodes, NO masking) ...")
-    np.random.seed(C.SEED)
-    rand_res = run_episodes(
-        ecus, services,
-        policy_fn=lambda obs: int(np.random.randint(0, N)),
-    )
-    print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
-          f"std={np.std(rand_res['ars']):.4f}")
-    print(f"  Placed/ep  mean={np.mean(rand_res['placed']):.1f}/{M}")
-    print(f"  Viol rate  {np.mean(rand_res['viols']):.2%}")
-
     # 4. DQN training
     print(f"\n[3/4] DQN training ({C.TOTAL_STEPS:,} steps) ...")
     model, cb = train_dqn(ecus, services, device)
@@ -365,9 +353,6 @@ def main():
     print(f"  {'Method':<24} {'AR (mean+/-std)':<22} {'Placed':<10} {'Viol%'}")
     print(f"  {'-'*24} {'-'*22} {'-'*10} {'-'*6}")
     print(f"  {'ILP (Optimal)':<24} {ilp_ar:.4f} +/- 0.0000     {M}/{M:<6} 0%")
-    print(f"  {'Random (no mask)':<24} "
-          f"{np.mean(rand_res['ars']):.4f} +/- {np.std(rand_res['ars']):.4f}   "
-          f"  {np.mean(rand_res['placed']):.1f}/{M:<2}   {np.mean(rand_res['viols']):.0%}")
     print(f"  {'DQN (no mask)':<24} "
           f"{np.mean(dqn_res['ars']):.4f} +/- {np.std(dqn_res['ars']):.4f}   "
             f"  {np.mean(dqn_res['placed']):.1f}/{M:<2}   {dqn_train_v:.0%}")
@@ -386,14 +371,6 @@ def main():
             "ar": round(ilp_ar, 6),
             "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
             "violations": 0,
-        },
-        "random": {
-            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":             round(float(np.std(rand_res["ars"])), 6),
-            "placed_mean":        round(float(np.mean(rand_res["placed"])), 2),
-            "viol_rate":          round(float(np.mean(rand_res["viols"])), 4),
-            "cap_viol_total":     int(np.sum(rand_res["viols"])),
-            "conflict_viol_total": int(np.sum(rand_res["conflict_viols"])),
         },
         "dqn": {
             "ar_mean":            round(float(np.mean(dqn_res["ars"])), 6),
@@ -423,15 +400,6 @@ def main():
         writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
         writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
-            "Random (no mask)",
-            round(float(np.mean(rand_res["ars"])), 6),
-            round(float(np.std(rand_res["ars"])), 6),
-            round(float(np.mean(rand_res["placed"])), 2),
-            round(float(np.mean(rand_res["viols"])), 4),
-            int(np.sum(rand_res["viols"])),
-            int(np.sum(rand_res["conflict_viols"])),
-        ])
-        writer.writerow([
             "DQN (no mask)",
             round(float(np.mean(dqn_res["ars"])), 6),
             round(float(np.std(dqn_res["ars"])), 6),
@@ -443,7 +411,7 @@ def main():
     print(f"  CSV  saved -> {csv_path}")
 
     plot_training_curve(cb, ilp_ar, base_dir, sc_name)
-    plot_comparison(ilp_ar, rand_res, dqn_res, dqn_train_v, dqn_train_v_std, base_dir, sc_name)
+    plot_comparison(ilp_ar, dqn_res, dqn_train_v, dqn_train_v_std, base_dir, sc_name)
 
     print("\nAll done! Output files:")
     print(f"  {base_dir}/training_curve.png")

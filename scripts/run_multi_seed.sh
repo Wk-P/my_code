@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 多种子重复实验：每轮用不同种子完整训练+评估，结束后汇总平均值。
+# 首次调用时自动进入后台，立即返回终端控制权。
 #
 # Usage:
 #   bash scripts/run_multi_seed.sh                          # 默认 3 个种子
@@ -14,6 +15,33 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCHIVE_DIR="$ROOT_DIR/logs/multi_seed_results"
 LOG_FILE="$ARCHIVE_DIR/run_multi_seed.log"
+PID_FILE="$ROOT_DIR/pids/run_multi_seed.pid"
+
+# ── 前台段：防重复检查 → 后台启动 → 退出 ─────────────────────────────────────
+if [[ "${_MULTI_SEED_BG:-0}" != "1" ]]; then
+    if [[ -f "$PID_FILE" ]]; then
+        OLD_PID="$(cat "$PID_FILE")"
+        if kill -0 "$OLD_PID" 2>/dev/null; then
+            echo "Error: already running (PID $OLD_PID). 先停止："
+            echo "  kill \$(cat pids/run_multi_seed.pid)"
+            exit 1
+        else
+            rm -f "$PID_FILE"
+        fi
+    fi
+
+    mkdir -p "$ARCHIVE_DIR" "$ROOT_DIR/pids"
+    > "$LOG_FILE"
+    nohup env _MULTI_SEED_BG=1 bash "$0" "$@" >> "$LOG_FILE" 2>&1 &
+    BG_PID=$!
+    echo "$BG_PID" > "$PID_FILE"
+    echo "多种子实验已在后台启动 (PID $BG_PID)"
+    echo "  进度日志: tail -f $LOG_FILE"
+    echo "  一键终止: kill \$(cat $PID_FILE)"
+    exit 0
+fi
+
+# ── 后台段：正式执行 ──────────────────────────────────────────────────────────
 
 # ── 默认参数 ──────────────────────────────────────────────────────────────────
 SEEDS=(42 123 456)
@@ -41,10 +69,7 @@ ENV_GROUPS=(ecu_eq_svc_p ecu_gt_svc_p ecu_lt_svc_p)
 PROBLEM_DIRS=(problem3_ppo problem4_ppo_mask problem5_ppo_lagrangian problem6_ppo_opt problem_dqn problem_ddqn)
 
 ts()  { date '+%Y-%m-%d %H:%M:%S'; }
-log() { echo "[$(ts)] $*" | tee -a "$LOG_FILE"; }
-
-mkdir -p "$ARCHIVE_DIR"
-> "$LOG_FILE"
+log() { echo "[$(ts)] $*" >> "$LOG_FILE"; echo "[$(ts)] $*"; }
 
 log "=== 多种子实验启动 ==="
 log "种子列表: ${SEEDS[*]}"
@@ -118,3 +143,5 @@ PYTHON_PATH="$ROOT_DIR/.venv/bin/python"
 
 log "=== 完成 ==="
 log "汇总报告: $ARCHIVE_DIR/aggregate_summary.csv"
+
+rm -f "$PID_FILE"

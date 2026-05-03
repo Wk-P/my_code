@@ -214,18 +214,18 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     print(f"  Saved -> {path}")
 
 
-def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scenario_name):
-    colors = ["#e74c3c", "#3498db", "#2ecc71"]
-    labels = ["ILP\n(Optimal)", "Random\n(masked)", "MaskablePPO\n(P4)"]
+def plot_comparison(ilp_ar, ppo_res, ppo_train_viol_mean, outdir, scenario_name):
+    colors = ["#e74c3c", "#2ecc71"]
+    labels = ["ILP\n(Optimal)", "MaskablePPO\n(P4)"]
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle(f"P2(ILP) vs Random(masked) vs P4(MaskablePPO) - {scenario_name}",
+    fig.suptitle(f"P2(ILP) vs P4(MaskablePPO) - {scenario_name}",
                  fontsize=13, fontweight="bold")
 
     ax = axes[0]
     bp = ax.boxplot(
-        [rand_res["ars"], ppo_res["ars"]],
-        positions=[2, 3], widths=0.5, patch_artist=True,
+        [ppo_res["ars"]],
+        positions=[2], widths=0.5, patch_artist=True,
         medianprops=dict(color="black", linewidth=2),
     )
     for patch, color in zip(bp["boxes"], colors[1:]):
@@ -235,12 +235,12 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scen
                label=f"ILP  AR={ilp_ar:.4f}")
     ax.plot(1, ilp_ar, marker="D", color=colors[0], markersize=10, zorder=5)
 
-    for pos, data, color in zip([2, 3], [rand_res["ars"], ppo_res["ars"]], colors[1:]):
+    for pos, data, color in zip([2], [ppo_res["ars"]], colors[1:]):
         mv = np.mean(data)
         ax.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
                 fontweight="bold", color="black")
 
-    ax.set_xticks([1, 2, 3]); ax.set_xticklabels(labels, fontsize=10)
+    ax.set_xticks([1, 2]); ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 1.1)
     ax.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax.set_title("AR Distribution (0 violations)", fontsize=11)
@@ -248,7 +248,7 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scen
     ax.grid(axis="y", alpha=0.3)
 
     ax2 = axes[1]
-    vr_means = [0.0, 0.0, ppo_train_viol_mean]
+    vr_means = [0.0, ppo_train_viol_mean]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75)
     for bar, v in zip(bars, vr_means):
         ax2.text(bar.get_x() + bar.get_width()/2, v + 0.02,
@@ -259,8 +259,8 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, outdir, scen
     ax2.grid(axis="y", alpha=0.3)
 
     ax3 = axes[2]
-    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(ppo_res["placed"])]
-    pl_stds  = [0.0, np.std(rand_res["placed"]), np.std(ppo_res["placed"])]
+    pl_means = [C.M, np.mean(ppo_res["placed"])]
+    pl_stds  = [0.0, np.std(ppo_res["placed"])]
     bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
                    yerr=pl_stds, capsize=5, ecolor="black")
     for bar, v in zip(bars, pl_means):
@@ -304,19 +304,7 @@ def main():
     ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
     print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
-    # 3. Random (masked)
-    print(f"\n[2/4] Random masked baseline ({len(C.TEST_SCENARIOS)} episodes) ...")
-    np.random.seed(C.SEED)
-    rand_res = run_episodes(
-        ecus, services,
-        policy_fn=lambda obs, mask: int(np.random.choice(np.where(mask)[0]))
-                                    if np.any(mask) else 0,
-    )
-    print(f"  Random AR  mean={np.mean(rand_res['ars']):.4f}  "
-          f"std={np.std(rand_res['ars']):.4f}")
-    print(f"  Placed/ep  mean={np.mean(rand_res['placed']):.1f}/{M}")
-
-    # 4. MaskablePPO training
+    # 3. MaskablePPO training
     print(f"\n[3/4] MaskablePPO training ({C.TOTAL_STEPS:,} steps) ...")
     model, cb = train_maskppo(ecus, services, device)
     model.save(str(C.MODEL_PATH))
@@ -338,9 +326,6 @@ def main():
     print(f"  {'-'*28} {'-'*24} {'-'*10} {'-'*5}")
     print(f"  {'ILP (Optimal)':<28} {ilp_ar:.4f} +/- 0.0000       "
           f"{M}/{M:<7} 0")
-    print(f"  {'Random (masked)':<28} "
-          f"{np.mean(rand_res['ars']):.4f} +/- {np.std(rand_res['ars']):.4f}   "
-          f"  {np.mean(rand_res['placed']):.1f}/{M:<4}  0")
     print(f"  {'MaskablePPO (P4)':<28} "
           f"{np.mean(ppo_res['ars']):.4f} +/- {np.std(ppo_res['ars']):.4f}   "
             f"  {np.mean(ppo_res['placed']):.1f}/{M:<4}  0")
@@ -359,14 +344,6 @@ def main():
             "ar": round(ilp_ar, 6),
             "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
             "violations": 0,
-        },
-        "random_masked": {
-            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":             round(float(np.std(rand_res["ars"])), 6),
-            "placed_mean":        round(float(np.mean(rand_res["placed"])), 2),
-            "violations":         0,
-            "cap_viol_total":     0,
-            "conflict_viol_total": 0,
         },
         "maskable_ppo": {
             "ar_mean":            round(float(np.mean(ppo_res["ars"])), 6),
@@ -398,13 +375,6 @@ def main():
         writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
         writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
-            "Random (masked)",
-            round(float(np.mean(rand_res["ars"])), 6),
-            round(float(np.std(rand_res["ars"])), 6),
-            round(float(np.mean(rand_res["placed"])), 2),
-            0.0, 0, 0,
-        ])
-        writer.writerow([
             "MaskablePPO (P4)",
             round(float(np.mean(ppo_res["ars"])), 6),
             round(float(np.std(ppo_res["ars"])), 6),
@@ -415,7 +385,7 @@ def main():
 
     # Plots
     plot_training_curve(cb, ilp_ar, base_path, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, 0.0, base_path, sc_name)
+    plot_comparison(ilp_ar, ppo_res, 0.0, base_path, sc_name)
 
     print("\nAll done! Output files:")
     print(f"  {base_path}/training_curve.png")

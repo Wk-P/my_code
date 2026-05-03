@@ -8,7 +8,7 @@ run_all.py — One-shot P5 full pipeline (Lagrangian Constraint Relaxation):
   5. Evaluate trained Lagrangian PPO    -> ppo results
   6. Produce plots:
        training_curve.png  — AR, violation rate, λ evolution during training
-       comparison.png      — 3-way: ILP vs Random vs Lagrange PPO  (AR + viol rate)
+       comparison.png      — 2-way: ILP vs Lagrange PPO  (AR + viol rate)
        results.json        — full numeric summary
 
 P5 Design: constraints are SOFT, penalised by adaptive λ. No action masking.
@@ -275,20 +275,20 @@ def plot_training_curve(cb: LagrangeCallback, ilp_ar: float,
     print(f"  Saved -> {path}")
 
 
-def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_viol_std, outdir: Path, scenario_name: str):
-    colors = ["#e74c3c", "#3498db", "#e67e22"]
-    labels = ["ILP\n(Optimal)", "Random\n(no mask)", "Lagrange\nPPO"]
+def plot_comparison(ilp_ar, ppo_res, ppo_train_viol_mean, ppo_train_viol_std, outdir: Path, scenario_name: str):
+    colors = ["#e74c3c", "#e67e22"]
+    labels = ["ILP\n(Optimal)", "Lagrange\nPPO"]
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle(
-        f"P2(ILP) vs Random vs P5(Lagrange PPO) - {scenario_name}",
+        f"P2(ILP) vs P5(Lagrange PPO) - {scenario_name}",
         fontsize=13, fontweight="bold",
     )
 
     # ── AR ──
     bp = ax1.boxplot(
-        [rand_res["ars"], ppo_res["ars"]],
-        positions=[2, 3], widths=0.5, patch_artist=True,
+        [ppo_res["ars"]],
+        positions=[2], widths=0.5, patch_artist=True,
         medianprops=dict(color="black", linewidth=2),
     )
     for patch, color in zip(bp["boxes"], colors[1:]):
@@ -298,20 +298,20 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_vi
                 label=f"ILP  AR={ilp_ar:.4f}")
     ax1.plot(1, ilp_ar, marker="D", color=colors[0], markersize=10, zorder=5)
 
-    for pos, data, color in zip([2, 3], [rand_res["ars"], ppo_res["ars"]], colors[1:]):
+    for pos, data, color in zip([2], [ppo_res["ars"]], colors[1:]):
         mv = np.mean(data)
         ax1.text(pos, mv + 0.02, f"mu={mv:.3f}", ha="center", fontsize=9,
                  fontweight="bold", color="black")
 
-    ax1.set_xticks([1, 2, 3]); ax1.set_xticklabels(labels, fontsize=10)
+    ax1.set_xticks([1, 2]); ax1.set_xticklabels(labels, fontsize=10)
     ax1.set_ylim(0, 1.1)
     ax1.set_ylabel("Average Resource Utilisation (AR)", fontsize=11)
     ax1.set_title("AR Distribution", fontsize=11)
     ax1.legend(fontsize=9, loc="lower right")
     ax1.grid(axis="y", alpha=0.3)
 
-    vr_means = [0.0, np.mean(rand_res["viol_rates"]), ppo_train_viol_mean]
-    vr_stds  = [0.0, np.std(rand_res["viol_rates"]),  ppo_train_viol_std]
+    vr_means = [0.0, ppo_train_viol_mean]
+    vr_stds  = [0.0, ppo_train_viol_std]
     bars = ax2.bar(labels, vr_means, color=colors, alpha=0.75,
                    yerr=vr_stds, capsize=6, ecolor="black")
     for bar, v in zip(bars, vr_means):
@@ -322,8 +322,8 @@ def plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol_mean, ppo_train_vi
     ax2.set_title("Violation Rate (eval)", fontsize=11)
     ax2.grid(axis="y", alpha=0.3)
 
-    pl_means = [C.M, np.mean(rand_res["placed"]), np.mean(ppo_res["placed"])]
-    pl_stds  = [0.0, np.std(rand_res["placed"]), np.std(ppo_res["placed"])]
+    pl_means = [C.M, np.mean(ppo_res["placed"])]
+    pl_stds  = [0.0, np.std(ppo_res["placed"])]
     bars = ax3.bar(labels, pl_means, color=colors, alpha=0.75,
                    yerr=pl_stds, capsize=6, ecolor="black")
     for bar, v in zip(bars, pl_means):
@@ -370,17 +370,6 @@ def main():
     ilp_ar, ilp_per_sc = solve_ilp_all_scenarios(C.YAML_CONFIG, C.TEST_SCENARIOS, C.OUTDIR)
     print(f"  ILP mean AR across {len(C.TEST_SCENARIOS)} test scenarios: {ilp_ar:.4f}")
 
-    # 3. Random baseline (no masking)
-    print(f"\n[2/4] Random baseline ({len(C.TEST_SCENARIOS)} episodes, no masking) ...")
-    np.random.seed(C.SEED)
-    rand_res = run_episodes(
-        ecus, services,
-        policy_fn=lambda obs: int(np.random.randint(0, N)),
-        lambda_eval=0.0,
-    )
-    print(f"  Random  AR mean={np.mean(rand_res['ars']):.4f}  "
-          f"viol={np.mean(rand_res['viol_rates']):.2%}")
-
     # 4. Lagrangian PPO training
     print(f"\n[3/4] Lagrangian PPO training ({C.TOTAL_STEPS:,} steps, {n_envs} envs) ...")
     model, cb = train_lagrange(device, n_envs)
@@ -397,7 +386,6 @@ def main():
           f"Eval viol={np.mean(ppo_res['viol_rates']):.2%}")
 
     # Summary table
-    rand_viol_str = f"{np.mean(rand_res['viol_rates']):.2%}"
     ppo_train_viol = float(np.mean(ppo_res["viol_rates"]))
     ppo_train_viol_std = float(np.std(ppo_res["viol_rates"]))
     ppo_viol_str  = f"{ppo_train_viol:.2%}"
@@ -405,9 +393,6 @@ def main():
     print(f"  {'Method':<28} {'AR mean±std':<24} {'Viol%':<14} {'Placed'}")
     print(f"  {'-'*28} {'-'*24} {'-'*14} {'-'*8}")
     print(f"  {'ILP (Optimal)':<28} {ilp_ar:.4f} ± 0.0000        {'0.00%':<14} {M}/{M}")
-    print(f"  {'Random (no mask)':<28} "
-          f"{np.mean(rand_res['ars']):.4f} ± {np.std(rand_res['ars']):.4f}   "
-          f"  {rand_viol_str:<12} {M}/{M}")
     print(f"  {'Lagrange PPO':<28} "
           f"{np.mean(ppo_res['ars']):.4f} ± {np.std(ppo_res['ars']):.4f}   "
           f"  {ppo_viol_str:<12} {M}/{M}")
@@ -428,13 +413,6 @@ def main():
             "ar": round(ilp_ar, 6),
             "ar_per_scenario": [round(r["avg_utilization"], 6) for r in ilp_per_sc],
             "violations": 0,
-        },
-        "random": {
-            "ar_mean":            round(float(np.mean(rand_res["ars"])), 6),
-            "ar_std":             round(float(np.std(rand_res["ars"])), 6),
-            "viol_rate_mean":     round(float(np.mean(rand_res["viol_rates"])), 6),
-            "cap_viol_total":     int(np.sum(rand_res["cap_viols"])),
-            "conflict_viol_total": int(np.sum(rand_res["conflict_viols"])),
         },
         "lagrange_ppo": {
             "ar_mean":            round(float(np.mean(ppo_res["ars"])), 6),
@@ -465,15 +443,6 @@ def main():
         writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
         writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
         writer.writerow([
-            "Random (no mask)",
-            round(float(np.mean(rand_res["ars"])), 6),
-            round(float(np.std(rand_res["ars"])), 6),
-            round(float(np.mean(rand_res["placed"])), 2),
-            round(float(np.mean(rand_res["viol_rates"])), 4),
-            int(np.sum(rand_res["cap_viols"])),
-            int(np.sum(rand_res["conflict_viols"])),
-        ])
-        writer.writerow([
             "Lagrange PPO",
             round(float(np.mean(ppo_res["ars"])), 6),
             round(float(np.std(ppo_res["ars"])), 6),
@@ -486,7 +455,7 @@ def main():
 
     # Plots
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
-    plot_comparison(ilp_ar, rand_res, ppo_res, ppo_train_viol, ppo_train_viol_std, run_dir, sc_name)
+    plot_comparison(ilp_ar, ppo_res, ppo_train_viol, ppo_train_viol_std, run_dir, sc_name)
 
     print("\nAll done! Output files:")
     print(f"  {run_dir}/training_curve.png")
