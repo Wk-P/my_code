@@ -119,6 +119,7 @@ class DDQNEnv(gym.Env):
         self._step           = 0
         self.capacity_violations = 0
         self.conflict_violations = 0
+        self.valid_placed = 0
         return self._obs(), {}
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -191,6 +192,8 @@ class DDQNEnv(gym.Env):
             self.capacity_violations += 1
         if conflict_violated:
             self.conflict_violations += 1
+        if not (cap_violated or conflict_violated):
+            self.valid_placed += 1
 
         cap_penalty      = -2.0 if cap_violated else 0.0
         conflict_penalty = -2.0 if conflict_violated else 0.0
@@ -215,6 +218,8 @@ class DDQNEnv(gym.Env):
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,
+            "valid_placed":        self.valid_placed,
+            "ecus_used":          _active,
             "cap_violated":        cap_violated,
             "conflict_violated":   conflict_violated,
             "capacity_violations": self.capacity_violations,

@@ -80,6 +80,8 @@ def run_episodes(ecus, services, policy_fn):
         ars.append(info.get("ar", 0.0))
         repair_rates.append(float(info.get("repair_rate", 0.0)))
         placed_list.append(int(info.get("services_placed", 0)))
+        valid_placed_list.append(int(info.get("valid_placed", info.get("services_placed", 0))))
+        ecus_used_list.append(int(info.get("ecus_used", 0)))
         cap_viol_list.append(int(info.get("cap_violations", 0)))
         conflict_viol_list.append(int(info.get("conflict_violations", 0)))
 
@@ -380,6 +382,8 @@ def main():
             "cap_viol_total":         int(p_cap_viol),
             "conflict_viol_total":    int(p_con_viol),
             "placed_mean":            round(float(np.mean(ppo_res["placed"])), 2),
+            "valid_placed_mean":      round(float(np.mean(ppo_res["valid_placed"])), 2),
+            "ecus_used_mean":         round(float(np.mean(ppo_res["ecus_used"])), 2),
         },
         "training": {
             "total_steps":            C.TOTAL_STEPS,
@@ -403,7 +407,7 @@ def main():
         writer = csv.writer(f)
         writer.writerow(["method", "ar_mean", "ar_std", "placed_mean",
                          "repair_rate", "cap_viol_total", "conflict_viol_total"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, M, C.N, 0.0, 0, 0])
         writer.writerow([
             "PPO+Repair (P6)",
             round(float(np.mean(ppo_res["ars"])), 6),

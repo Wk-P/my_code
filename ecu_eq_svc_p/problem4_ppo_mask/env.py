@@ -100,6 +100,7 @@ class P4Env(gym.Env):
         self._total_ru       = 0.0
         self._step           = 0
         self.conflict_violations = 0
+        self.valid_placed = 0
         return self._obs(), {}
 
     # ── action mask ──────────────────────────────────────────────────────────
@@ -180,6 +181,8 @@ class P4Env(gym.Env):
         conflict_violated = self._has_conflict(action, self._step)
         if conflict_violated:
             self.conflict_violations += 1
+        if not (cap_violated or conflict_violated):
+            self.valid_placed += 1
             unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
             demand_penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
             return self._obs(), demand_penalty, True, False, {
@@ -216,6 +219,8 @@ class P4Env(gym.Env):
             "step":                self._step,
             "feasible":            True,
             "services_placed":     self._step,
+            "valid_placed":        self.valid_placed,
+            "ecus_used":          _active,
             "conflict_violations": self.conflict_violations,
         }
 

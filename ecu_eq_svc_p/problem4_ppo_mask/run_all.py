@@ -70,6 +70,7 @@ def _make_p4_env(seed: int) -> Monitor:
 def run_episodes(ecus, services, policy_fn):
     """policy_fn(obs, mask) -> int"""
     ars, placed_list = [], []
+    valid_placed_list, ecus_used_list = [], []
     for scenario in C.TEST_SCENARIOS:
         caps, reqs, cs = scenario
         _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
@@ -85,9 +86,13 @@ def run_episodes(ecus, services, policy_fn):
             obs, _, done, _, info = env.step(policy_fn(obs, mask))
         ars.append(info.get("ar", 0.0))
         placed_list.append(info.get("services_placed", 0))
+        valid_placed_list.append(int(info.get("valid_placed", info.get("services_placed", 0))))
+        ecus_used_list.append(int(info.get("ecus_used", 0)))
     return {
-        "ars":    np.array(ars),
-        "placed": np.array(placed_list),
+        "ars":         np.array(ars),
+        "placed":      np.array(placed_list),
+        "valid_placed": np.array(valid_placed_list),
+        "ecus_used":    np.array(ecus_used_list),
     }
 
 
@@ -362,6 +367,8 @@ def main():
             "ar_mean":            round(float(np.mean(ppo_res["ars"])), 6),
             "ar_std":             round(float(np.std(ppo_res["ars"])), 6),
             "placed_mean":        round(float(np.mean(ppo_res["placed"])), 2),
+            "valid_placed_mean":  round(float(np.mean(ppo_res["valid_placed"])), 2),
+            "ecus_used_mean":     round(float(np.mean(ppo_res["ecus_used"])), 2),
             "violations":         0,
             "cap_viol_total":     0,
             "conflict_viol_total": 0,
@@ -385,13 +392,15 @@ def main():
     csv_path = base_path / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "valid_placed_mean", "ecus_used_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, M, C.N, 0.0, 0, 0])
         writer.writerow([
             "MaskablePPO (P4)",
             round(float(np.mean(ppo_res["ars"])), 6),
             round(float(np.std(ppo_res["ars"])), 6),
             round(float(np.mean(ppo_res["placed"])), 2),
+            round(float(np.mean(ppo_res["valid_placed"])), 2),
+            round(float(np.mean(ppo_res["ecus_used"])), 2),
             0.0, 0, 0,
         ])
     print(f"  CSV  saved -> {csv_path}")

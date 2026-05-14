@@ -70,6 +70,7 @@ def run_episodes(ecus, services, policy_fn):
     policy_fn(obs) -> int
     """
     ars, cap_viols, conflict_viols, viol_rates, placed_list = [], [], [], [], []
+    valid_placed_list, ecus_used_list = [], []
 
     for scenario in C.TEST_SCENARIOS:
         caps, reqs, cs = scenario
@@ -86,6 +87,8 @@ def run_episodes(ecus, services, policy_fn):
         conflict_viols.append(info["conflict_violations"])
         viol_rates.append(float(info.get("violation_rate", 0.0)))
         placed_list.append(int(info.get("services_placed", 0)))
+        valid_placed_list.append(int(info.get("valid_placed", info.get("services_placed", 0))))
+        ecus_used_list.append(int(info.get("ecus_used", 0)))
 
     return {
         "ars":            np.array(ars),
@@ -94,6 +97,8 @@ def run_episodes(ecus, services, policy_fn):
         "tot_viols":      np.array(cap_viols) + np.array(conflict_viols),
         "viol_rates":     np.array(viol_rates),
         "placed":         np.array(placed_list),
+        "valid_placed": np.array(valid_placed_list),
+        "ecus_used":    np.array(ecus_used_list),
     }
 
 
@@ -406,13 +411,15 @@ def main():
     csv_path = run_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "valid_placed_mean", "ecus_used_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, M, C.N, 0.0, 0, 0])
         writer.writerow([
             "PPO (P3, cap masked)",
             round(float(np.mean(ppo_res["ars"])), 6),
             round(float(np.std(ppo_res["ars"])), 6),
             round(float(np.mean(ppo_res["placed"])), 2),
+            round(float(np.mean(ppo_res["valid_placed"])), 2),
+            round(float(np.mean(ppo_res["ecus_used"])), 2),
             round(float(p_v), 4),
             int(np.sum(ppo_res["cap_viols"])),
             int(np.sum(ppo_res["conflict_viols"])),

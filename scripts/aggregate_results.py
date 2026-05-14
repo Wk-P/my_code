@@ -17,7 +17,7 @@ from pathlib import Path
 import math
 
 
-METRICS = ["ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"]
+METRICS = ["ar_mean", "ar_std", "placed_mean", "valid_placed_mean", "ecus_used_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"]
 ENV_GROUPS   = ["ecu_eq_svc_p", "ecu_gt_svc_p", "ecu_lt_svc_p"]
 PROBLEM_DIRS = [
     "problem3_ppo",
@@ -90,6 +90,8 @@ def main():
         "group", "problem", "method", "n_seeds",
         "ar_mean_avg", "ar_mean_std",
         "placed_mean_avg", "placed_mean_std",
+        "valid_placed_avg", "valid_placed_std",
+        "ecus_used_avg", "ecus_used_std",
         "viol_rate_avg", "viol_rate_std",
         "cap_viol_avg", "cap_viol_std",
         "conflict_viol_avg", "conflict_viol_std",
@@ -97,11 +99,13 @@ def main():
 
     rows_out = []
     for (group, problem, method), metrics in sorted(data.items()):
-        ar_vals  = metrics.get("ar_mean", [])
-        plc_vals = metrics.get("placed_mean", [])
-        vr_vals  = metrics.get("viol_rate", [])
-        cap_vals = metrics.get("cap_viol_total", [])
-        con_vals = metrics.get("conflict_viol_total", [])
+        ar_vals   = metrics.get("ar_mean", [])
+        plc_vals  = metrics.get("placed_mean", [])
+        vp_vals   = metrics.get("valid_placed_mean", [])
+        eu_vals   = metrics.get("ecus_used_mean", [])
+        vr_vals   = metrics.get("viol_rate", [])
+        cap_vals  = metrics.get("cap_viol_total", [])
+        con_vals  = metrics.get("conflict_viol_total", [])
 
         rows_out.append({
             "group":   group,
@@ -112,6 +116,10 @@ def main():
             "ar_mean_std":        f"{std(ar_vals):.6f}",
             "placed_mean_avg":    f"{mean(plc_vals):.4f}",
             "placed_mean_std":    f"{std(plc_vals):.4f}",
+            "valid_placed_avg":   f"{mean(vp_vals):.4f}" if vp_vals else "nan",
+            "valid_placed_std":   f"{std(vp_vals):.4f}"  if vp_vals else "nan",
+            "ecus_used_avg":      f"{mean(eu_vals):.4f}" if eu_vals else "nan",
+            "ecus_used_std":      f"{std(eu_vals):.4f}"  if eu_vals else "nan",
             "viol_rate_avg":      f"{mean(vr_vals):.4f}",
             "viol_rate_std":      f"{std(vr_vals):.4f}",
             "cap_viol_avg":       f"{mean(cap_vals):.2f}",

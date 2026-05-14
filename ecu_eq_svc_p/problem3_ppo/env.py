@@ -117,6 +117,7 @@ class P3Env(gym.Env):
         self._step           = 0
         self.capacity_violations = 0
         self.conflict_violations = 0
+        self.valid_placed = 0
         return self._obs(), {}
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -191,6 +192,8 @@ class P3Env(gym.Env):
             self.capacity_violations += 1
         if conflict_violated:
             self.conflict_violations += 1
+        if not (cap_violated or conflict_violated):
+            self.valid_placed += 1
 
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
@@ -210,6 +213,8 @@ class P3Env(gym.Env):
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,
+            "valid_placed":        self.valid_placed,
+            "ecus_used":          _active,
             "capacity_violations": self.capacity_violations,
             "conflict_violations": self.conflict_violations,
             "total_violations":    total_viol,

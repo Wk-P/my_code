@@ -119,6 +119,7 @@ class P6Env(gym.Env):
         self.repairs             = 0
         self.cap_violations      = 0
         self.conflict_violations = 0
+        self.valid_placed = 0
         return self._obs(), {}
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -194,6 +195,8 @@ class P6Env(gym.Env):
                     "ar":                self.ar,
                     "step":              self._step,
                     "services_placed":   self._step,
+                    "valid_placed":      self.valid_placed,
+                    "ecus_used":         sum(1 for j in range(self.N) if self.ecu_placements[j]),
                     "was_repaired":      False,
                     "repairs":           self.repairs,
                     "cap_violations":    self.cap_violations,
@@ -216,6 +219,7 @@ class P6Env(gym.Env):
         _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
         self.ar = self._total_ru / _active
         self._step += 1
+        self.valid_placed += 1
 
         done = self._step >= self.M
         terminal_bonus = 0.0
@@ -227,6 +231,8 @@ class P6Env(gym.Env):
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,
+            "valid_placed":        self.valid_placed,
+            "ecus_used":          _active,
             "was_repaired":        was_repaired,
             "repairs":             self.repairs,
             "cap_violations":      self.cap_violations,

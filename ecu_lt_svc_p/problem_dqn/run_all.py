@@ -66,6 +66,7 @@ def _make_dqn_env(seed: int) -> Monitor:
 def run_episodes(ecus, services, policy_fn):
     """policy_fn(obs) -> int   (no mask)"""
     ars, placed_list, viol_list, cap_viol_list, conflict_viol_list = [], [], [], [], []
+    valid_placed_list, ecus_used_list = [], []
     for scenario in C.TEST_SCENARIOS:
         caps, reqs, cs = scenario
         _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
@@ -78,6 +79,8 @@ def run_episodes(ecus, services, policy_fn):
             obs, _, done, _, info = env.step(policy_fn(obs))
         ars.append(info.get("ar", 0.0))
         placed_list.append(info.get("services_placed", 0))
+        valid_placed_list.append(int(info.get("valid_placed", info.get("services_placed", 0))))
+        ecus_used_list.append(int(info.get("ecus_used", 0)))
         viol_list.append(1 if int(info.get("total_violations", 0)) > 0 else 0)
         cap_viol_list.append(int(info.get("capacity_violations", 0)))
         conflict_viol_list.append(int(info.get("conflict_violations", 0)))
@@ -87,6 +90,8 @@ def run_episodes(ecus, services, policy_fn):
         "viols":         np.array(viol_list),
         "cap_viols":     np.array(cap_viol_list),
         "conflict_viols": np.array(conflict_viol_list),
+        "valid_placed": np.array(valid_placed_list),
+        "ecus_used":    np.array(ecus_used_list),
     }
 
 
@@ -397,13 +402,15 @@ def main():
     csv_path = base_dir / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, 0.0, 0, 0])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "valid_placed_mean", "ecus_used_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, M, C.N, 0.0, 0, 0])
         writer.writerow([
             "DQN (no mask)",
             round(float(np.mean(dqn_res["ars"])), 6),
             round(float(np.std(dqn_res["ars"])), 6),
             round(float(np.mean(dqn_res["placed"])), 2),
+            round(float(np.mean(dqn_res["valid_placed"])), 2),
+            round(float(np.mean(dqn_res["ecus_used"])), 2),
             round(float(dqn_train_v), 4),
             int(np.sum(dqn_res["viols"])),
             int(np.sum(dqn_res["conflict_viols"])),
