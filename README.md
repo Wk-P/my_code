@@ -1,394 +1,290 @@
-# Reinforcement Learning VS Optimization
+# ECU 服务部署优化：强化学习 vs 整数线性规划
 
-This README focuses on the practical usage of the scripts in this repository, so you can directly run training, aggregation, and cleanup workflows.
+---
 
-Chinese version: see README_CN.md.
+## 1. 实验背景和目的
 
-## 1. Project Structure
+### 1.1 研究背景
 
-### Core Directories
+车载 ECU（Electronic Control Unit，电子控制单元）服务部署问题：将 $M$ 个软件服务分配至 $N$ 台 ECU，在满足**容量约束**与**冲突约束**的前提下，最大化**平均资源利用率（AR）**。
 
-<table>
-  <thead>
-    <tr>
-      <th>Directory</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>problem1</td>
-      <td>Base environment definitions and early problem setup</td>
-    </tr>
-    <tr>
-      <td>problem2_ilp</td>
-      <td>ILP config generation and optimal-solution solver</td>
-    </tr>
-    <tr>
-      <td>problem3_ppo</td>
-      <td>PPO without safety constraints</td>
-    </tr>
-    <tr>
-      <td>problem4_ppo_mask</td>
-      <td>PPO with action masking</td>
-    </tr>
-    <tr>
-      <td>problem5_ppo_lagrangian</td>
-      <td>Lagrangian constrained PPO</td>
-    </tr>
-    <tr>
-      <td>problem6_ppo_opt</td>
-      <td>PPO with patch optimization logic</td>
-    </tr>
-    <tr>
-      <td>dqn</td>
-      <td>DQN baseline</td>
-    </tr>
-    <tr>
-      <td>run_scripts</td>
-      <td>One-click run, result copy, combined plotting, and cleanup</td>
-    </tr>
-  </tbody>
-</table>
+**目标函数：**
 
-### Result Directories
+$$AR = \frac{1}{|\text{active ECUs}|} \sum_{\substack{i,j \\ x_{i,j}=1}} \frac{\text{req}_i}{\text{cap}_j}$$
 
-Each problem directory usually contains a results subdirectory. A single run creates one timestamped directory, for example:
+- $\text{req}_i$：服务 $i$ 所需 VM slot 数
+- $\text{cap}_j$：ECU $j$ 的 VM slot 容量
+- active ECUs：至少承载一个服务的 ECU 集合
 
-- 20260321_071733
+**约束：**
 
-The standard outputs usually include:
+1. **容量约束**：$\forall j,\ \sum_{i: \text{placed on } j} \text{req}_i \leq \text{cap}_j$
+2. **冲突约束**：$\forall C \in \text{ConflictSets},\ \forall j,\ |\{i \in C : \text{placed on } j\}| \leq 1$
 
-- results.json
-- summary.csv
-- training_curve.png
-- comparison.png
+**研究目的：** 对比六种方法在三种资源场景下的 AR 性能与约束满足能力，评估 RL 方法能否以接近 ILP 最优解的水平完成安全可行的服务部署。
 
-## 2. Environment Setup
+### 1.2 实验场景
 
-The recommended Python interpreter is the virtual environment inside the repository:
+| 场景 | ECU 数 N | 服务数 M | 资源关系 |
+|------|----------|----------|----------|
+| LT（资源紧缺） | 10 | 15 | ECU < SVC，每个 ECU 平均承载 1.5 个服务 |
+| EQ（供需均衡） | 10 | 10 | ECU = SVC，每个 ECU 平均承载 1 个服务 |
+| GT（资源充裕） | 15 | 10 | ECU > SVC，服务有更多 ECU 可选 |
 
-    .venv/bin/python
+### 1.3 参与对比的六种方法
 
-If dependencies are not installed yet:
+| 方法 | 约束处理策略 | 算法基础 |
+|------|-------------|----------|
+| ILP（基线） | 硬约束，全局最优 | PuLP + CBC 整数线性规划 |
+| P3 — 无约束 PPO | 无约束（AR 上界参考） | PPO |
+| P4 — 动作掩码 PPO | 硬约束，非法动作掩码为 0 | MaskablePPO |
+| P5 — Lagrangian PPO | 软约束，自适应拉格朗日乘子 | PPO + 对偶上升 |
+| P6 — 修复启发式 PPO | 冲突违反后 Best-Fit 修复 | PPO + 局部搜索 |
+| DQN / DDQN | 违反时终止并惩罚 | DQN / Double DQN |
 
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
+> P3 仅保存在 `logs/multi_seed_results/aggregate_summary.csv` 中用于 CSV 对比，不出现在图表中。
 
-On Linux, the recommended full path is:
+### 1.4 机器设备配置
 
-    /home/soar009/github/my_code/.venv/bin/python
+| 硬件 | 规格 |
+|------|------|
+| GPU | 3 × NVIDIA GeForce GTX 1080 Ti（各 11 GiB 显存） |
+| CPU | 56 核 |
+| 内存 | 125 GiB |
+| 操作系统 | Linux（Ubuntu） |
+| Python 环境 | `.venv/bin/python`（虚拟环境） |
+| 主要框架 | stable-baselines3、sb3-contrib、PuLP、PyTorch |
 
-Default training steps for all trainable problems are now centralized in:
+---
 
-    training_steps_config.py
+## 2. 实验具体参数配置
 
-If you want to change the default TOTAL_STEPS for all problems, edit that file instead of editing each problem's config.py separately.
+### 2.1 环境参数配置
 
-## 3. Main Entry Points
+#### 场景生成参数
 
-### 3.1 Run All Problems with One Command
+| 参数 | LT | EQ | GT |
+|------|----|----|----|
+| ECU 数量 N | 10 | 10 | 15 |
+| 服务数量 M | 15 | 10 | 10 |
+| ECU 容量范围 | \[50, 200\]，步长 5 | 同左 | 同左 |
+| SVC 需求范围 | \[10, 100\]，步长 5 | 同左 | 同左 |
+| 冲突集数量（每 scenario） | 10 | 10 | 10 |
+| 冲突集大小范围 | \[2, 15\] | \[2, 10\] | \[2, 10\] |
+| 场景总数 | 200 | 200 | 200 |
+| 训练集 / 测试集 | 160 / 40（80/20） | 同左 | 同左 |
 
-Script: run_scripts/all_run_shell_script.sh
+#### MDP 建模
 
-Purpose:
+- **状态** $s_t$：当前待放置服务需求（归一化）+ 累计 AR + 各 ECU 初始容量/剩余容量/冲突标记 + 有效动作标记 + 剩余服务队列
+- **动作** $a_t$：选择目标 ECU $j \in \{0, \ldots, N-1\}$
+- **奖励** $r_t$：本步 AR 增量 $= \text{req}_i / \text{cap}_j$（P5 额外减去约束惩罚项）
+- **Episode 长度**：固定 M 步（每步放置一个服务）
+- **测试评估**：对 40 个测试 scenario 各跑 1 个 episode
 
-- Run P3, P4, P5, P6, and DQN in sequence
-- Copy the latest summary.csv into the combined-results directory
-- Generate combined_results.png automatically
-- Optionally clean result directories after the run
+### 2.2 模型参数配置
 
-Most common command:
+#### PPO 基础参数（P3 / P4 / P6 共用）
 
-    source run_scripts/all_run_shell_script.sh --total-timesteps 500000
+| 参数 | 值 | 说明 |
+|------|----|------|
+| 总训练步数 | 5,000,000 | 与环境的交互总步数 |
+| 并行环境数 | 40 | DummyVecEnv 并发收集轨迹 |
+| 学习率 | 3×10⁻⁴ | Adam 优化器 |
+| Rollout 长度（N_STEPS） | 256 | 每次更新前各环境收集步数；共 256×40=10,240 步/更新 |
+| Mini-Batch 大小 | 128 | 从 rollout buffer 随机采样 |
+| 更新轮数（N_EPOCHS） | 10 | 每批 rollout 数据复用 10 次梯度更新 |
+| 折扣因子 γ | 0.999 | 高折扣保证末步奖励能反向传播到起始步 |
+| GAE λ | 0.95 | 广义优势估计偏差-方差权衡 |
+| Clip 范围 ε | 0.2 | PPO 截断比率 |
+| 网络结构 | \[256, 256\] | Actor/Critic 共享两层 MLP |
 
-Quick smoke test:
+#### PPO 算法原理
 
-    source run_scripts/all_run_shell_script.sh --total-timesteps 1000
+每轮迭代：
 
-Run cleanup after training, including today's results and incomplete records:
+1. 用当前策略 $\pi_\theta$ 在 $N_\text{envs}$ 个并行环境中采集 $N_\text{steps}$ 步轨迹
+2. 计算广义优势估计（GAE）：$\hat{A}_t = \sum_{k=0}^{\infty} (\gamma\lambda)^k \delta_{t+k}$，其中 $\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$
+3. 对同一批数据重复 $N_\text{epochs}$ 次梯度更新：
+   - **Actor loss**：$L^{\text{CLIP}} = \mathbb{E}\left[\min\!\left(r_t \hat{A}_t,\ \text{clip}(r_t, 1-\varepsilon, 1+\varepsilon)\hat{A}_t\right)\right]$，$r_t = \pi_\theta / \pi_{\theta_\text{old}}$
+   - **Critic loss**：$\mathbb{E}\left[(V(s_t) - V_\text{target})^2\right]$
+4. 更新 $\pi_{\theta_\text{old}} \leftarrow \pi_\theta$，开始下一轮采集
 
-    source run_scripts/all_run_shell_script.sh --total-timesteps 1000 --cleanup-results
+#### Lagrangian PPO 专用参数（P5）
 
-Cleanup only, without training:
+在 PPO 基础上，奖励函数修改为：
 
-    source run_scripts/all_run_shell_script.sh --cleanup-only --cleanup-today --cleanup-date 20260321
+$$r_t = \frac{\text{req}_i}{\text{cap}_j} - \lambda \cdot c_t$$
 
-Show help:
+其中 $c_t = 1$ 若本步产生违反（容量或冲突），否则 $c_t = 0$。
 
-    bash run_scripts/all_run_shell_script.sh --help
+**对偶上升更新**（每 `LAMBDA_UPDATE_WINDOW` 个 episode）：
 
-Supported cleanup options:
+$$\lambda \leftarrow \text{clip}\!\left(\lambda + \alpha_\lambda \cdot (\bar{v} - v^*),\ 0,\ \lambda_{\max}\right)$$
 
-- --cleanup-results
-- --cleanup-only
-- --cleanup-today
-- --cleanup-incomplete
-- --cleanup-date YYYYMMDD
-- --cleanup-dry-run
+| 参数 | 值 | 说明 |
+|------|----|------|
+| N_STEPS | 128 | 更短 rollout，适配 M=10 步的短 episode |
+| BATCH_SIZE | 256 | 更大 batch，减小梯度方差 |
+| γ | 0.99 | 略低于 P3/P4/P6 |
+| Critic 网络 | \[512, 512\] | 更宽网络适配含 λ 的扩展观测 |
+| LAMBDA_INIT | 0.1 | λ 初始值 |
+| LAMBDA_LR（$\alpha_\lambda$） | 0.005 | 对偶上升步长 |
+| LAMBDA_TARGET（$v^*$） | 0.0 | 目标违反率：零违反 |
+| LAMBDA_MAX（$\lambda_{\max}$） | 5.0 | λ 上限，防止惩罚项崩溃 |
+| LAMBDA_UPDATE_WINDOW | 20 episodes | λ 更新周期 |
+| 观测扩展 | +1 维 | 将 $\lambda / \lambda_{\max}$ 加入观测，缓解非平稳性 |
 
-### 3.2 Run All Problems with Python Only
+#### DQN / DDQN 参数
 
-Script: run_scripts/run_all_problems.py
+| 参数 | 值 | 说明 |
+|------|----|------|
+| 总训练步数 | 3,000,000 | off-policy 效率更高，步数少于 PPO |
+| 并行环境数 | 12 | DQN 不需要大批量 on-policy 收集 |
+| 学习率 | 1×10⁻³ | 比 PPO 高一个量级 |
+| Replay Buffer 大小 | 100,000 | 存储历史转移 $(s,a,r,s')$ |
+| Mini-Batch 大小 | 64 | 从 replay buffer 随机采样 |
+| 软更新系数 TAU | 1.0 | 硬更新目标网络 |
+| 折扣因子 γ | 0.99 | Q-learning 折扣 |
+| 目标网络更新间隔 | 500 steps | 定期同步在线网络权重 |
+| ε 探索衰减比例 | 0.1 | 前 10% 步从 1.0 线性衰减至 0.0 |
+| 网络结构 | \[128, 128\] | Q 网络两层 MLP |
+| 违反处理 | 终止并给 −1 奖励 | episode 在第一次违反时终止 |
 
-Purpose:
+**DQN vs DDQN TD 目标计算：**
 
-- Only executes the five run_all.py scripts in sequence
-- Does not copy summary.csv files
-- Does not generate the combined figure
+$$y_{\text{DQN}} = r + \gamma \cdot \max_{a'} Q_{\text{target}}(s', a')$$
 
-Command:
+$$y_{\text{DDQN}} = r + \gamma \cdot Q_{\text{target}}\!\left(s',\ \arg\max_{a'} Q_{\text{online}}(s', a')\right)$$
 
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/run_all_problems.py
+DDQN 用在线网络选动作、目标网络估值，缓解高估偏差。
 
-Quick smoke test:
+#### ILP 基线公式
 
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/run_all_problems.py --total-timesteps 1000
+决策变量 $x_{i,j} \in \{0,1\}$（服务 $i$ 是否部署到 ECU $j$）：
 
-Show help:
+$$\text{maximize} \quad \frac{1}{|\text{active ECUs}|} \sum_{i,j} x_{i,j} \cdot \frac{\text{req}_i}{\text{cap}_j}$$
 
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/run_all_problems.py --help
+$$\text{s.t.} \quad \sum_i x_{i,j} \cdot \text{req}_i \leq \text{cap}_j \quad \forall j$$
 
-## 4. Run Each Problem Individually
+$$\sum_{i \in C} x_{i,j} \leq 1 \quad \forall j,\ \forall C \in \text{ConflictSets}$$
 
-Each of the following scripts creates a new timestamped directory under its own results folder.
+$$\sum_j x_{i,j} \leq 1 \quad \forall i$$
 
-### 4.1 P3: PPO Without Constraints
+#### 实验种子配置
 
-Script: problem3_ppo/run_all.py
+| 参数 | 值 |
+|------|-----|
+| 种子列表 | 0, 1, 2, 3, 4 |
+| 种子数量 | 5 |
+| 控制范围 | train/test 划分 + RL 初始化 |
+| 传入方式 | 环境变量 `TRAIN_SEED` |
+| 统计方式 | 5 个种子的均值 ± 标准差 |
 
-Command:
+---
 
-    /home/soar009/github/my_code/.venv/bin/python problem3_ppo/run_all.py
+## 3. 实验脚本运行指南
 
-Quick smoke test:
+### 3.1 运行脚本指令
 
-    /home/soar009/github/my_code/.venv/bin/python problem3_ppo/run_all.py --total-timesteps 1000
+#### 完整多 seed 实验（推荐）
 
-### 4.2 P4: Masked PPO
+自动后台运行全部 3 组 × 6 方法 × 5 个 seed，完成后自动汇总：
 
-Script: problem4_ppo_mask/run_all.py
+```bash
+bash scripts/run_multi_seed.sh --seeds "0 1 2 3 4" --total-timesteps 5000000
+```
 
-Command:
+快速冒烟测试（仅验证流程）：
 
-    /home/soar009/github/my_code/.venv/bin/python problem4_ppo_mask/run_all.py
+```bash
+bash scripts/run_multi_seed.sh --seeds "0 1" --total-timesteps 10000
+```
 
-Quick smoke test:
+脚本行为：
+- 自动进入后台，终端立即返回控制权
+- 每轮 seed 完成后归档至 `logs/multi_seed_results/seed_{N}/{group}/{problem}.csv`
+- 全部完成后自动运行 `scripts/aggregate_results.py` 生成汇总报告
 
-    /home/soar009/github/my_code/.venv/bin/python problem4_ppo_mask/run_all.py --total-timesteps 1000
+#### 单次并行实验（单 seed）
 
-### 4.3 P5: Lagrangian PPO
+并行启动三个场景组（eq/gt/lt），各自在后台顺序运行 6 个 problem：
 
-Script: problem5_ppo_lagrangian/run_all.py
+```bash
+export TRAIN_SEED=0
+bash scripts/run_all_parallel.sh --total-timesteps 5000000
+```
 
-Command:
+#### 汇总跨 seed 结果
 
-    /home/soar009/github/my_code/.venv/bin/python problem5_ppo_lagrangian/run_all.py
+```bash
+.venv/bin/python scripts/aggregate_results.py \
+    --archive-dir logs/multi_seed_results \
+    --seeds 0 1 2 3 4
+```
 
-Quick smoke test:
+输出：
+- `logs/multi_seed_results/aggregate_summary.csv` — 完整汇总表（含均值 ± 标准差）
+- `logs/multi_seed_results/aggregate_report.txt` — 可读报告
 
-    /home/soar009/github/my_code/.venv/bin/python problem5_ppo_lagrangian/run_all.py --total-timesteps 1000
+#### 生成对比图表
 
-### 4.4 P6: PPO with Patch Optimization
+```bash
+.venv/bin/python scripts/plot_metrics.py
+```
 
-Script: problem6_ppo_opt/run_all.py
+输出至 `figures/` 目录：
 
-Command:
+| 图表 | 路径 | 内容 |
+|------|------|------|
+| Fig 1 | `figures/fig1_ar_comparison/` | 各方法 AR 对比（3 场景并排） |
+| Fig 2 | `figures/fig2_violations/` | 约束违反总数（容量 + 冲突堆叠） |
+| Fig 3 | `figures/fig3_tradeoff/` | AR vs 违反率安全-性能散点图 |
 
-    /home/soar009/github/my_code/.venv/bin/python problem6_ppo_opt/run_all.py
+### 3.2 查看日志指令
 
-Quick smoke test:
+| 目的 | 命令 |
+|------|------|
+| 多 seed 进度 | `tail -f logs/multi_seed_results/run_multi_seed.log` |
+| 单次并行进度 | `tail -f logs/run_all_parallel.log` |
+| 三组实时日志（同时） | `bash scripts/log_all_parallel.sh` |
+| 单组详细日志（eq 示例） | `tail -f ecu_eq_svc_p/run_scripts/run_background.log` |
 
-    /home/soar009/github/my_code/.venv/bin/python problem6_ppo_opt/run_all.py --total-timesteps 1000
+各组日志路径：
 
-### 4.5 DQN
+```
+ecu_eq_svc_p/run_scripts/run_background.log
+ecu_gt_svc_p/run_scripts/run_background.log
+ecu_lt_svc_p/run_scripts/run_background.log
+```
 
-Script: dqn/run_all.py
+### 3.3 停止指定任务指令
 
-Command:
+#### 停止全部并行实验
 
-    /home/soar009/github/my_code/.venv/bin/python dqn/run_all.py
+```bash
+bash scripts/stop_all_parallel.sh
+```
 
-Quick smoke test:
+依次终止顶层调度进程和三个场景组后台进程，清理所有 PID 文件。
 
-    /home/soar009/github/my_code/.venv/bin/python dqn/run_all.py --total-timesteps 1000
+#### 手动停止单个进程
 
-### 4.6 Shared Argument for All run_all.py Scripts
+```bash
+# 停止多 seed 调度进程
+kill $(cat pids/run_multi_seed.pid)
 
-All five training entry points currently support:
+# 停止并行调度进程
+kill $(cat pids/run_all_parallel.pid)
 
-- --total-timesteps TOTAL_TIMESTEPS
+# 停止单个场景组（以 eq 为例）
+kill $(cat ecu_eq_svc_p/run_scripts/run_background.pid)
+```
 
-Purpose: override TOTAL_STEPS in the corresponding config for smoke tests and debugging.
+#### 清理所有实验结果（谨慎使用）
 
-Default values are loaded from the centralized file:
+```bash
+bash scripts/clean_all_results.sh
+```
 
-    training_steps_config.py
-
-## 5. ILP Scripts
-
-### 5.1 Generate ILP Configurations
-
-Script: problem2_ilp/config/generate_config.py
-
-Purpose:
-
-- Generate multiple scenarios randomly
-- Save them to problem2_ilp/config/config_YYYYMMDD_HHMMSS.yaml
-
-Command:
-
-    /home/soar009/github/my_code/.venv/bin/python problem2_ilp/config/generate_config.py
-
-Notes:
-
-- This script currently has no command-line arguments
-- The number of scenarios is hard-coded in the script and defaults to 200
-
-### 5.2 Solve ILP and Generate Summary Outputs
-
-Script: problem2_ilp/optimal_solution/main.py
-
-Purpose:
-
-- Read a YAML config from problem2_ilp/config
-- Solve all scenarios with ILP
-- Generate shared cache files and summary plots
-
-Command:
-
-    /home/soar009/github/my_code/.venv/bin/python problem2_ilp/optimal_solution/main.py
-
-Notes:
-
-- This script currently has no standard command-line arguments
-- The config file is controlled by the default config_filename near the bottom of the script
-- To switch configs, you need to change that default filename in the script
-
-## 6. Aggregation and Copy Scripts
-
-### 6.1 Copy the Latest summary.csv into the Combined Directory
-
-Script: run_scripts/copy_files.py
-
-Purpose:
-
-- Copy summary.csv from the latest valid result directory of each problem
-- Save each one into the matching subdirectory under run_scripts/results_combined
-
-Command:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/copy_files.py
-
-Output files:
-
-- run_scripts/results_combined/problem3_ppo/summary.csv
-- run_scripts/results_combined/problem4_ppo_mask/summary.csv
-- run_scripts/results_combined/problem5_ppo_lagrangian/summary.csv
-- run_scripts/results_combined/problem6_ppo_opt/summary.csv
-- run_scripts/results_combined/dqn/summary.csv
-
-### 6.2 Generate the Combined Comparison Figure
-
-Script: run_scripts/results_combined/combined.py
-
-Purpose:
-
-- Read the five summary.csv files from the combined-results directory
-- Generate the combined comparison figure combined_results.png
-
-Command:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/results_combined/combined.py
-
-Output file:
-
-- run_scripts/results_combined/combined_results.png
-
-The current combined figure shows three categories of information:
-
-- AR comparison
-- Violation-rate comparison
-- Placement-completeness comparison
-
-## 7. Cleanup Script
-
-Script: run_scripts/cleanup_results.py
-
-Purpose:
-
-- Delete result directories generated on a target date
-- Delete incomplete result records
-
-Command examples:
-
-Preview what would be deleted:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/cleanup_results.py --dry-run
-
-Delete only today's results:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/cleanup_results.py --today
-
-Delete only incomplete records:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/cleanup_results.py --incomplete
-
-Delete results from a specific date:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/cleanup_results.py --today --date 20260321
-
-Delete both date-matched results and incomplete records:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/cleanup_results.py --today --incomplete --date 20260321
-
-If neither --today nor --incomplete is provided:
-
-- The script enables both behaviors by default
-
-## 8. Recommended Workflows
-
-### Workflow A: Simplest End-to-End Path
-
-Recommended for regular training and plotting:
-
-    source run_scripts/all_run_shell_script.sh --total-timesteps 500000
-
-### Workflow B: Debug One Method First
-
-Recommended when tuning a single method:
-
-    /home/soar009/github/my_code/.venv/bin/python problem5_ppo_lagrangian/run_all.py --total-timesteps 1000
-
-Then refresh the combined outputs with:
-
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/copy_files.py
-    /home/soar009/github/my_code/.venv/bin/python run_scripts/results_combined/combined.py
-
-### Workflow C: Train and Cleanup
-
-    source run_scripts/all_run_shell_script.sh --total-timesteps 1000 --cleanup-results --cleanup-today --cleanup-incomplete
-
-## 9. Common Output Locations
-
-### Per-Problem Outputs
-
-- problem3_ppo/results/<timestamped_directory>
-- problem4_ppo_mask/results/<timestamped_directory>
-- problem5_ppo_lagrangian/results/<timestamped_directory>
-- problem6_ppo_opt/results/<timestamped_directory>
-- dqn/results/<timestamped_directory>
-
-### Combined Outputs
-
-- run_scripts/results_combined/problem\*/summary.csv
-- run_scripts/results_combined/dqn/summary.csv
-- run_scripts/results_combined/combined_results.png
-
-## 10. Notes
-
-1. all_run_shell_script.sh is intended to be run with source, which matches the current workflow used in this repository.
-2. Small total-timesteps values in run_all.py are suitable for smoke tests only, not for judging final training quality.
-3. problem2_ilp/optimal_solution/main.py still depends on an in-script default config filename, so it is not yet a fully parameterized CLI entry point.
-4. cleanup_results.py only removes timestamped result directories. It does not remove model zip files or ilp_cache.json.
+> `logs/multi_seed_results/` 目录不会被清除，已归档的 seed 结果保留。
