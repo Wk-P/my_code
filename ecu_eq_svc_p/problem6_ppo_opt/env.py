@@ -120,6 +120,8 @@ class P6Env(gym.Env):
         self.cap_violations      = 0
         self.conflict_violations = 0
         self.valid_placed = 0
+        self.episode_has_cap_violation      = False
+        self.episode_has_conflict_violation = False
         return self._obs(), {}
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -187,21 +189,27 @@ class P6Env(gym.Env):
 
         was_repaired = False
         if cap_violated or conflict_violated:
+            if cap_violated:
+                self.episode_has_cap_violation = True
+            if conflict_violated:
+                self.episode_has_conflict_violation = True
             repaired = self._best_fit_repair(self._step)
             if repaired is None:
                 unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
                 penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
                 return self._obs(), penalty, True, False, {
-                    "ar":                self.ar,
-                    "step":              self._step,
-                    "services_placed":   self._step,
-                    "valid_placed":      self.valid_placed,
-                    "ecus_used":         sum(1 for j in range(self.N) if self.ecu_placements[j]),
-                    "was_repaired":      False,
-                    "repairs":           self.repairs,
-                    "cap_violations":    self.cap_violations,
-                    "conflict_violations": self.conflict_violations,
-                    "repair_rate":       self.repairs / max(self._step, 1),
+                    "ar":                             self.ar,
+                    "step":                           self._step,
+                    "services_placed":                self._step,
+                    "valid_placed":                   self.valid_placed,
+                    "ecus_used":                      sum(1 for j in range(self.N) if self.ecu_placements[j]),
+                    "was_repaired":                   False,
+                    "repairs":                        self.repairs,
+                    "cap_violations":                 self.cap_violations,
+                    "conflict_violations":            self.conflict_violations,
+                    "repair_rate":                    self.repairs / max(self._step, 1),
+                    "episode_has_cap_violation":      self.episode_has_cap_violation,
+                    "episode_has_conflict_violation": self.episode_has_conflict_violation,
                 }
             action = repaired
             was_repaired = True
@@ -228,6 +236,8 @@ class P6Env(gym.Env):
             terminal_bonus = self.ar * max(0.0, 1.0 - repair_rate)
 
         return self._obs(), float(ru + repair_penalty + terminal_bonus), done, False, {
+            "episode_has_cap_violation":      self.episode_has_cap_violation,
+            "episode_has_conflict_violation": self.episode_has_conflict_violation,
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,

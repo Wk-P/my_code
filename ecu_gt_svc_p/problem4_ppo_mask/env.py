@@ -101,6 +101,8 @@ class P4Env(gym.Env):
         self._step           = 0
         self.conflict_violations = 0
         self.valid_placed = 0
+        self.episode_has_cap_violation      = False
+        self.episode_has_conflict_violation = False
         return self._obs(), {}
 
     # ── action mask ──────────────────────────────────────────────────────────
@@ -170,26 +172,23 @@ class P4Env(gym.Env):
 
         # With masking this should never trigger, but defend just in case
         if self.remaining_vms[action] < svc.requirement:
+            self.episode_has_cap_violation = True
             unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
             demand_penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
             return self._obs(), demand_penalty, True, False, {
                 "ar": self.ar, "step": self._step,
                 "feasible": False, "services_placed": self._step,
                 "conflict_violations": self.conflict_violations,
+                "episode_has_cap_violation":      True,
+                "episode_has_conflict_violation": self.episode_has_conflict_violation,
             }
 
         conflict_violated = self._has_conflict(action, self._step)
         if conflict_violated:
             self.conflict_violations += 1
-        if not (cap_violated or conflict_violated):
+            self.episode_has_conflict_violation = True
+        else:
             self.valid_placed += 1
-            unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
-            demand_penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
-            return self._obs(), demand_penalty, True, False, {
-                "ar": self.ar, "step": self._step,
-                "feasible": False, "services_placed": self._step,
-                "conflict_violations": self.conflict_violations,
-            }
 
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
@@ -221,7 +220,9 @@ class P4Env(gym.Env):
             "services_placed":     self._step,
             "valid_placed":        self.valid_placed,
             "ecus_used":          _active,
-            "conflict_violations": self.conflict_violations,
+            "conflict_violations":            self.conflict_violations,
+            "episode_has_cap_violation":      self.episode_has_cap_violation,
+            "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
 
     # ── render ────────────────────────────────────────────────────────────────

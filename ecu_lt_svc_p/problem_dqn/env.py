@@ -122,6 +122,8 @@ class DQNEnv(gym.Env):
         self.capacity_violations = 0
         self.conflict_violations = 0
         self.valid_placed = 0
+        self.episode_has_cap_violation      = False
+        self.episode_has_conflict_violation = False
         return self._obs(), {}
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -191,8 +193,10 @@ class DQNEnv(gym.Env):
 
         if cap_violated:
             self.capacity_violations += 1
+            self.episode_has_cap_violation = True
         if conflict_violated:
             self.conflict_violations += 1
+            self.episode_has_conflict_violation = True
         if not (cap_violated or conflict_violated):
             self.valid_placed += 1
 
@@ -227,6 +231,8 @@ class DQNEnv(gym.Env):
             "conflict_violations": self.conflict_violations,
             "total_violations":    total_viol,
             "violation_rate":      total_viol / self._step,
+            "episode_has_cap_violation":      self.episode_has_cap_violation,
+            "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
 
     # ── render ────────────────────────────────────────────────────────────────

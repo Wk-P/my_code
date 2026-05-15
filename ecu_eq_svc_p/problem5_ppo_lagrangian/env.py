@@ -123,6 +123,8 @@ class LagrangeEnv(gym.Env):
         self.cap_violations      = 0
         self.conflict_violations = 0
         self.valid_placed = 0
+        self.episode_has_cap_violation      = False
+        self.episode_has_conflict_violation = False
         return self._obs(), {}
 
     # ── observation ───────────────────────────────────────────────────────────
@@ -205,8 +207,10 @@ class LagrangeEnv(gym.Env):
         self._step += 1
         if cap_violated:
             self.cap_violations += 1
+            self.episode_has_cap_violation = True
         if conflict_violated:
             self.conflict_violations += 1
+            self.episode_has_conflict_violation = True
         if not (cap_violated or conflict_violated):
             self.valid_placed += 1
             self.episode_violations += 1
@@ -220,16 +224,18 @@ class LagrangeEnv(gym.Env):
         reward = float(match_gain - (self.lambda_val + base_penalty) * c_t + terminal_bonus)
 
         return self._obs(), reward, done, False, {
-            "ar":                  self.ar,
-            "violated":            violated,
-            "violations_ep":       self.episode_violations,
-            "viol_rate_ep":        self.episode_violations / self._step,
-            "cap_violations":      self.cap_violations,
-            "conflict_violations": self.conflict_violations,
-            "services_placed":     self._step,
-            "valid_placed":        self.valid_placed,
-            "ecus_used":          _active,
-            "lambda":              self.lambda_val,
+            "ar":                             self.ar,
+            "violated":                       violated,
+            "violations_ep":                  self.episode_violations,
+            "viol_rate_ep":                   self.episode_violations / self._step,
+            "cap_violations":                 self.cap_violations,
+            "conflict_violations":            self.conflict_violations,
+            "services_placed":                self._step,
+            "valid_placed":                   self.valid_placed,
+            "ecus_used":                      _active,
+            "lambda":                         self.lambda_val,
+            "episode_has_cap_violation":      self.episode_has_cap_violation,
+            "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
 
     # ── render ────────────────────────────────────────────────────────────────

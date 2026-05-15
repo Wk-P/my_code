@@ -129,6 +129,8 @@ class P6Env(gym.Env):
         self.cap_violations      = 0
         self.conflict_violations = 0
         self.valid_placed = 0
+        self.episode_has_cap_violation      = False
+        self.episode_has_conflict_violation = False
         return self._obs(), {}
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -217,14 +219,18 @@ class P6Env(gym.Env):
                     "conflict_violations": self.conflict_violations,
                     "repair_rate":         self.repairs / max(self._step, 1),
                     "violation_rate":      self.repairs / max(self._step, 1),
+                    "episode_has_cap_violation":      self.episode_has_cap_violation,
+                    "episode_has_conflict_violation": self.episode_has_conflict_violation,
                 }
             action = repaired
             was_repaired = True
             self.repairs += 1
             if cap_violated:
                 self.cap_violations += 1
+                self.episode_has_cap_violation = True
             if conflict_violated:
                 self.conflict_violations += 1
+                self.episode_has_conflict_violation = True
 
         repair_penalty = -0.1 if was_repaired else 0.0
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
@@ -256,6 +262,8 @@ class P6Env(gym.Env):
             "conflict_violations": self.conflict_violations,
             "repair_rate":         self.repairs / self._step,
             "violation_rate":      self.repairs / self._step,
+            "episode_has_cap_violation":      self.episode_has_cap_violation,
+            "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
         return self._obs(), float(ru + repair_penalty + terminal_bonus), done, False, info
 
