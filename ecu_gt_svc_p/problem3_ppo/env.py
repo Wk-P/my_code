@@ -180,13 +180,6 @@ class P3Env(gym.Env):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
 
-        # Hard capacity enforcement: redirect to valid ECU if current action violates
-        mask = self.action_masks()
-        if not mask[action]:
-            valid = np.where(mask)[0]
-            if len(valid) > 0:
-                action = int(valid[np.argmax(self.remaining_vms[valid])])
-
         cap_violated = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
 

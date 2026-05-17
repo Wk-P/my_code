@@ -189,12 +189,13 @@ class P6Env(gym.Env):
 
         was_repaired = False
         if cap_violated or conflict_violated:
-            if cap_violated:
-                self.episode_has_cap_violation = True
-            if conflict_violated:
-                self.episode_has_conflict_violation = True
             repaired = self._best_fit_repair(self._step)
             if repaired is None:
+                # Repair impossible — only now mark episode violation flags
+                if cap_violated:
+                    self.episode_has_cap_violation = True
+                if conflict_violated:
+                    self.episode_has_conflict_violation = True
                 unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
                 penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
                 return self._obs(), penalty, True, False, {
@@ -211,6 +212,7 @@ class P6Env(gym.Env):
                     "episode_has_cap_violation":      self.episode_has_cap_violation,
                     "episode_has_conflict_violation": self.episode_has_conflict_violation,
                 }
+            # Repair succeeded — don't set episode violation flags
             action = repaired
             was_repaired = True
             self.repairs += 1

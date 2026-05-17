@@ -208,12 +208,13 @@ class LagrangeEnv(gym.Env):
         if cap_violated:
             self.cap_violations += 1
             self.episode_has_cap_violation = True
+            self.episode_violations += 1
         if conflict_violated:
             self.conflict_violations += 1
             self.episode_has_conflict_violation = True
+            self.episode_violations += 1
         if not (cap_violated or conflict_violated):
             self.valid_placed += 1
-            self.episode_violations += 1
 
         done = self._step >= self.M
         match_gain     = float(ru)  # no capacity penalty since mask enforces it

@@ -2,9 +2,9 @@
 P4 Environment — RL WITH constraint enforcement via Action Masking.
 
 Key differences from P3:
-    - action_masks() masks ECUs with insufficient capacity (hard capacity constraint).
-    - Conflict violations are SOFT — recorded but not masked.
-    - If no valid ECU exists for the next service, the episode terminates early.
+    - action_masks() masks ECUs that violate EITHER capacity OR conflict constraints.
+    - If no ECU satisfies both, capacity-only fallback is used (conflict may still occur).
+    - If no valid ECU exists at all, the episode terminates early.
     - Multiple services may share an ECU (no uniqueness constraint).
 """
 
@@ -110,7 +110,14 @@ class P4Env(gym.Env):
         if self._step >= self.M:
             return np.zeros(self.N, dtype=bool)
         svc = self.services[self._step]
-        return (self.remaining_vms >= svc.requirement)
+        cap_ok  = self.remaining_vms >= svc.requirement
+        conf_ok = np.array([not self._has_conflict(j, self._step) for j in range(self.N)], dtype=bool)
+        mask = cap_ok & conf_ok
+        if not np.any(mask):
+            if np.any(cap_ok):
+                return cap_ok  # fallback: at least enforce capacity
+            return np.ones(self.N, dtype=bool)  # all infeasible
+        return mask
 
     # ── observation ──────────────────────────────────────────────────────────
     def _obs(self) -> np.ndarray:
@@ -131,14 +138,16 @@ class P4Env(gym.Env):
                 [float(self._has_conflict(j, self._step)) for j in range(self.N)],
                 dtype=np.float32,
             )
-            valid_flag = (self.remaining_vms >= svc.requirement).astype(np.float32)
+            valid_flag = np.array(
+                [(self.remaining_vms[j] >= svc.requirement) and (not self._has_conflict(j, self._step))
+                 for j in range(self.N)],
+                dtype=np.float32,
+            )
             remaining_service_demand_sum = np.float32(
                 sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
             )
             remaining_services_count   = np.float32((self.M - self._step) / max(self.M, 1))
-            remaining_usable_ecu_count = np.float32(
-                np.sum(self.remaining_vms >= svc.requirement) / max(self.N, 1)
-            )
+            remaining_usable_ecu_count = np.float32(np.sum(valid_flag) / max(self.N, 1))
 
         remaining_pct   = np.clip(self.remaining_vms, 0.0, None) / (self.initial_vms + 1e-8)
         initial_cap_pct = self.initial_vms / max_cap
@@ -190,7 +199,7 @@ class P4Env(gym.Env):
         else:
             self.valid_placed += 1
 
-        ru = svc.requirement / (self.initial_vms[action] + 1e-8)
+        ru = 0.0 if conflict_violated else svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
         self._total_ru += ru
@@ -211,7 +220,8 @@ class P4Env(gym.Env):
             unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
             terminal_bonus += -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
         if done:
-            terminal_bonus += self.ar if remaining_services == 0 else -self.ar
+            no_violation = (remaining_services == 0) and (not self.episode_has_conflict_violation)
+            terminal_bonus += self.ar if no_violation else -self.ar
 
         return self._obs(), float(match_gain + terminal_bonus), done, False, {
             "ar":                  self.ar,

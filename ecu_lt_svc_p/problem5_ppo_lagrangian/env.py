@@ -212,9 +212,9 @@ class LagrangeEnv(gym.Env):
         if conflict_violated:
             self.conflict_violations += 1
             self.episode_has_conflict_violation = True
+            self.episode_violations += 1
         if not (cap_violated or conflict_violated):
             self.valid_placed += 1
-            self.episode_violations += 1
 
         # Lagrangian penalty for conflict only; -2.0 for forced overflow (cap).
         # match_gain is always computed — conflict violation is penalized separately
