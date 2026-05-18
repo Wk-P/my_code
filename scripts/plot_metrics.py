@@ -44,36 +44,54 @@ SCENE_SHORT = ["LT", "EQ", "GT"]
 # P3 is excluded from all charts — its results are CSV-only (alongside ILP).
 # All figures use PROBLEM_ORDER which contains only the constrained methods.
 PROBLEM_ORDER = [
-    ("problem4_ppo_mask",       "Mask\n(P4)"),
-    ("problem5_ppo_lagrangian", "Lagrange\n(P5)"),
-    ("problem6_ppo_opt",        "Repair\n(P6)"),
+    ("problem4_ppo_mask",       "Maskable PPO"),
+    ("problem5_ppo_lagrangian", "Lagrangian PPO"),
+    ("problem6_ppo_opt",        "PPO & Optimal\nAlgorithm"),
     ("problem_dqn",             "DQN"),
     ("problem_ddqn",            "DDQN"),
 ]
 
 ILP_COLOR = "#d62728"
 
-# Per-method bar style
+# Per-method bar style (uniform for bar charts)
+BAR_COLOR = "#4878d0"
 METHOD_STYLES = {
-    "problem3_ppo":            {"color": "#d62728", "hatch": "////"},
-    "problem4_ppo_mask":       {"color": "#2ca02c", "hatch": None},
-    "problem5_ppo_lagrangian": {"color": "#1f77b4", "hatch": None},
-    "problem6_ppo_opt":        {"color": "#17becf", "hatch": None},
-    "problem_dqn":             {"color": "#ff7f0e", "hatch": "..."},
-    "problem_ddqn":            {"color": "#ff7f0e", "hatch": "xxx"},
+    "problem3_ppo":            {"color": BAR_COLOR, "hatch": None},
+    "problem4_ppo_mask":       {"color": BAR_COLOR, "hatch": None},
+    "problem5_ppo_lagrangian": {"color": BAR_COLOR, "hatch": None},
+    "problem6_ppo_opt":        {"color": BAR_COLOR, "hatch": None},
+    "problem_dqn":             {"color": BAR_COLOR, "hatch": None},
+    "problem_ddqn":            {"color": BAR_COLOR, "hatch": None},
+}
+
+# Per-method distinct colors for scatter plot
+SCATTER_COLORS = {
+    "problem4_ppo_mask":       "#2ca02c",
+    "problem5_ppo_lagrangian": "#1f77b4",
+    "problem6_ppo_opt":        "#17becf",
+    "problem_dqn":             "#ff7f0e",
+    "problem_ddqn":            "#9467bd",
 }
 
 LEGEND_HANDLES = [
-    mpatches.Patch(facecolor="#2ca02c", edgecolor="black",
-                   label="P4 — Hard mask (zero violations guaranteed)"),
-    mpatches.Patch(facecolor="#1f77b4", edgecolor="black",
-                   label="P5 — Lagrangian / soft constraint"),
-    mpatches.Patch(facecolor="#17becf", edgecolor="black",
-                   label="P6 — Repair heuristic"),
-    mpatches.Patch(facecolor="#ff7f0e", hatch="...", edgecolor="black",
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
+                   label="Maskable PPO"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
+                   label="Lagrangian PPO"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
+                   label="PPO & Optimal Algorithm"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
                    label="DQN"),
-    mpatches.Patch(facecolor="#ff7f0e", hatch="xxx", edgecolor="black",
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
                    label="DDQN"),
+]
+
+SCATTER_LEGEND_HANDLES = [
+    mpatches.Patch(facecolor=SCATTER_COLORS["problem4_ppo_mask"],       edgecolor="black", label="Maskable PPO"),
+    mpatches.Patch(facecolor=SCATTER_COLORS["problem5_ppo_lagrangian"], edgecolor="black", label="Lagrangian PPO"),
+    mpatches.Patch(facecolor=SCATTER_COLORS["problem6_ppo_opt"],        edgecolor="black", label="PPO & Optimal Algorithm"),
+    mpatches.Patch(facecolor=SCATTER_COLORS["problem_dqn"],             edgecolor="black", label="DQN"),
+    mpatches.Patch(facecolor=SCATTER_COLORS["problem_ddqn"],            edgecolor="black", label="DDQN"),
 ]
 
 
@@ -144,8 +162,7 @@ def plot_ar_comparison(data: dict):
     P3 is excluded — its results are available in aggregate_summary.csv only."""
     fig, axes = plt.subplots(1, 3, figsize=(14, 5.5))
     fig.suptitle(
-        "AR Comparison — Constrained Methods vs ILP Optimum\n"
-        "Violation count annotated above bar  (✗N = cap + conflict violations over 40 test episodes)",
+        "AR Comparison — Constrained Methods vs ILP Optimum",
         fontsize=12, fontweight="bold",
     )
 
@@ -183,8 +200,6 @@ def plot_ar_comparison(data: dict):
             style   = METHOD_STYLES.get(prob, {"color": "#1f77b4", "hatch": None})
             ar_true = v["ar"]
             ar_disp = min(ar_true, CLIP)
-            total_v = v["cap"] + v["conflict"]
-
             ax.bar(xs[i], ar_disp, width=w,
                    color=style["color"], hatch=style["hatch"],
                    edgecolor="black", linewidth=0.6)
@@ -193,14 +208,12 @@ def plot_ar_comparison(data: dict):
             ax.text(xs[i], label_y, f"{ar_true:.3f}",
                     ha="center", va="bottom", fontsize=8, fontweight="bold")
 
-            if total_v > 0:
-                ax.text(xs[i], label_y + YMAX * 0.055, f"✗{total_v:.0f}",
-                        ha="center", va="bottom", fontsize=8,
-                        color="#d62728", fontweight="bold")
+
 
         ax.set_ylim(0, YMAX)
         ax.set_xticks(xs)
-        ax.set_xticklabels([lbl for _, lbl in PROBLEM_ORDER], fontsize=9)
+        ax.set_xticklabels([lbl for _, lbl in PROBLEM_ORDER], fontsize=8.5, rotation=15, ha="right")
+        ax.set_xlabel("RL Models", fontsize=9)
         ax.set_title(scene_long, fontsize=9.5, fontweight="bold")
         ax.set_ylabel("Average Resource Utilization (AR)", fontsize=9)
         ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
@@ -255,16 +268,15 @@ def plot_violations(data: dict):
 
         ax.set_ylim(0, ymax_vis)
         ax.set_xticks(xs)
-        ax.set_xticklabels([lbl for _, lbl in PROBLEM_ORDER], fontsize=8.5)
+        ax.set_xticklabels([lbl for _, lbl in PROBLEM_ORDER], fontsize=8.5, rotation=15, ha="right")
+        ax.set_xlabel("RL Models", fontsize=9)
         ax.set_title(scene_long, fontsize=9.5, fontweight="bold")
         ax.set_ylabel("Total violations (40-episode test set)", fontsize=9)
         ax.grid(axis="y", linestyle="--", alpha=0.4)
         if col == 0:
             ax.legend(fontsize=8, loc="upper right")
 
-    fig.legend(handles=LEGEND_HANDLES, loc="lower center", ncol=5,
-               fontsize=8.5, bbox_to_anchor=(0.5, -0.06), framealpha=0.9)
-    plt.tight_layout(rect=[0, 0.06, 1, 0.90])
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
     save_fig(fig, "fig2_violations")
     plt.close()
 
@@ -317,18 +329,18 @@ def plot_tradeoff(data: dict):
 
         # plot each method
         for i, (prob, _label, v) in enumerate(methods):
-            style = METHOD_STYLES.get(prob, {"color": "#1f77b4", "hatch": None})
+            color = SCATTER_COLORS.get(prob, "#1f77b4")
             x, y  = xvals[i], yvals[i]
             lbl   = SHORT_LABELS.get(prob, "?")
 
-            ax.scatter([x], [y], s=110, color=style["color"],
+            ax.scatter([x], [y], s=110, color=color,
                        edgecolors="black", linewidth=0.6, zorder=5)
             # offset label to avoid overlap
             offset = (6, 5) if x < x_max * 0.7 else (-28, 5)
             ax.annotate(
                 lbl, (x, y),
                 textcoords="offset points", xytext=offset,
-                fontsize=9, fontweight="bold", color=style["color"],
+                fontsize=9, fontweight="bold", color=color,
             )
 
         ax.set_xlim(0, x_max)
@@ -350,7 +362,7 @@ def plot_tradeoff(data: dict):
         ax.text(FEASIBLE_THR * 1.1, y_lo + (y_hi - y_lo) * 0.04,
                 "infeasible\nzone", fontsize=7.5, color="#c0392b", alpha=0.8)
 
-    fig.legend(handles=LEGEND_HANDLES, loc="lower center", ncol=5,
+    fig.legend(handles=SCATTER_LEGEND_HANDLES, loc="lower center", ncol=5,
                fontsize=8.5, bbox_to_anchor=(0.5, -0.06), framealpha=0.9)
     plt.tight_layout(rect=[0, 0.06, 1, 0.90])
     save_fig(fig, "fig3_tradeoff_scatter")

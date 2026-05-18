@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-SEEDS=(1 2)
+SEEDS=(3 4)
 EXPERIMENT_GROUPS=(eq lt gt)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -22,5 +22,5 @@ done
 
 echo ""
 echo "All processes launched. Monitor with:"
-echo "  tail -f $LOG_DIR/eq_seed1.log"
+echo "  tail -f $LOG_DIR/*.log"
 echo "  grep 'All done\|train.*ep=' $LOG_DIR/*.log"
