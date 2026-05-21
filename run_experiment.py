@@ -23,7 +23,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime
 import functools
+import os
 import random
 import sys
 import time
@@ -379,7 +381,8 @@ def _switch_group(group: str):
 
 
 def run_one_seed(seed: int, scenarios: list, group: str,
-                 target_episodes: int, outdir_root: Path):
+                 target_episodes: int, outdir_root: Path,
+                 run_id: str = ""):
     # ── 0. set up sys.path for this group ────────────────────────────────────
     _switch_group(group)
 
@@ -487,6 +490,10 @@ def run_one_seed(seed: int, scenarios: list, group: str,
     _save_test_csv(all_eval, outdir)
     _save_agg_csv(agg_all, outdir)
 
+    # ── 6. stamp run_id so plot_metrics.py can group this batch ──────────────
+    if run_id:
+        (outdir / ".run_id").write_text(run_id + "\n")
+
     print(f"\n  Done seed={seed}. Outputs → {outdir}\n")
 
 
@@ -501,7 +508,16 @@ def main():
                         choices=["eq", "lt", "gt", "all"])
     parser.add_argument("--episodes", type=int, default=TARGET_EPISODES)
     parser.add_argument("--outdir",   type=str, default=None)
+    parser.add_argument("--run-id",   type=str, default=None,
+                        help="Shared experiment tag (timestamp_8hex). "
+                             "Auto-generated if omitted. Pass the same value "
+                             "to all parallel group launches via run_all_parallel.py.")
     args = parser.parse_args()
+
+    run_id = args.run_id or (
+        datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + os.urandom(4).hex()
+    )
+    print(f"  run_id: {run_id}")
 
     groups = list(GROUP_META.keys()) if args.group == "all" else [args.group]
 
@@ -516,6 +532,7 @@ def main():
                 group=group,
                 target_episodes=args.episodes,
                 outdir_root=outdir_root,
+                run_id=run_id,
             )
 
     print("All done.")
