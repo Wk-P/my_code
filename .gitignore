@@ -11,7 +11,7 @@ run_scripts/run_background.pid
 **/results/
 run_scripts/results_combined/
 figures/
-
+panel/
 *.log
 *.pid
 

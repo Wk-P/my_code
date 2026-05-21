@@ -65,7 +65,13 @@ def main():
         print(f"  [{group}] {status}")
 
     print(f"\nAll done. run_id={run_id}")
-    print("Run:  python scripts/plot_metrics.py  to generate figures.")
+
+    # Auto-generate figures
+    print("\nGenerating figures...")
+    plot_script = ROOT / "scripts" / "plot_metrics.py"
+    rc = subprocess.run([PYTHON, str(plot_script)]).returncode
+    if rc != 0:
+        print(f"  WARNING: plot_metrics.py exited with rc={rc}")
 
 
 if __name__ == "__main__":

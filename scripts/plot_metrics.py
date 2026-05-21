@@ -71,6 +71,7 @@ PROBLEM_ORDER = [
     ("problem6_ppo_opt",        "PPO & Optimal\nAlgorithm"),
     ("problem_dqn",             "DQN"),
     ("problem_ddqn",            "DDQN"),
+    ("problem7_ppo_seq",        "Seq PPO\n(P7)"),
 ]
 
 ILP_COLOR = "#d62728"
@@ -93,19 +94,16 @@ SCATTER_COLORS = {
     "problem6_ppo_opt":        "#17becf",
     "problem_dqn":             "#ff7f0e",
     "problem_ddqn":            "#9467bd",
+    "problem7_ppo_seq":        "#e377c2",
 }
 
 LEGEND_HANDLES = [
-    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
-                   label="Maskable PPO"),
-    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
-                   label="Lagrangian PPO"),
-    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
-                   label="PPO & Optimal Algorithm"),
-    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
-                   label="DQN"),
-    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black",
-                   label="DDQN"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black", label="Maskable PPO"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black", label="Lagrangian PPO"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black", label="PPO & Optimal Algorithm"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black", label="DQN"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black", label="DDQN"),
+    mpatches.Patch(facecolor=BAR_COLOR, edgecolor="black", label="Seq PPO (P7)"),
 ]
 
 SCATTER_LEGEND_HANDLES = [
@@ -114,6 +112,7 @@ SCATTER_LEGEND_HANDLES = [
     mpatches.Patch(facecolor=SCATTER_COLORS["problem6_ppo_opt"],        edgecolor="black", label="PPO & Optimal Algorithm"),
     mpatches.Patch(facecolor=SCATTER_COLORS["problem_dqn"],             edgecolor="black", label="DQN"),
     mpatches.Patch(facecolor=SCATTER_COLORS["problem_ddqn"],            edgecolor="black", label="DDQN"),
+    mpatches.Patch(facecolor=SCATTER_COLORS["problem7_ppo_seq"],        edgecolor="black", label="Seq PPO (P7)"),
 ]
 
 
@@ -255,7 +254,7 @@ def get_scenario(group: str, data: dict):
     return methods, ilp_ar, ilp_placed
 
 
-def save_fig(fig, stem: str, n_seeds: int = 0):
+def save_fig(fig, stem: str):
     assert _RUN_DIR is not None, "call set_run_dir() before save_fig()"
     _RUN_DIR.mkdir(parents=True, exist_ok=True)
     for ext in ("pdf", "png"):
@@ -266,10 +265,9 @@ def save_fig(fig, stem: str, n_seeds: int = 0):
 
 # ── Figure 1: AR comparison (constrained methods only) ───────────────────────
 
-def plot_ar_comparison(data: dict, n_seeds: int = 0, success_rates: dict | None = None):
+def plot_ar_comparison(data: dict):
     """AR comparison for constrained methods P4/P5/P6/DQN/DDQN.
-    P3 is excluded — its results are available in aggregate_summary.csv only.
-    success_rates: {group_short: {prob_key: rate}} for annotations."""
+    P3 is excluded — its results are available in aggregate_summary.csv only."""
     fig, axes = plt.subplots(1, 3, figsize=(14, 5.5))
     fig.suptitle(
         "AR Comparison — Constrained Methods vs ILP Optimum",
@@ -316,14 +314,8 @@ def plot_ar_comparison(data: dict, n_seeds: int = 0, success_rates: dict | None 
                    edgecolor="black", linewidth=0.6)
 
             label_y = ar_disp + YMAX * 0.01
-            ax.text(xs[i], label_y + 0.032, f"{ar_true:.3f}",
+            ax.text(xs[i], label_y, f"{ar_true:.3f}",
                     ha="center", va="bottom", fontsize=8, fontweight="bold")
-            # Show success rate (zero-violation full placement) from latest seeds
-            if success_rates and group_short in success_rates:
-                rate = success_rates[group_short].get(prob)
-                if rate is not None:
-                    ax.text(xs[i], label_y, f"{rate:.0%}",
-                            ha="center", va="bottom", fontsize=7, color="#555555")
 
 
 
@@ -339,13 +331,13 @@ def plot_ar_comparison(data: dict, n_seeds: int = 0, success_rates: dict | None 
     fig.legend(handles=LEGEND_HANDLES, loc="lower center", ncol=5,
                fontsize=8.5, bbox_to_anchor=(0.5, -0.06), framealpha=0.9)
     plt.tight_layout(rect=[0, 0.06, 1, 0.92])
-    save_fig(fig, "fig1_ar_comparison", n_seeds)
+    save_fig(fig, "fig1_ar_comparison")
     plt.close()
 
 
 # ── Figure 2: Violations ──────────────────────────────────────────────────────
 
-def plot_violations(data: dict, n_seeds: int = 0):
+def plot_violations(data: dict):
     """Stacked violation bars for constrained methods (P3 excluded — CSV only)."""
     fig, axes = plt.subplots(1, 3, figsize=(14, 5.5))
     fig.suptitle(
@@ -400,13 +392,13 @@ def plot_violations(data: dict, n_seeds: int = 0):
             ax.legend(fontsize=8, loc="upper right")
 
     plt.tight_layout(rect=[0, 0, 1, 0.92])
-    save_fig(fig, "fig2_violations", n_seeds)
+    save_fig(fig, "fig2_violations")
     plt.close()
 
 
 # ── Figure 3: Safety–Performance Tradeoff ────────────────────────────────────
 
-def plot_tradeoff(data: dict, n_seeds: int = 0):
+def plot_tradeoff(data: dict):
     fig, axes = plt.subplots(1, 3, figsize=(16, 5.5))
     fig.suptitle(
         "Safety–Performance Frontier:  AR (% of ILP)  vs  Violations per Episode\n"
@@ -488,7 +480,7 @@ def plot_tradeoff(data: dict, n_seeds: int = 0):
     fig.legend(handles=SCATTER_LEGEND_HANDLES, loc="lower center", ncol=5,
                fontsize=8.5, bbox_to_anchor=(0.5, -0.06), framealpha=0.9)
     plt.tight_layout(rect=[0, 0.06, 1, 0.90])
-    save_fig(fig, "fig3_tradeoff_scatter", n_seeds)
+    save_fig(fig, "fig3_tradeoff_scatter")
     plt.close()
 
 
@@ -501,6 +493,7 @@ _MODEL_MAP = {
     "P6_RepairPPO": ("problem6_ppo_opt",           "PPO & Optimal\nAlgorithm"),
     "DQN":          ("problem_dqn",                "DQN"),
     "DDQN":         ("problem_ddqn",               "DDQN"),
+    "P7_SeqPPO":    ("problem7_ppo_seq",           "Seq PPO (P7)"),
 }
 
 _FIG4_GROUPS = [
@@ -515,6 +508,7 @@ _LINE_COLORS = {
     "problem6_ppo_opt":        SCATTER_COLORS["problem6_ppo_opt"],
     "problem_dqn":             SCATTER_COLORS["problem_dqn"],
     "problem_ddqn":            SCATTER_COLORS["problem_ddqn"],
+    "problem7_ppo_seq":        SCATTER_COLORS["problem7_ppo_seq"],
 }
 
 
@@ -554,7 +548,7 @@ def _load_placed_per_scenario() -> dict:
     return result
 
 
-def plot_full_placement(n_seeds: int = 0):
+def plot_full_placement():
     """Bar chart: overall full valid placement rate per method per group.
     Uses only the most recent training batch; ILP reference from actual cache feasibility."""
     placed_data = _load_placed_per_scenario()
@@ -618,28 +612,43 @@ def plot_full_placement(n_seeds: int = 0):
             ax.legend(fontsize=8, loc="upper right", framealpha=0.9)
 
     plt.tight_layout(rect=[0, 0, 1, 0.91])
-    save_fig(fig, "fig4_full_placement", n_seeds)
+    save_fig(fig, "fig4_full_placement")
     plt.close()
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
+def _collect_training_curves():
+    """Copy training_curve.png from latest seed dirs into _RUN_DIR/training_curves/."""
+    import shutil
+    assert _RUN_DIR is not None
+    out_dir = _RUN_DIR / "training_curves"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for group_short, _ in _FIG4_GROUPS:
+        group_dir = RESULTS_ROOT / group_short
+        if not group_dir.exists():
+            continue
+        for seed_dir in _latest_seed_dirs(group_dir):
+            src = seed_dir / "training_curve.png"
+            if src.exists():
+                dst = out_dir / f"{group_short}_{seed_dir.name}_training_curve.png"
+                shutil.copy2(src, dst)
+                print(f"Copied: {dst.name}")
+
+
 def main():
     global _RUN_DIR
-    data = load_csv(CSV_PATH)
-    n_seeds = 0
-    with open(CSV_PATH, newline="") as f:
-        first_row = next(csv.DictReader(f))
-        n_seeds = int(first_row.get("n_seeds", 0))
+    import os
+    data     = load_csv(CSV_PATH)
+    dt       = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    tag      = os.urandom(4).hex()
+    _RUN_DIR = FIGURES_ROOT / f"{dt}_{tag}"
 
-    dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    _RUN_DIR = FIGURES_ROOT / f"{dt}_{n_seeds}seeds"
-
-    success_rates = _load_success_rates()
-    plot_ar_comparison(data, n_seeds, success_rates=success_rates)
-    plot_violations(data, n_seeds)
-    plot_tradeoff(data, n_seeds)
-    plot_full_placement(n_seeds)
+    plot_ar_comparison(data)
+    plot_violations(data)
+    plot_tradeoff(data)
+    plot_full_placement()
+    _collect_training_curves()
 
 
 if __name__ == "__main__":

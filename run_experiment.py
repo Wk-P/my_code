@@ -73,7 +73,8 @@ def _import_group_modules():
     from problem_dqn.env                import DQNEnv
     from problem_ddqn.env               import DDQNEnv
     from problem_ddqn.run_all           import DDQN
-    return ECU, SVC, P3Env, P4Env, LagrangeEnv, P6Env, DQNEnv, DDQNEnv, DDQN
+    from problem7_ppo_seq.env           import P7Env
+    return ECU, SVC, P3Env, P4Env, LagrangeEnv, P6Env, DQNEnv, DDQNEnv, DDQN, P7Env
 
 
 def _import_experiment_modules():
@@ -206,6 +207,43 @@ def train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
     model.learn(total_timesteps=_MAX_TIMESTEPS, callback=ep_cb)
     vec.close()
     print(f"  [P4 MaskPPO] done  {time.time()-t0:.1f}s | {ep_cb.episode_count:,} eps")
+    return model, ep_cb
+
+
+def _make_p7_env(P7Env, ECU, SVC, seed_i, train_scenarios):
+    from stable_baselines3.common.monitor import Monitor
+    from sb3_contrib.common.wrappers import ActionMasker
+    random.seed(seed_i)
+    caps, reqs, _ = train_scenarios[0]
+    ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
+    svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
+    env  = P7Env(ecus, svcs, scenarios=train_scenarios)
+    env  = ActionMasker(env, lambda e: e.action_masks())
+    return Monitor(env)
+
+
+def train_p7(ECU, SVC, P7Env, EpisodeTrackingCallback,
+             train_scenarios, seed, device, target_episodes):
+    from sb3_contrib import MaskablePPO
+    from stable_baselines3.common.vec_env import DummyVecEnv
+    print("  [P7 SeqPPO] training …")
+    t0 = time.time()
+    torch.set_num_threads(TORCH_THREADS)
+    ep_cb = EpisodeTrackingCallback(target_episodes)
+    vec   = DummyVecEnv([
+        functools.partial(_make_p7_env, P7Env, ECU, SVC, seed + i, train_scenarios)
+        for i in range(40)
+    ])
+    # Larger network to handle bigger action space (M×N)
+    model = MaskablePPO(
+        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=256,
+        batch_size=128, n_epochs=10, gamma=0.999, gae_lambda=0.95,
+        clip_range=0.2, policy_kwargs=dict(net_arch=[256, 256, 128]),
+        device=device, verbose=0, seed=seed,
+    )
+    model.learn(total_timesteps=_MAX_TIMESTEPS, callback=ep_cb)
+    vec.close()
+    print(f"  [P7 SeqPPO] done  {time.time()-t0:.1f}s | {ep_cb.episode_count:,} eps")
     return model, ep_cb
 
 
@@ -352,7 +390,7 @@ def _save_agg_csv(agg: dict, outdir: Path):
 #  main experiment runner (one seed)
 # ══════════════════════════════════════════════════════════════════════════════
 
-MODELS_ORDERED = ["P3_PPO", "P4_MaskPPO", "P5_LagPPO", "P6_RepairPPO", "DQN", "DDQN"]
+MODELS_ORDERED = ["P3_PPO", "P4_MaskPPO", "P5_LagPPO", "P6_RepairPPO", "DQN", "DDQN", "P7_SeqPPO"]
 
 
 _GROUP_MODULES = [
@@ -363,6 +401,7 @@ _GROUP_MODULES = [
     "problem6_ppo_opt", "problem6_ppo_opt.env",
     "problem_dqn", "problem_dqn.env",
     "problem_ddqn", "problem_ddqn.env", "problem_ddqn.run_all",
+    "problem7_ppo_seq", "problem7_ppo_seq.env",
 ]
 
 
@@ -387,7 +426,7 @@ def run_one_seed(seed: int, scenarios: list, group: str,
     _switch_group(group)
 
     (ECU, SVC, P3Env, P4Env, LagrangeEnv,
-     P6Env, DQNEnv, DDQNEnv, DDQN) = _import_group_modules()
+     P6Env, DQNEnv, DDQNEnv, DDQN, P7Env) = _import_group_modules()
 
     (EpisodeTrackingCallback, LagrangianUpdateCallback,
      evaluate_model, aggregate_eval,
@@ -443,6 +482,10 @@ def run_one_seed(seed: int, scenarios: list, group: str,
                            train_scenarios, seed, device, target_episodes)
     _record("DDQN", model, cb)
 
+    model, cb = train_p7(ECU, SVC, P7Env, EpisodeTrackingCallback,
+                         train_scenarios, seed, device, target_episodes)
+    _record("P7_SeqPPO", model, cb)
+
     # ── 3. training curve ─────────────────────────────────────────────────────
     print("\n  Plotting training curves …")
     plot_training_curves(training_data, outdir, seed=seed)
@@ -467,6 +510,7 @@ def run_one_seed(seed: int, scenarios: list, group: str,
         "P6_RepairPPO": (P6Env,       _ppo_fn,  False, {}),
         "DQN":          (DQNEnv,      _ppo_fn,  False, {}),
         "DDQN":         (DDQNEnv,     _ppo_fn,  False, {}),
+        "P7_SeqPPO":    (P7Env,       _mask_fn, True,  {}),
     }
 
     for name in MODELS_ORDERED:
