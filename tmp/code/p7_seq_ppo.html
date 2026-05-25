@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P7 — PPO Joint SVC+ECU Selection | Code Walkthrough</title>
+<style>
+:root {
+  --primary: #7c3aed; --accent: #a78bfa; --bg: #0f0f1a; --card: #1a1a2e;
+  --border: #2d2d4e; --text: #e2e8f0; --muted: #94a3b8;
+  --green: #4ade80; --yellow: #facc15; --red: #f87171; --blue: #60a5fa;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px; line-height: 1.7;
+  padding: 0 0 60px 0;
+}
+header {
+  background: linear-gradient(135deg, #0a1a3e 0%, #0f0f1a 100%);
+  border-bottom: 2px solid var(--blue);
+  padding: 36px 40px 28px;
+}
+header .badge {
+  display: inline-block;
+  background: #1e3a5f; color: var(--blue);
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+  padding: 3px 10px; border-radius: 4px; margin-bottom: 14px;
+  text-transform: uppercase;
+}
+header h1 { font-size: 2rem; font-weight: 800; color: var(--blue); margin-bottom: 6px; }
+header p { color: var(--muted); font-size: 0.95rem; }
+.container { max-width: 1000px; margin: 0 auto; padding: 0 32px; }
+.section {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; margin-top: 32px; overflow: hidden;
+}
+.section-header {
+  background: linear-gradient(90deg, #0d1f40 0%, var(--card) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 24px;
+  display: flex; align-items: center; gap: 14px;
+}
+.section-num {
+  background: #1e3a5f; color: var(--blue);
+  font-size: 13px; font-weight: 800;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; border: 2px solid var(--blue);
+}
+.section-header h2 { font-size: 1.15rem; font-weight: 700; color: var(--blue); }
+.section-header .sub { font-size: 0.82rem; color: var(--muted); margin-top: 1px; }
+.section-body { padding: 22px 24px; }
+pre {
+  background: #0a0a18; border: 1px solid var(--border);
+  border-radius: 8px; padding: 18px 20px;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px; line-height: 1.8; overflow-x: auto;
+  margin: 14px 0;
+}
+.kw  { color: #f472b6; font-weight: 600; }
+.fn  { color: #60a5fa; }
+.cm  { color: #6b7280; font-style: italic; }
+.nm  { color: #4ade80; }
+.st  { color: #facc15; }
+.num { color: #fb923c; }
+
+.explain-box {
+  background: #13132a; border-left: 4px solid var(--blue);
+  border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 14px 0;
+}
+.explain-box.green { border-left-color: var(--green); }
+.explain-box.yellow { border-left-color: var(--yellow); }
+.explain-box.red { border-left-color: var(--red); }
+.explain-box.purple { border-left-color: var(--accent); }
+.explain-box h4 { color: var(--blue); font-size: 0.88rem; font-weight: 700;
+  margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px; }
+.explain-box.green h4 { color: var(--green); }
+.explain-box.yellow h4 { color: var(--yellow); }
+.explain-box.red h4 { color: var(--red); }
+.explain-box.purple h4 { color: var(--accent); }
+
+.obs-table {
+  width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px;
+}
+.obs-table th {
+  background: #0d1f40; color: var(--blue);
+  padding: 8px 12px; text-align: left; border: 1px solid var(--border);
+  font-size: 12px; letter-spacing: 0.5px;
+}
+.obs-table td {
+  padding: 8px 12px; border: 1px solid var(--border);
+  vertical-align: top;
+}
+.obs-table tr:nth-child(even) td { background: #13132a; }
+
+.tag {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 4px; margin-right: 4px;
+}
+.tag-green { background: #14532d; color: var(--green); }
+.tag-yellow { background: #713f12; color: var(--yellow); }
+.tag-red { background: #7f1d1d; color: var(--red); }
+.tag-blue { background: #1e3a5f; color: var(--blue); }
+.tag-purple { background: #2e1065; color: var(--accent); }
+
+p { margin: 8px 0; }
+ul { padding-left: 22px; margin: 8px 0; }
+li { margin: 4px 0; }
+
+.grid-vis {
+  background: #0a0a18; border: 1px solid var(--border);
+  border-radius: 8px; padding: 18px 20px; margin: 14px 0;
+  font-family: 'Fira Code', monospace; font-size: 12px; line-height: 1.9;
+}
+.reward-row {
+  display: flex; gap: 12px; margin: 14px 0; flex-wrap: wrap;
+}
+.reward-card {
+  flex: 1; min-width: 180px;
+  background: #0a0a18; border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+  text-align: center;
+}
+.reward-card .rval {
+  font-size: 1.4rem; font-weight: 800; margin-bottom: 4px;
+}
+.reward-card .rlabel { font-size: 11px; color: var(--muted); }
+
+.dim-box {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #0d1f40; border: 1px solid var(--blue);
+  border-radius: 6px; padding: 6px 14px;
+  font-family: 'Fira Code', monospace; font-size: 13px;
+  margin: 6px 4px;
+}
+
+footer {
+  margin-top: 48px; border-top: 1px solid var(--border);
+  padding: 24px 40px; color: var(--muted); font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="badge">P7 — Code Walkthrough</div>
+    <h1>PPO Joint SVC-selection + ECU-assignment</h1>
+    <p>
+      Source: <code>ecu_lt_svc_p/problem7_ppo_seq/env.py</code> &nbsp;|&nbsp;
+      Audience: High school level &nbsp;|&nbsp; 双语 Chinese + English
+    </p>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════════════════ SECTION 1 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">1</div>
+    <div>
+      <h2>设计思想 / Design Philosophy (Lines 1–17)</h2>
+      <div class="sub">P7 的独特特性 — P7's unique feature: joint action space</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <pre><span class="cm">"""
+P7 Environment — Joint SVC-selection + ECU-assignment (Sequence-to-Sequence ordering).
+
+Unlike P4 which processes SVCs in a fixed sorted order, P7 lets the agent freely
+choose WHICH SVC to place at each step AND which ECU to assign it to.
+This avoids greedy dead-ends by learning optimal placement ordering.
+
+Action space : Discrete(M × N)
+    action = svc_idx * N + ecu_idx
+    svc_idx : which unplaced SVC to assign  (0..M-1)
+    ecu_idx : which ECU to assign it to     (0..N-1)
+
+Observation (shape 4 + 4N + 3M):
+    Global  (4)   : AR, remaining_cap/total_cap, remaining_demand/total_cap, frac_svcs_remaining
+    Per-ECU (4N)  : init_cap/max_cap, rem_cap/max_cap, ecu_allowed_frac, svcs_on_ecu/M
+    Per-SVC (3M)  : req/max_cap, placed_flag, n_valid_ecus/N
+"""</span></pre>
+
+    <div class="explain-box">
+      <h4>中文解读 — P7 的核心差异</h4>
+      <p>P4 到 P6 都是"固定顺序"——服务按需求降序排列，AI 只需要<strong>每步选哪个 ECU</strong>。</p>
+      <p>P7 的革命性改变：AI 每步要同时决定<strong>两件事</strong>：</p>
+      <ul>
+        <li>选哪个 <strong>服务（SVC）</strong> 来部署（0 到 M-1）</li>
+        <li>把它分配到哪个 <strong>ECU</strong>（0 到 N-1）</li>
+      </ul>
+      <p>这两个选择被编码成一个数字：<code>action = svc_idx × N + ecu_idx</code></p>
+      <p>动作空间大小 = M × N（例如 M=15, N=10 → <strong>150 个可能动作</strong>）</p>
+    </div>
+
+    <div class="explain-box purple">
+      <h4>为什么要让 AI 决定顺序? / Why let AI choose order?</h4>
+      <p>固定排序（P4/P6）的问题："需求量大→先放"的贪心策略有时会导致死局。例如：如果大服务 A 和大服务 B 只能共用同一个 ECU，先放 A 就导致 B 无路可放。</p>
+      <p>P7 的设想：让 AI 学会最优的放置顺序，避免贪心策略带来的死局。理论上 P7 可以找到比 P4 更优的解。</p>
+      <p>The fixed greedy order in P4 can create "dead-ends." P7 hopes the agent learns smarter orderings — for instance, placing a constrained service first before resources are consumed.</p>
+    </div>
+
+    <div class="explain-box red">
+      <h4>代价 / The Cost</h4>
+      <p>P7 的动作空间是 P4 的 <strong>M 倍大</strong>（150 vs 10 for typical settings）。更大的搜索空间 → 更难学习，尤其是在 5M 步有限训练预算下。实验中 P7 往往在 LT 测试场景下表现欠佳。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 2 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">2</div>
+    <div>
+      <h2><code>__init__</code> — 初始化 / Initialization</h2>
+      <div class="sub">联合动作空间的定义 — defining the joint action space</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <pre><span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, ecus: <span class="fn">list</span>[ECU], services: <span class="fn">list</span>[SVC], scenarios=<span class="kw">None</span>):
+    <span class="nm">super</span>().__init__()
+    <span class="nm">self</span>.N = <span class="fn">len</span>(ecus)         <span class="cm"># 10 ECUs</span>
+    <span class="nm">self</span>.M = <span class="fn">len</span>(services)     <span class="cm"># 15 services</span>
+
+    <span class="cm"># ── 联合动作空间 / Joint action space ──</span>
+    <span class="nm">self</span>.action_space = gym.spaces.<span class="fn">Discrete</span>(<span class="nm">self</span>.M * <span class="nm">self</span>.N)
+    <span class="cm"># P4: Discrete(N=10)     → 10 possible actions per step</span>
+    <span class="cm"># P7: Discrete(M×N=150)  → 150 possible actions per step (15x larger!)</span>
+
+    <span class="cm"># ── 观测空间 / Observation space ──</span>
+    <span class="nm">self</span>.observation_space = gym.spaces.<span class="fn">Box</span>(
+        low=<span class="num">-1.0</span>, high=<span class="num">1.0</span>,
+        shape=(<span class="num">4</span> + <span class="num">4</span> * <span class="nm">self</span>.N + <span class="num">3</span> * <span class="nm">self</span>.M,),  <span class="cm"># = 4 + 40 + 45 = 89 dims</span>
+        dtype=np.float32,
+    )
+
+    <span class="nm">self</span>.initial_vms = np.<span class="fn">array</span>([e.capacity <span class="kw">for</span> e <span class="kw">in</span> ecus], dtype=np.float32)
+    <span class="nm">self</span>.<span class="fn">reset</span>()</pre>
+
+    <div class="explain-box">
+      <h4>中文解读 — 动作空间编码</h4>
+      <p>动作 <code>action</code> 是一个 0 到 M×N-1 之间的整数，解码方式：</p>
+      <ul>
+        <li><code>svc_idx = action // N</code>：整除 N → 取商 = 服务编号</li>
+        <li><code>ecu_idx = action % N</code>：取余数 = ECU 编号</li>
+      </ul>
+      <p>例如 M=15, N=10，action=37 → svc_idx=3, ecu_idx=7（"把服务3部署到ECU7"）</p>
+    </div>
+
+    <div class="grid-vis">
+      <div style="color:var(--blue); font-weight:700; margin-bottom:8px;">Action Space Grid (M=15, N=10, total=150)</div>
+      <span style="color:var(--muted)">          ECU0  ECU1  ECU2  ECU3  ECU4  ECU5  ECU6  ECU7  ECU8  ECU9</span><br>
+      <span style="color:var(--green)">SVC0  →  [  0]  [  1]  [  2]  [  3]  [  4]  [  5]  [  6]  [  7]  [  8]  [  9]</span><br>
+      <span style="color:var(--green)">SVC1  →  [ 10]  [ 11]  [ 12]  [ 13]  [ 14]  [ 15]  [ 16]  [ 17]  [ 18]  [ 19]</span><br>
+      <span style="color:var(--green)">SVC2  →  [ 20]  [ 21]  [ 22]  ...                                         [ 29]</span><br>
+      <span style="color:var(--muted)">SVC3  →  [ 30]  [ 31]  ...                                               [ 39]</span><br>
+      <span style="color:var(--yellow)">SVC3 → ECU7: action = 3 × 10 + 7 = <strong style="color:var(--yellow)">37</strong></span><br>
+      <span style="color:var(--muted)">...   →  ...</span><br>
+      <span style="color:var(--red)">SVC14 →  [140]  [141]  ...                                              [149]</span>
+    </div>
+
+    <div class="explain-box purple">
+      <h4>观测向量维度分解 / Obs Dimension Breakdown (M=15, N=10)</h4>
+      <p>
+        <span class="dim-box" style="border-color:var(--accent)">4 global</span>
+        <span style="color:var(--muted)">+</span>
+        <span class="dim-box">4 × N = 40</span>
+        <span style="color:var(--muted)">+</span>
+        <span class="dim-box" style="border-color:var(--green)">3 × M = 45</span>
+        <span style="color:var(--muted)">=</span>
+        <span class="dim-box" style="border-color:var(--yellow)">89 total</span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 3 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">3</div>
+    <div>
+      <h2><code>action_masks()</code> — 动态掩码 / Dynamic Action Mask</h2>
+      <div class="sub">M×N 位掩码，精确屏蔽无效的 (SVC, ECU) 组合</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <pre><span class="kw">def</span> <span class="fn">action_masks</span>(<span class="nm">self</span>) -> np.ndarray:
+    mask = np.<span class="fn">zeros</span>(<span class="nm">self</span>.M * <span class="nm">self</span>.N, dtype=<span class="fn">bool</span>)
+    <span class="cm"># mask[i*N + j] corresponds to: "place SVC i on ECU j"</span>
+    has_valid = <span class="kw">False</span>
+
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.M):                          <span class="cm"># iterate over all SVCs</span>
+        <span class="kw">if</span> <span class="nm">self</span>.placed[i]:
+            <span class="kw">continue</span>                                    <span class="cm"># skip already-placed SVCs</span>
+        svc_req = <span class="nm">self</span>.services[i].requirement
+        <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N):                        <span class="cm"># iterate over all ECUs</span>
+            <span class="kw">if</span> (<span class="nm">self</span>.remaining_vms[j] >= svc_req)       <span class="cm"># capacity check</span>
+            <span class="kw">and</span> (<span class="kw">not</span> <span class="nm">self</span>.<span class="fn">_has_conflict</span>(j, i)):        <span class="cm"># conflict check</span>
+                mask[i * <span class="nm">self</span>.N + j] = <span class="kw">True</span>
+                has_valid = <span class="kw">True</span>
+
+    <span class="kw">if</span> has_valid:
+        <span class="kw">return</span> mask
+
+    <span class="cm"># ── Fallback: no valid (SVC, ECU) pair exists ──</span>
+    <span class="cm"># Force each remaining SVC to the ECU with most capacity</span>
+    best_j = <span class="fn">int</span>(np.<span class="fn">argmax</span>(<span class="nm">self</span>.remaining_vms))
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.M):
+        <span class="kw">if not</span> <span class="nm">self</span>.placed[i]:
+            mask[i * <span class="nm">self</span>.N + best_j] = <span class="kw">True</span>
+    <span class="kw">return</span> mask</pre>
+
+    <div class="explain-box">
+      <h4>中文解读</h4>
+      <p>掩码数组有 M×N 位（例如 150 位）。每一位对应一个 (SVC, ECU) 组合：</p>
+      <ul>
+        <li><code>mask[i × N + j] = True</code>：允许把服务 i 放到 ECU j</li>
+        <li><code>mask[i × N + j] = False</code>：禁止这个组合（已放置/容量不足/有冲突）</li>
+      </ul>
+      <p>三种情况会让 mask 位为 False：</p>
+      <ol>
+        <li><code>self.placed[i] == True</code>：服务 i 已经部署过了</li>
+        <li><code>remaining_vms[j] &lt; svc_req</code>：ECU j 的剩余容量不够</li>
+        <li><code>_has_conflict(j, i) == True</code>：ECU j 不允许放服务 i（冲突约束）</li>
+      </ol>
+    </div>
+
+    <div class="explain-box yellow">
+      <h4>Fallback 兜底机制 / Fallback Mechanism</h4>
+      <p>如果遍历完所有 (SVC, ECU) 组合后 <code>has_valid == False</code>（没有任何合法动作），那么：</p>
+      <ul>
+        <li>找出剩余容量最多的 ECU（<code>np.argmax(remaining_vms)</code>）</li>
+        <li>让每个未部署的服务都可以选这个 ECU（即使可能违规）</li>
+        <li>这样保证掩码至少有一位为 True，让训练不会卡住</li>
+      </ul>
+      <p>这是"软强制"兜底——步入绝境时至少让 AI 做点什么，而不是抛出错误。</p>
+    </div>
+
+    <div class="grid-vis">
+      <div style="color:var(--blue); font-weight:700; margin-bottom:8px;">Mask Example (M=4 SVCs, N=3 ECUs, 12 bits total)</div>
+      <span style="color:var(--muted)">              ECU0    ECU1    ECU2</span><br>
+      <span style="color:var(--muted)">SVC0 (placed) → </span><span style="color:var(--red)">[False] [False] [False]</span><span style="color:var(--muted)">  ← already placed, all blocked</span><br>
+      <span style="color:var(--muted)">SVC1          → </span><span style="color:var(--green)">[True]</span><span style="color:var(--red)">  [False]</span><span style="color:var(--green)"> [True] </span><span style="color:var(--muted)"> ← ECU1 has no capacity</span><br>
+      <span style="color:var(--muted)">SVC2          → </span><span style="color:var(--red)">[False]</span><span style="color:var(--green)"> [True]</span><span style="color:var(--red)">  [False]</span><span style="color:var(--muted)"> ← ECU0,ECU2 conflict</span><br>
+      <span style="color:var(--muted)">SVC3          → </span><span style="color:var(--green)">[True]</span><span style="color:var(--green)">  [True]</span><span style="color:var(--green)">  [True] </span><span style="color:var(--muted)"> ← all valid</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 4 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">4</div>
+    <div>
+      <h2><code>_obs()</code> — 三组观测特征 / Three Feature Groups</h2>
+      <div class="sub">4 + 4N + 3M 维观测向量的构建</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <pre><span class="kw">def</span> <span class="fn">_obs</span>(<span class="nm">self</span>) -> np.ndarray:
+    max_cap   = <span class="fn">float</span>(np.<span class="fn">max</span>(<span class="nm">self</span>.initial_vms) + <span class="num">1e-8</span>)
+    total_cap = <span class="fn">float</span>(np.<span class="fn">sum</span>(<span class="nm">self</span>.initial_vms) + <span class="num">1e-8</span>)
+
+    <span class="cm"># ──── Group 1: Global features (4 values) ────────────────────────</span>
+    remaining_cap_sum = <span class="fn">float</span>(np.<span class="fn">sum</span>(np.<span class="fn">clip</span>(<span class="nm">self</span>.remaining_vms, <span class="num">0</span>, <span class="kw">None</span>))) / total_cap
+    remaining_dem_sum = <span class="fn">float</span>(
+        <span class="fn">sum</span>(<span class="nm">self</span>.services[i].requirement <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.M) <span class="kw">if not</span> <span class="nm">self</span>.placed[i])
+    ) / total_cap
+    frac_remaining = <span class="fn">float</span>(np.<span class="fn">sum</span>(~<span class="nm">self</span>.placed)) / <span class="fn">max</span>(<span class="nm">self</span>.M, <span class="num">1</span>)
+    <span class="cm"># → [self.ar, remaining_cap_sum, remaining_dem_sum, frac_remaining]</span>
+
+    <span class="cm"># ──── Group 2: Per-ECU features (4N values) ──────────────────────</span>
+    init_cap_frac    = <span class="nm">self</span>.initial_vms / max_cap        <span class="cm"># 初始容量占比</span>
+    rem_cap_frac     = np.<span class="fn">clip</span>(<span class="nm">self</span>.remaining_vms, -max_cap, max_cap) / max_cap  <span class="cm"># 剩余容量占比</span>
+    ecu_allowed_frac = np.<span class="fn">array</span>(
+        [<span class="fn">len</span>(<span class="nm">self</span>.ecu_allowed[j]) / <span class="nm">self</span>.M <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)], dtype=np.float32
+    )  <span class="cm"># 该 ECU 还能放多少服务（比例）</span>
+    svcs_on_ecu_frac = np.<span class="fn">array</span>(
+        [<span class="fn">len</span>(<span class="nm">self</span>.ecu_placements[j]) / <span class="nm">self</span>.M <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)], dtype=np.float32
+    )  <span class="cm"># 已放了多少服务在该 ECU 上（比例）</span>
+
+    <span class="cm"># ──── Group 3: Per-SVC features (3M values) ──────────────────────</span>
+    req_norm    = np.<span class="fn">array</span>([s.requirement / max_cap <span class="kw">for</span> s <span class="kw">in</span> <span class="nm">self</span>.services], dtype=np.float32)
+    placed_flag = <span class="nm">self</span>.placed.<span class="fn">astype</span>(np.float32)           <span class="cm"># 0.0 or 1.0</span>
+    valid_ecus_frac = np.<span class="fn">array</span>([
+        (<span class="fn">sum</span>(<span class="num">1</span> <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)
+             <span class="kw">if</span> (<span class="nm">self</span>.remaining_vms[j] >= <span class="nm">self</span>.services[i].requirement)
+             <span class="kw">and</span> (<span class="kw">not</span> <span class="nm">self</span>.<span class="fn">_has_conflict</span>(j, i))
+        ) / <span class="nm">self</span>.N) <span class="kw">if not</span> <span class="nm">self</span>.placed[i] <span class="kw">else</span> <span class="num">0.0</span>
+        <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.M)
+    ], dtype=np.float32)  <span class="cm"># 该服务有多少个合法 ECU 可选（比例）</span>
+
+    <span class="kw">return</span> np.<span class="fn">concatenate</span>([
+        [<span class="nm">self</span>.ar, remaining_cap_sum, remaining_dem_sum, frac_remaining],  <span class="cm"># 4</span>
+        init_cap_frac, rem_cap_frac, ecu_allowed_frac, svcs_on_ecu_frac,  <span class="cm"># 4N</span>
+        req_norm, placed_flag, valid_ecus_frac,                            <span class="cm"># 3M</span>
+    ]).astype(np.float32)</pre>
+
+    <table class="obs-table">
+      <thead>
+        <tr>
+          <th>特征组 / Group</th>
+          <th>维度 / Dims</th>
+          <th>特征名称</th>
+          <th>含义 / Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td rowspan="4"><strong>Global</strong><br><span class="tag tag-purple">4</span></td>
+          <td>[0]</td>
+          <td><code>ar</code></td>
+          <td>当前平均利用率 / current AR</td>
+        </tr>
+        <tr>
+          <td>[1]</td>
+          <td><code>remaining_cap_sum</code></td>
+          <td>剩余 ECU 容量之和 / total remaining ECU capacity</td>
+        </tr>
+        <tr>
+          <td>[2]</td>
+          <td><code>remaining_dem_sum</code></td>
+          <td>剩余服务需求之和 / total remaining service demand</td>
+        </tr>
+        <tr>
+          <td>[3]</td>
+          <td><code>frac_remaining</code></td>
+          <td>还有几成服务未部署 / fraction of services not yet placed</td>
+        </tr>
+        <tr>
+          <td rowspan="4"><strong>Per-ECU</strong><br><span class="tag tag-blue">4N</span></td>
+          <td>[4:4+N]</td>
+          <td><code>init_cap_frac</code></td>
+          <td>每个 ECU 的初始容量比 / initial capacity ratio</td>
+        </tr>
+        <tr>
+          <td>[4+N:4+2N]</td>
+          <td><code>rem_cap_frac</code></td>
+          <td>每个 ECU 的剩余容量比 / remaining capacity ratio</td>
+        </tr>
+        <tr>
+          <td>[4+2N:4+3N]</td>
+          <td><code>ecu_allowed_frac</code></td>
+          <td>该 ECU 还可接受多少服务 / fraction of SVCs this ECU can still host</td>
+        </tr>
+        <tr>
+          <td>[4+3N:4+4N]</td>
+          <td><code>svcs_on_ecu_frac</code></td>
+          <td>该 ECU 已放了多少服务 / fraction of M already placed on this ECU</td>
+        </tr>
+        <tr>
+          <td rowspan="3"><strong>Per-SVC</strong><br><span class="tag tag-green">3M</span></td>
+          <td>[4+4N:4+4N+M]</td>
+          <td><code>req_norm</code></td>
+          <td>每个服务的需求量（归一化）/ normalized service requirement</td>
+        </tr>
+        <tr>
+          <td>[4+4N+M:4+4N+2M]</td>
+          <td><code>placed_flag</code></td>
+          <td>该服务是否已部署 0/1 / placed indicator</td>
+        </tr>
+        <tr>
+          <td>[4+4N+2M:end]</td>
+          <td><code>valid_ecus_frac</code></td>
+          <td>该服务还有几成 ECU 可选 / fraction of ECUs valid for this SVC</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="explain-box green">
+      <h4>为什么 Per-SVC 比 P6 多了信息？/ Why more SVC info than P6?</h4>
+      <p>P6 只需要知道"当前服务"（固定顺序，每步处理同一个），所以 SVC 信息只需标量。P7 因为 AI 自由选择哪个服务，所以每步需要知道<strong>所有 M 个服务</strong>的状态（哪些已放完、哪些还有合法 ECU、需求多大），才能做出明智的选择。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 5 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">5</div>
+    <div>
+      <h2><code>reset()</code> — 回合重置 / Episode Reset</h2>
+      <div class="sub">P7 不排序服务 — services keep original YAML order</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <pre><span class="kw">def</span> <span class="fn">reset</span>(<span class="nm">self</span>, seed=<span class="kw">None</span>, options=<span class="kw">None</span>):
+    <span class="nm">super</span>().<span class="fn">reset</span>(seed=seed)
+    <span class="kw">if</span> <span class="nm">self</span>._scenarios <span class="kw">is not None</span>:
+        caps, reqs, _cs = random.<span class="fn">choice</span>(<span class="nm">self</span>._scenarios)
+        <span class="nm">self</span>.ecus     = [ECU(f<span class="st">"ECU{i}"</span>, cap) <span class="kw">for</span> i, cap <span class="kw">in</span> <span class="fn">enumerate</span>(caps)]
+        <span class="nm">self</span>.services = [SVC(f<span class="st">"SVC{i}"</span>, req) <span class="kw">for</span> i, req <span class="kw">in</span> <span class="fn">enumerate</span>(reqs)]
+        <span class="nm">self</span>.initial_vms = np.<span class="fn">array</span>([e.capacity <span class="kw">for</span> e <span class="kw">in</span> <span class="nm">self</span>.ecus], dtype=np.float32)
+        <span class="cm"># ── 关键差异：不重映射冲突集合索引！保持原始 YAML 顺序 ──</span>
+        <span class="nm">self</span>.conflict_sets = [<span class="fn">set</span>(cs) <span class="kw">for</span> cs <span class="kw">in</span> _cs]   <span class="cm"># No index remapping!</span>
+    <span class="kw">else</span>:
+        <span class="nm">self</span>.conflict_sets = <span class="nm">self</span>.<span class="fn">_init_conflict_sets</span>()
+
+    <span class="nm">self</span>.N = <span class="fn">len</span>(<span class="nm">self</span>.ecus)
+    <span class="nm">self</span>.M = <span class="fn">len</span>(<span class="nm">self</span>.services)
+    <span class="nm">self</span>.remaining_vms  = <span class="nm">self</span>.initial_vms.<span class="fn">copy</span>()
+    <span class="nm">self</span>.ecu_placements = [<span class="fn">set</span>() <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
+    <span class="nm">self</span>.ecu_allowed    = [<span class="fn">set</span>(<span class="fn">range</span>(<span class="nm">self</span>.M)) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
+
+    <span class="cm"># ── P7-specific: track which services have been placed ──</span>
+    <span class="nm">self</span>.placed         = np.<span class="fn">zeros</span>(<span class="nm">self</span>.M, dtype=<span class="fn">bool</span>)
+    <span class="cm"># placed[i] = False → service i is still unplaced</span>
+    <span class="cm"># placed[i] = True  → service i has been assigned to an ECU</span>
+
+    <span class="nm">self</span>.ar             = <span class="num">0.0</span>
+    <span class="nm">self</span>._total_ru      = <span class="num">0.0</span>
+    <span class="nm">self</span>._step          = <span class="num">0</span>
+    <span class="nm">self</span>.capacity_violations = <span class="num">0</span>
+    <span class="nm">self</span>.conflict_violations = <span class="num">0</span>
+    <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), {}</pre>
+
+    <div class="explain-box yellow">
+      <h4>P6 vs P7 reset 的关键差异 / Key Difference from P6</h4>
+      <table class="obs-table">
+        <thead><tr><th>属性</th><th>P6 reset</th><th>P7 reset</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>服务排序 / Service sorting</td>
+            <td><code>sorted(services, key=req, reverse=True)</code><br>大需求优先</td>
+            <td>不排序，保持 YAML 原始顺序<br>No sorting — original order</td>
+          </tr>
+          <tr>
+            <td>冲突集合重映射</td>
+            <td>需要重映射（因为排序改变了索引）</td>
+            <td>不需要（顺序不变）<br><code>set(cs) for cs in _cs</code></td>
+          </tr>
+          <tr>
+            <td>当前步骤追踪</td>
+            <td><code>self._step = 0</code>（顺序步进）</td>
+            <td><code>self.placed = np.zeros(M, bool)</code>（集合追踪）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="explain-box">
+      <h4>self.placed 数组 / The placed Array</h4>
+      <p>P6 用 <code>self._step</code> 这个单一整数追踪进度（因为是顺序的）。</p>
+      <p>P7 必须用 <code>self.placed</code> 数组，因为 AI 可以任意顺序选择服务。例如：</p>
+      <ul>
+        <li>第1步：AI 选 SVC7 → <code>placed[7] = True</code></li>
+        <li>第2步：AI 选 SVC2 → <code>placed[2] = True</code></li>
+        <li>第3步：AI 选 SVC14 → <code>placed[14] = True</code></li>
+        <li>...</li>
+      </ul>
+      <p>回合结束条件：<code>sum(placed) == M</code>（所有服务都部署完了）</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 6 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">6</div>
+    <div>
+      <h2><code>step()</code> — 解码动作并执行 / Decode and Execute</h2>
+      <div class="sub">联合动作的分解与奖励计算</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <pre><span class="kw">def</span> <span class="fn">step</span>(<span class="nm">self</span>, action: <span class="fn">int</span>):
+    <span class="cm"># ── Step 1: 解码联合动作 / Decode joint action ──</span>
+    svc_idx = <span class="fn">int</span>(action) // <span class="nm">self</span>.N    <span class="cm"># which SVC to place</span>
+    ecu_idx = <span class="fn">int</span>(action) %  <span class="nm">self</span>.N    <span class="cm"># which ECU to assign it to</span>
+
+    <span class="kw">assert not</span> <span class="nm">self</span>.placed[svc_idx], f<span class="st">"SVC {svc_idx} already placed!"</span>
+    svc = <span class="nm">self</span>.services[svc_idx]
+
+    <span class="cm"># ── Step 2: 检测违规 / Check violations ──</span>
+    cap_violated      = <span class="fn">bool</span>(<span class="nm">self</span>.remaining_vms[ecu_idx] < svc.requirement)
+    conflict_violated = <span class="nm">self</span>.<span class="fn">_has_conflict</span>(ecu_idx, svc_idx)
+
+    <span class="kw">if</span> cap_violated:
+        <span class="nm">self</span>.capacity_violations += <span class="num">1</span>
+        <span class="nm">self</span>.episode_has_cap_violation = <span class="kw">True</span>
+    <span class="kw">if</span> conflict_violated:
+        <span class="nm">self</span>.conflict_violations += <span class="num">1</span>
+        <span class="nm">self</span>.episode_has_conflict_violation = <span class="kw">True</span>
+    <span class="kw">if not</span> (cap_violated <span class="kw">or</span> conflict_violated):
+        <span class="nm">self</span>.valid_placed += <span class="num">1</span>
+
+    <span class="cm"># ── Step 3: 计算奖励 / Compute reward ──</span>
+    violated          = cap_violated <span class="kw">or</span> conflict_violated
+    violation_penalty = <span class="num">-2.0</span> <span class="kw">if</span> violated <span class="kw">else</span> <span class="num">0.0</span>
+    ru = <span class="num">0.0</span> <span class="kw">if</span> violated <span class="kw">else</span> svc.requirement / (<span class="nm">self</span>.initial_vms[ecu_idx] + <span class="num">1e-8</span>)
+    <span class="cm"># Note: violated step gets ru=0 AND penalty=-2.0 (double punishment)</span>
+
+    <span class="cm"># ── Step 4: 更新状态 / Update state ──</span>
+    <span class="nm">self</span>.remaining_vms[ecu_idx] -= svc.requirement
+    <span class="nm">self</span>.ecu_placements[ecu_idx].<span class="fn">add</span>(svc_idx)
+    <span class="nm">self</span>.<span class="fn">_update_ecu_allowed</span>(ecu_idx, svc_idx)
+    <span class="nm">self</span>.placed[svc_idx] = <span class="kw">True</span>           <span class="cm"># ← mark as placed</span>
+    <span class="nm">self</span>._step += <span class="num">1</span>
+
+    <span class="cm"># ── Step 5: 检查是否完成 / Check done ──</span>
+    done       = <span class="nm">self</span>._step >= <span class="nm">self</span>.M     <span class="cm"># all M services placed</span>
+    total_viol = <span class="nm">self</span>.capacity_violations + <span class="nm">self</span>.conflict_violations
+    terminal_bonus = <span class="num">0.0</span>
+    <span class="kw">if</span> done:
+        terminal_bonus = <span class="nm">self</span>.ar <span class="kw">if</span> total_viol == <span class="num">0</span> <span class="kw">else</span> <span class="num">0.1</span> * <span class="nm">self</span>.ar
+
+    <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), <span class="fn">float</span>(ru + violation_penalty + terminal_bonus), done, <span class="kw">False</span>, info</pre>
+
+    <div class="explain-box">
+      <h4>中文解读 — 动作解码示例</h4>
+      <p>假设 M=15, N=10，AI 输出 action=37：</p>
+      <ul>
+        <li><code>svc_idx = 37 // 10 = 3</code> → 选择第 3 号服务</li>
+        <li><code>ecu_idx = 37 % 10 = 7</code> → 分配到第 7 号 ECU</li>
+        <li>然后检查：容量是否足够？有无冲突？</li>
+        <li>部署后：<code>placed[3] = True</code>，<code>remaining_vms[7] -= svc3.requirement</code></li>
+      </ul>
+    </div>
+
+    <div class="reward-row">
+      <div class="reward-card">
+        <div class="rval" style="color:var(--green)">+ru</div>
+        <div class="rlabel">valid step<br>合法部署<br>(no violation)</div>
+      </div>
+      <div class="reward-card">
+        <div class="rval" style="color:var(--red)">0 − 2.0</div>
+        <div class="rlabel">violated step<br>违规部署<br>(no ru earned!)</div>
+      </div>
+      <div class="reward-card">
+        <div class="rval" style="color:var(--green)">+AR</div>
+        <div class="rlabel">terminal bonus<br>回合结束，<br>零违规</div>
+      </div>
+      <div class="reward-card">
+        <div class="rval" style="color:var(--yellow)">+0.1×AR</div>
+        <div class="rlabel">terminal bonus<br>回合结束，<br>有违规</div>
+      </div>
+    </div>
+
+    <div class="explain-box blue">
+      <h4>Terminal Bonus: P6 vs P7 Comparison</h4>
+      <table class="obs-table">
+        <thead>
+          <tr><th>策略</th><th>零违规时 terminal bonus</th><th>有违规时 terminal bonus</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>P6 (repair)</td>
+            <td><code>AR × (1 − 0) = AR</code></td>
+            <td><code>AR × (1 − repair_rate)</code>（线性递减）</td>
+          </tr>
+          <tr>
+            <td>P7 (joint)</td>
+            <td><code>AR × 1.0 = AR</code>（满额）</td>
+            <td><code>AR × 0.1</code>（直接打九折，陡降）</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>P7 用更严格的二元惩罚机制：有任何违规 → terminal bonus 直接变 0.1×AR（而非线性递减）。这给 AI 一个强烈的信号：<strong>任何违规都是严重的</strong>。</p>
+    </div>
+
+    <div class="explain-box yellow">
+      <h4>为什么违规步骤 ru=0？/ Why ru=0 for violated steps?</h4>
+      <p><code>ru = 0.0 if violated else svc.requirement / (initial_vms[ecu_idx] + 1e-8)</code></p>
+      <p>违规时：不仅 penalty=-2.0，还得不到利用率奖励（ru=0）。这是双重惩罚：</p>
+      <ul>
+        <li>没有正向奖励 → 学不到好的利用率</li>
+        <li>还有 -2.0 大惩罚 → 明确信号"这是错误的"</li>
+      </ul>
+      <p>注意：即使违规，服务仍然被部署（<code>placed[svc_idx] = True</code>），状态仍然更新。P7 不像 P6 那样"修复"——它让错误发生，但给予大惩罚来引导学习。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 7 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">7</div>
+    <div>
+      <h2>为什么 P7 在 LT 场景下表现欠佳 / Why P7 Struggles in LT</h2>
+      <div class="sub">动作空间过大带来的学习困难</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <div class="explain-box red">
+      <h4>核心问题：动作空间维度爆炸 / The Curse of Action Space Size</h4>
+      <p>P7 的动作空间是 <strong>M × N = 150</strong>（P4 是 10，P7 是 P4 的 15 倍大！）</p>
+      <p>在稀缺资源环境下（15 个服务，10 个 ECU），150 个可能动作中：</p>
+      <ul>
+        <li>已部署服务对应的动作：被掩码屏蔽（约占 M 个服务逐步增加）</li>
+        <li>容量不足的 (SVC, ECU) 对：被掩码屏蔽</li>
+        <li>有冲突的 (SVC, ECU) 对：被掩码屏蔽</li>
+        <li><strong>实际有效动作可能只有 5-20 个，剩余 130+ 个都无效</strong></li>
+      </ul>
+      <p>AI 需要在 5M 训练步骤内从一个高维、稀疏有效动作的空间中学习，这比 P4 的 10 维小空间困难得多。</p>
+    </div>
+
+    <div class="grid-vis">
+      <div style="color:var(--red); font-weight:700; margin-bottom:8px;">Action Space Comparison</div>
+      <span style="color:var(--green)">P4 (fixed order):  action ∈ {0..9}      →  10 choices per step</span><br>
+      <span style="color:var(--green)">                   only ~3-7 valid (masked)</span><br><br>
+      <span style="color:var(--yellow)">P6 (repair):       action ∈ {0..9}      →  10 choices per step</span><br>
+      <span style="color:var(--yellow)">                   all 10 allowed (repair handles violations)</span><br><br>
+      <span style="color:var(--red)">P7 (joint):        action ∈ {0..149}    →  150 choices per step</span><br>
+      <span style="color:var(--red)">                   typically only 5-20 valid (sparse!)</span><br><br>
+      <span style="color:var(--muted)">With 5M training steps, P7 explores far fewer unique (state, action) pairs.</span><br>
+      <span style="color:var(--muted)">The signal is diluted across a 15x larger space — learning is much harder.</span>
+    </div>
+
+    <div class="explain-box">
+      <h4>LT（长尾）场景特别难 / Why LT Makes It Worse</h4>
+      <ul>
+        <li><strong>LT = 稀缺资源</strong>：ECU 容量少，服务需求高，合法位置更少</li>
+        <li>合法动作更稀疏 → AI 更难遇到有效的学习信号</li>
+        <li>随机探索 150 个动作 → 大概率选到违规动作 → 大量 -2.0 惩罚 → 梯度信号嘈杂</li>
+        <li>即使 action_masks 屏蔽了大多数无效动作，剩余有效动作的分布也随时间剧烈变化（随着 placed 更新）</li>
+      </ul>
+      <p>相比之下，P4 每步只需要从 10 个动作中选，其中 mask 后只有少量选项，学习效率高得多。</p>
+    </div>
+
+    <div class="explain-box blue">
+      <h4>理论 vs 实践 / Theory vs Practice</h4>
+      <p><strong>理论上</strong>：P7 应该更强——它能学到最优的服务放置顺序，避免贪心死局。</p>
+      <p><strong>实践中</strong>：给定 5M 步预算，P7 的庞大动作空间导致样本效率太低，往往没有完全收敛。P4 的小动作空间 + 排序启发式往往在 5M 步内就能达到接近最优。</p>
+      <p>这体现了强化学习中的基本权衡：<strong>表达力 vs 可学习性</strong>（Expressiveness vs Learnability）。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SECTION 8 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">8</div>
+    <div>
+      <h2>完整对比总结 / Full Comparison with P4 and P6</h2>
+      <div class="sub">三种策略的全面对比</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <table class="obs-table">
+      <thead>
+        <tr>
+          <th>属性 / Property</th>
+          <th>P4 (Masking)</th>
+          <th>P6 (Repair)</th>
+          <th>P7 (Joint)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>动作空间 / Action space</td>
+          <td><span class="tag tag-green">Discrete(N=10)</span></td>
+          <td><span class="tag tag-green">Discrete(N=10)</span></td>
+          <td><span class="tag tag-red">Discrete(M×N=150)</span></td>
+        </tr>
+        <tr>
+          <td>服务顺序 / SVC order</td>
+          <td>固定降序排列</td>
+          <td>固定降序排列</td>
+          <td>AI 自由选择</td>
+        </tr>
+        <tr>
+          <td>非法动作处理</td>
+          <td>掩码屏蔽</td>
+          <td>自动修复 + -0.1</td>
+          <td>允许 + -2.0 惩罚</td>
+        </tr>
+        <tr>
+          <td>观测维度 / Obs dims</td>
+          <td>5N+6+M</td>
+          <td>5N+6+M</td>
+          <td>4+4N+3M</td>
+        </tr>
+        <tr>
+          <td>terminated early?</td>
+          <td>N/A (always M steps)</td>
+          <td>Yes (PATH C: no repair)</td>
+          <td>No (always M steps)</td>
+        </tr>
+        <tr>
+          <td>terminal bonus</td>
+          <td>+AR (zero violations)</td>
+          <td>+AR × (1 − repair_rate)</td>
+          <td>+AR / +0.1×AR</td>
+        </tr>
+        <tr>
+          <td>LT 表现 / LT performance</td>
+          <td><span class="tag tag-green">好 / Good</span></td>
+          <td><span class="tag tag-yellow">中 / Medium</span></td>
+          <td><span class="tag tag-red">差 / Struggles</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- end .container -->
+
+<footer class="container">
+  <p>Source file: <code>/home/soar009/github/my_code/ecu_lt_svc_p/problem7_ppo_seq/env.py</code></p>
+  <p>Class: <code>P7Env(gym.Env)</code> — Action space: <code>Discrete(M×N)</code> — Obs shape: <code>4+4N+3M</code></p>
+  <p>Generated for high school bilingual audience. P7 Code Walkthrough.</p>
+</footer>
+
+</body>
+</html>

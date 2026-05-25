@@ -104,15 +104,9 @@ class P3Env(gym.Env):
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
             # Remap conflict-set indices from original order → sorted order so that
             # they match self._step (which is a sorted-position index, not original index).
-            sorted_order = sorted(range(len(self.services)),
-                                  key=lambda i: self.services[i].requirement, reverse=True)
-            orig_to_new = {orig: new for new, orig in enumerate(sorted_order)}
-            self.conflict_sets = [
-                {orig_to_new[i] for i in cs if i < len(self.services)} for cs in _cs
-            ]
+            self.conflict_sets = [set(cs) for cs in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
-        self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]

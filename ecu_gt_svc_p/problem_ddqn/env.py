@@ -95,7 +95,6 @@ class DDQNEnv(gym.Env):
             self.conflict_sets = [set(s) for s in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
-        self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self.ar              = 0.0

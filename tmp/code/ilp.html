@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ILP Code Walkthrough — Problem 2</title>
+<style>
+:root {
+  --primary: #7c3aed; --accent: #a78bfa; --bg: #0f0f1a; --card: #1a1a2e;
+  --border: #2d2d4e; --text: #e2e8f0; --muted: #94a3b8;
+  --green: #4ade80; --yellow: #facc15; --red: #f87171; --blue: #60a5fa;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 16px; line-height: 1.7;
+  padding: 0 0 60px 0;
+}
+header {
+  background: linear-gradient(135deg, #1a0a3e 0%, #0f0f1a 100%);
+  border-bottom: 2px solid var(--primary);
+  padding: 40px 60px;
+}
+header h1 { font-size: 2.2rem; color: var(--accent); margin-bottom: 8px; }
+header p { color: var(--muted); font-size: 1rem; }
+.lang-badge {
+  display: inline-block; background: var(--primary);
+  color: white; border-radius: 20px; padding: 2px 12px;
+  font-size: 0.8rem; margin: 4px 4px 0 0;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 40px 30px; }
+
+h2 {
+  font-size: 1.5rem; color: var(--accent);
+  border-left: 4px solid var(--primary);
+  padding-left: 14px; margin: 50px 0 20px 0;
+  scroll-margin-top: 20px;
+}
+h3 { font-size: 1.15rem; color: var(--yellow); margin: 30px 0 10px 0; }
+
+pre {
+  background: #0a0a18; border: 1px solid var(--border);
+  border-radius: 10px; padding: 22px 24px;
+  overflow-x: auto; font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.88rem; line-height: 1.65; margin: 14px 0;
+  tab-size: 4;
+}
+.kw  { color: #f472b6; }
+.fn  { color: #60a5fa; }
+.cm  { color: #6b7280; font-style: italic; }
+.nm  { color: #4ade80; }
+.st  { color: #fbbf24; }
+.op  { color: #a78bfa; }
+.nb  { color: #fb923c; }
+
+.explain {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 24px; margin: 10px 0 30px 0;
+}
+.explain p { margin-bottom: 10px; }
+.explain p:last-child { margin-bottom: 0; }
+.cn { color: #e2e8f0; }
+.en { color: var(--muted); font-size: 0.94rem; margin-top: 6px; }
+.analogy {
+  background: #1e1040; border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0; padding: 12px 16px; margin-top: 12px;
+  font-size: 0.93rem;
+}
+.analogy strong { color: var(--accent); }
+
+.tag {
+  display: inline-block; border-radius: 5px; padding: 1px 8px;
+  font-size: 0.78rem; font-weight: 700; margin: 0 4px 0 0;
+  vertical-align: middle;
+}
+.tag-green { background: #14532d; color: var(--green); }
+.tag-blue  { background: #1e3a5f; color: var(--blue); }
+.tag-red   { background: #450a0a; color: var(--red); }
+.tag-yellow{ background: #422006; color: var(--yellow); }
+
+table.constraint-table {
+  width: 100%; border-collapse: collapse; margin: 16px 0;
+  font-size: 0.9rem;
+}
+table.constraint-table th {
+  background: #1e0a4e; color: var(--accent);
+  padding: 10px 14px; text-align: left; border-bottom: 2px solid var(--primary);
+}
+table.constraint-table td {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+table.constraint-table tr:nth-child(even) td { background: #12122a; }
+table.constraint-table tr:nth-child(odd) td { background: #1a1a2e; }
+
+.toc {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 24px; margin-bottom: 40px;
+}
+.toc h3 { color: var(--accent); margin: 0 0 12px 0; font-size: 1rem; }
+.toc ol { padding-left: 20px; }
+.toc li { margin-bottom: 5px; }
+.toc a { color: var(--blue); text-decoration: none; }
+.toc a:hover { color: var(--accent); }
+
+footer {
+  text-align: center; color: var(--muted); font-size: 0.82rem;
+  border-top: 1px solid var(--border); padding: 24px;
+  margin-top: 60px;
+}
+.file-path {
+  font-family: monospace; color: var(--green); font-size: 0.85rem;
+  background: #0a0a18; padding: 2px 6px; border-radius: 4px;
+}
+.divider {
+  border: none; border-top: 1px solid var(--border);
+  margin: 40px 0;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Problem 2 — ILP Optimal Solver</h1>
+  <p>
+    <span class="lang-badge">中文</span>
+    <span class="lang-badge">English</span>
+    &nbsp;Code walkthrough for high school level readers
+  </p>
+  <p style="margin-top:12px; color:var(--muted); font-size:0.9rem;">
+    Files: <span class="file-path">problem2_ilp/objects.py</span> &nbsp;&amp;&nbsp;
+    <span class="file-path">problem2_ilp/optimal_solution/main.py</span>
+  </p>
+</header>
+
+<main>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>Table of Contents / 目录</h3>
+  <ol>
+    <li><a href="#s1">objects.py — Data Classes (数据类)</a></li>
+    <li><a href="#s2">What problem are we solving? (问题背景)</a></li>
+    <li><a href="#s3">solve_service_deployment() — Function Signature</a></li>
+    <li><a href="#s4">Dinkelbach Outer Loop (丁克尔巴赫迭代外循环)</a></li>
+    <li><a href="#s5">Decision Variables (决策变量 x, y)</a></li>
+    <li><a href="#s6">Objective Function — F(x) − λ·G(y)</a></li>
+    <li><a href="#s7">Five Constraints (五个约束条件)</a></li>
+    <li><a href="#s8">λ Update and Convergence (λ更新与收敛)</a></li>
+    <li><a href="#s9">main() — Loading YAML &amp; Caching Results</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 1 -->
+<h2 id="s1">1. objects.py — Data Classes (数据类)</h2>
+
+<h3>ECU class</h3>
+<pre><span class="kw">class</span> <span class="fn">ECU</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nb">self</span>, name, capacity):
+        <span class="cm"># capacity is the number of VMs that the ECU has</span>
+        <span class="nb">self</span>.name     = name
+        <span class="nb">self</span>.capacity = capacity
+
+    <span class="kw">def</span> <span class="fn">__str__</span>(<span class="nb">self</span>):
+        <span class="kw">return</span> <span class="st">f"ECU(name=<span class="nm">{self.name}</span>, capacity=<span class="nm">{self.capacity}</span>)"</span></pre>
+
+<div class="explain">
+  <p class="cn"><strong>ECU（嵌入式控制单元）</strong>可以想象成一台小型服务器或一块电路板，它能同时运行若干个虚拟机（VM）。</p>
+  <p class="en"><strong>ECU (Embedded Control Unit)</strong> — think of it as a mini-server or circuit board. It has a fixed number of VM slots.</p>
+  <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
+    <li><code>name</code>：ECU 的标识，如 <code>"ECU0"</code></li>
+    <li><code>capacity</code>：这个 ECU 能运行的虚拟机总数（总槽位数）</li>
+  </ul>
+  <div class="analogy"><strong>类比 / Analogy:</strong> 把 ECU 想象成一间宿舍，capacity 就是床位数。服务就是要住进来的人。</div>
+</div>
+
+<h3>SVC class</h3>
+<pre><span class="kw">class</span> <span class="fn">SVC</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nb">self</span>, name, requirement):
+        <span class="cm"># requirement is the number of VMs that the SVC needs</span>
+        <span class="nb">self</span>.name        = name
+        <span class="nb">self</span>.requirement = requirement
+
+    <span class="kw">def</span> <span class="fn">__str__</span>(<span class="nb">self</span>):
+        <span class="kw">return</span> <span class="st">f"SVC(name=<span class="nm">{self.name}</span>, requirement=<span class="nm">{self.requirement}</span>)"</span></pre>
+
+<div class="explain">
+  <p class="cn"><strong>SVC（服务）</strong>是需要部署的软件程序，每个程序需要若干个 VM 槽位才能运行。</p>
+  <p class="en"><strong>SVC (Service)</strong> — a software workload. Each one needs a specific number of VM slots to run.</p>
+  <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
+    <li><code>name</code>：服务名称，如 <code>"SVC0"</code></li>
+    <li><code>requirement</code>：该服务需要占用的 VM 数（床位数）</li>
+  </ul>
+  <div class="analogy"><strong>类比 / Analogy:</strong> 服务就是一群人，requirement 是他们需要的床位数。我们要把所有人分配进各间宿舍，且不超过床位限制。</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 2 -->
+<h2 id="s2">2. What Problem Are We Solving? (问题背景)</h2>
+
+<div class="explain">
+  <p class="cn">
+    我们有 <strong>N 个 ECU</strong>（N 较小，比如 5 个）和 <strong>M 个服务</strong>（M 较大，比如 12 个）。
+    由于 N &lt; M，每个 ECU 必须承载多个服务。
+  </p>
+  <p class="en">
+    We have <strong>N ECUs</strong> (fewer, e.g. 5) and <strong>M services</strong> (more, e.g. 12). Since N &lt; M, each ECU must host multiple services.
+  </p>
+  <p class="cn" style="margin-top:10px;">
+    <strong>目标：最大化 AR（平均资源利用率）</strong>
+  </p>
+
+  <pre style="margin:14px 0; font-size:0.92rem;">
+AR = (1 / active_ECUs) × Σ_j [ Σ_{i→j} req_i / cap_j ]
+   = 每个活跃 ECU 的平均利用率</pre>
+
+  <p class="cn">
+    AR 是一个"分式目标"——分子是总利用率，分母是活跃 ECU 数量。
+    这个分母取决于解本身，所以不能直接用一个普通的线性规划来求解。我们使用 <strong>Dinkelbach 算法</strong>来迭代求解。
+  </p>
+  <p class="en">
+    AR is a fractional objective — numerator is total utilization, denominator is the number of active ECUs (which depends on the solution itself). We use <strong>Dinkelbach's algorithm</strong> to handle this.
+  </p>
+
+  <table class="constraint-table" style="margin-top:16px;">
+    <tr>
+      <th>约束 Constraint</th>
+      <th>说明 Meaning</th>
+    </tr>
+    <tr>
+      <td><span class="tag tag-blue">分配</span> Assignment</td>
+      <td>每个服务必须被分配到 <em>恰好一个</em> ECU — Each service goes to exactly one ECU</td>
+    </tr>
+    <tr>
+      <td><span class="tag tag-red">容量</span> Capacity</td>
+      <td>ECU 不能超载 — An ECU's total demand ≤ its capacity</td>
+    </tr>
+    <tr>
+      <td><span class="tag tag-green">冲突</span> Conflict</td>
+      <td>冲突集中的服务不能在同一 ECU — Conflicting services must be separated</td>
+    </tr>
+  </table>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 3 -->
+<h2 id="s3">3. solve_service_deployment() — Function Signature &amp; Docstring</h2>
+
+<pre><span class="kw">def</span> <span class="fn">solve_service_deployment</span>(M, N, e_list, n_list, conflict_sets<span class="op">=</span><span class="kw">None</span>, seed<span class="op">=</span><span class="kw">None</span>):
+    <span class="st">"""
+    Maximise AR = total_util / active_ecus via Dinkelbach's algorithm.
+
+    AR is a fractional objective (denominator active_ecus depends on the solution),
+    so we cannot optimise it directly with a single ILP.  Dinkelbach's method
+    iteratively solves the parametric sub-problem:
+        max  F(x,y) - λ * G(y)
+    where F = Σ x[i][j]*req_i/cap_j  and  G = Σ y_j (active ECUs),
+    updating λ ← F/G at each step until |Δλ| &lt; tol.
+
+    Parameters:
+    - M: number of services
+    - N: number of ECUs  (N &lt; M; multiple services share ECUs)
+    - e_list: list of ECU capacities (length N)
+    - n_list: list of service requirements (length M)
+    - conflict_sets: list of sets of service indices
+    - seed: random seed (optional)
+
+    Returns:
+    - dict with keys: status, total_utilization, active_ecus,
+                      avg_utilization, allocation
+    """</span></pre>
+
+<div class="explain">
+  <p class="cn"><strong>参数解释：</strong></p>
+  <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
+    <li><code>M</code> — 服务的数量（比如 12 个软件程序）</li>
+    <li><code>N</code> — ECU 的数量（比如 5 块电路板）</li>
+    <li><code>e_list</code> — 长度为 N 的列表，第 j 项是 ECU j 的容量（VM 槽位数）</li>
+    <li><code>n_list</code> — 长度为 M 的列表，第 i 项是服务 i 的需求（VM 数）</li>
+    <li><code>conflict_sets</code> — 冲突集合列表，每个集合里的服务不能放在同一 ECU</li>
+    <li><code>seed</code> — 随机种子，让结果可复现</li>
+  </ul>
+  <p class="en" style="margin-top:10px;"><strong>Return value:</strong> a dictionary with the final assignment, active ECU count, and AR score.</p>
+  <div class="analogy">
+    <strong>类比 / Analogy:</strong> 这个函数就像一个"聪明的宿舍分配员"。你告诉它有多少间宿舍（N）、多少学生（M）、每间有多少床位（e_list）、每个学生需要多少床位（n_list）、哪些学生不能住同一间（conflict_sets），它会给出最优分配方案。
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 4 -->
+<h2 id="s4">4. Dinkelbach Outer Loop (丁克尔巴赫迭代外循环)</h2>
+
+<pre><span class="nm">lambda_val</span> <span class="op">=</span> <span class="nm">0.0</span>
+<span class="nm">tol</span>        <span class="op">=</span> <span class="nm">1e-6</span>
+<span class="nm">max_iter</span>   <span class="op">=</span> <span class="nm">20</span>
+<span class="nm">best_x</span> <span class="op">=</span> <span class="nm">best_y</span> <span class="op">=</span> <span class="kw">None</span>
+
+<span class="kw">for</span> <span class="nm">iteration</span> <span class="kw">in</span> <span class="fn">range</span>(max_iter):
+    prob <span class="op">=</span> pulp.<span class="fn">LpProblem</span>(<span class="st">f"Maximize_AR_iter<span class="nm">{iteration}</span>"</span>, pulp.LpMaximize)</pre>
+
+<div class="explain">
+  <p class="cn">
+    <strong>λ（lambda）是 Dinkelbach 算法的核心参数</strong>，可以理解为"当前估计的 AR 值"。
+    它从 0 开始，每次迭代后更新为真实的 AR 值，直到前后两次的 λ 差值小于 <code>tol</code>（即收敛）。
+  </p>
+  <p class="en">
+    <strong>λ (lambda_val)</strong> is the key parameter — it starts at 0 and gradually converges to the true AR maximum. Each iteration solves a fresh ILP with the current λ baked into the objective.
+  </p>
+  <p class="cn" style="margin-top:10px;">
+    <code>max_iter = 20</code>：最多迭代 20 次，实践中通常 3~5 次就收敛。<br>
+    每次循环都创建一个全新的 ILP 问题（<code>LpProblem</code>），因为目标函数每次都不同。
+  </p>
+  <p class="en">
+    <code>max_iter = 20</code>: cap at 20 iterations, but in practice 3–5 are enough. A fresh <code>LpProblem</code> is created each iteration because the objective changes with λ.
+  </p>
+  <div class="analogy">
+    <strong>类比 / Analogy:</strong> 就像你去黑板前猜答案，猜完之后看看实际结果，再回去改。λ 就是每次的"猜测值"，不断逼近真实答案。
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 5 -->
+<h2 id="s5">5. Decision Variables — x[i][j] and y[j] (决策变量)</h2>
+
+<pre><span class="cm"># x[i][j] = 1 if service i assigned to ECU j</span>
+<span class="nm">x</span> <span class="op">=</span> pulp.<span class="fn">LpVariable.dicts</span>(<span class="st">"x"</span>, (<span class="fn">range</span>(M), <span class="fn">range</span>(N)), cat<span class="op">=</span><span class="st">'Binary'</span>)
+
+<span class="cm"># y[j] = 1 if ECU j has at least one service (active)</span>
+<span class="nm">y</span> <span class="op">=</span> pulp.<span class="fn">LpVariable.dicts</span>(<span class="st">"y"</span>, <span class="fn">range</span>(N), cat<span class="op">=</span><span class="st">'Binary'</span>)</pre>
+
+<div class="explain">
+  <p class="cn">
+    <strong>x[i][j]</strong> 是一个 0/1 的二进制变量：当服务 i 被放到 ECU j 时取 1，否则取 0。
+    我们有 M×N 个这样的变量，例如 12 个服务 × 5 个 ECU = 60 个变量。
+  </p>
+  <p class="en">
+    <strong>x[i][j]</strong> — a binary (0 or 1) decision variable. 1 means "service i is placed on ECU j", 0 means it isn't. There are M×N such variables total.
+  </p>
+  <p class="cn" style="margin-top:10px;">
+    <strong>y[j]</strong> 是另一个二进制变量：ECU j 上至少有一个服务时为 1（即"活跃"），没有服务时为 0。
+    它有 N 个，用于计算"活跃 ECU 数"（AR 的分母）。
+  </p>
+  <p class="en">
+    <strong>y[j]</strong> — 1 if ECU j is "active" (hosts at least one service), 0 otherwise. N variables total, used to count active ECUs (the denominator of AR).
+  </p>
+  <div class="analogy">
+    <strong>类比 / Analogy:</strong>
+    把宿舍分配写在一张表格上：x[i][j] 就是第 i 个学生是否住在第 j 间宿舍（打勾/不打勾）。y[j] 就是第 j 间宿舍是否有人（开灯/关灯）。
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 6 -->
+<h2 id="s6">6. Objective Function — F(x) − λ·G(y)</h2>
+
+<pre><span class="cm"># Parametric objective: F(x) - λ * G(y)</span>
+prob <span class="op">+=</span> (
+    pulp.<span class="fn">lpSum</span>(x[i][j] <span class="op">*</span> n_list[i] <span class="op">/</span> e_list[j]
+               <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(M) <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N))
+    <span class="op">-</span> lambda_val <span class="op">*</span> pulp.<span class="fn">lpSum</span>(y[j] <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N))
+)</pre>
+
+<div class="explain">
+  <p class="cn">
+    目标函数分两部分：
+  </p>
+  <ul style="margin-left:20px; margin-top:8px;">
+    <li>
+      <span class="tag tag-green">F(x)</span>
+      <code>Σ x[i][j] × req_i / cap_j</code> — 所有已分配服务对其所在 ECU 的利用率之和。
+      <span class="en">Sum of (service demand / ECU capacity) for every assigned pair.</span>
+    </li>
+    <li style="margin-top:8px;">
+      <span class="tag tag-red">G(y)</span>
+      <code>Σ y[j]</code> — 活跃 ECU 的数量。
+      <span class="en">Count of active ECUs.</span>
+    </li>
+  </ul>
+  <p class="cn" style="margin-top:10px;">
+    整个目标 = <strong>F(x) − λ × G(y)</strong>。
+    Dinkelbach 定理证明：当这个参数化问题的最优值 = 0 时，λ 就等于原始分式 AR 的最大值。
+  </p>
+  <p class="en" style="margin-top:8px;">
+    The full objective is <strong>F(x) − λ × G(y)</strong>. Dinkelbach's theorem guarantees: when the optimal value of this parametric problem equals 0, λ equals the true maximum of AR = F/G.
+  </p>
+  <div class="analogy">
+    <strong>类比 / Analogy:</strong> 想象 λ 是"开灯成本"。每点亮一间宿舍（y[j]=1）就要付 λ 元。解题器会在"提高利用率收益"和"少开房间节省成本"之间找平衡点。当 λ 等于真实 AR 时，两者完美平衡，我们找到了最优解。
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 7 -->
+<h2 id="s7">7. Five Constraints (五个约束条件)</h2>
+
+<h3>Constraint 1 — Assignment (分配约束)</h3>
+<pre><span class="cm"># Each service assigned to exactly one ECU</span>
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(M):
+    prob <span class="op">+=</span> pulp.<span class="fn">lpSum</span>(x[i][j] <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N)) <span class="op">==</span> <span class="nm">1</span>, <span class="st">f"Assign_<span class="nm">{i}</span>"</span></pre>
+
+<div class="explain">
+  <p class="cn">对每个服务 i，它在所有 ECU 上的 x[i][j] 之和必须等于 1。这保证每个服务 <strong>恰好</strong> 部署在一个 ECU 上（不能漏部署，不能重复部署）。</p>
+  <p class="en">For each service i, exactly one x[i][j] can be 1. This ensures every service is deployed to exactly one ECU — no service is left out, none is deployed twice.</p>
+  <div class="analogy"><strong>类比:</strong> 每位学生必须且只能住在一间宿舍。不能无家可归，也不能同时住两间。</div>
+</div>
+
+<h3>Constraint 2 — Capacity (容量约束)</h3>
+<pre><span class="cm"># Capacity constraint per ECU</span>
+<span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N):
+    prob <span class="op">+=</span> pulp.<span class="fn">lpSum</span>(x[i][j] <span class="op">*</span> n_list[i] <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(M)) <span class="op">&lt;=</span> e_list[j], <span class="st">f"Cap_<span class="nm">{j}</span>"</span></pre>
+
+<div class="explain">
+  <p class="cn">对每个 ECU j，所有分配给它的服务的需求之和不能超过其容量。<code>x[i][j] * n_list[i]</code>：当服务 i 放在 ECU j 时贡献 req_i 个 VM 需求；否则贡献 0。</p>
+  <p class="en">For each ECU j, the total VM demand of all services placed there must not exceed its capacity. When x[i][j]=0 the product is 0, so only assigned services count.</p>
+  <div class="analogy"><strong>类比:</strong> 宿舍不能超过床位数——住进去的人的床位需求总和 ≤ 宿舍床位总数。</div>
+</div>
+
+<h3>Constraint 3 &amp; 4 — Linking LB / UB (关联约束：上界与下界)</h3>
+<pre><span class="cm"># Linking: x[i][j]=1 forces y[j]=1; no service means y[j] must be 0</span>
+<span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N):
+    prob <span class="op">+=</span> pulp.<span class="fn">lpSum</span>(x[i][j] <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(M)) <span class="op">&gt;=</span> y[j], <span class="st">f"LinkLB_<span class="nm">{j}</span>"</span>
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(M):
+        prob <span class="op">+=</span> x[i][j] <span class="op">&lt;=</span> y[j], <span class="st">f"LinkUB_<span class="nm">{i}</span>_<span class="nm">{j}</span>"</span></pre>
+
+<div class="explain">
+  <p class="cn">
+    这两条约束把 <code>x</code> 和 <code>y</code> 绑定在一起：
+  </p>
+  <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
+    <li>
+      <span class="tag tag-blue">LinkLB</span>
+      <code>Σ x[i][j] ≥ y[j]</code>：如果 y[j]=1（ECU j 活跃），则至少有一个服务分配给它。（防止 ECU"空转活跃"）
+    </li>
+    <li style="margin-top:6px;">
+      <span class="tag tag-red">LinkUB</span>
+      <code>x[i][j] ≤ y[j]</code>：如果服务 i 放在 ECU j（x[i][j]=1），则 y[j] 也必须是 1。（你不能把人放在一间"关灯"的宿舍）
+    </li>
+  </ul>
+  <p class="en" style="margin-top:10px;">
+    These two constraints ensure y[j] and x[i][j] are consistent: y[j]=1 iff at least one service is assigned to ECU j.
+  </p>
+  <div class="analogy"><strong>类比:</strong> 宿舍有人住（y=1）当且仅当至少有一位学生住进去（x=1）。不允许"空宿舍算开灯"，也不允许"有人住但算关灯"。</div>
+</div>
+
+<h3>Constraint 5 — Hard Infeasibility Pre-filter (提前过滤不可能分配)</h3>
+<pre><span class="cm"># Hard-infeasible assignments</span>
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(M):
+    <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N):
+        <span class="kw">if</span> n_list[i] <span class="op">&gt;</span> e_list[j]:
+            prob <span class="op">+=</span> x[i][j] <span class="op">==</span> <span class="nm">0</span>, <span class="st">f"Infeasible_<span class="nm">{i}</span>_<span class="nm">{j}</span>"</span></pre>
+
+<div class="explain">
+  <p class="cn">如果服务 i 的需求比 ECU j 的容量还大，那无论如何都不可能放进去。直接提前设为 0，帮助求解器更快收敛。</p>
+  <p class="en">If a service requires more VMs than an ECU can hold, we pre-set that x[i][j]=0, saving the solver from wasting time on impossible assignments.</p>
+</div>
+
+<h3>Constraint 6 — Conflict (冲突约束)</h3>
+<pre><span class="cm"># Conflict constraints: at most one service from each conflict subset per ECU</span>
+<span class="kw">if</span> conflict_sets:
+    <span class="kw">for</span> k, subset <span class="kw">in</span> <span class="fn">enumerate</span>(conflict_sets):
+        valid <span class="op">=</span> [i <span class="kw">for</span> i <span class="kw">in</span> subset <span class="kw">if</span> i <span class="op">&lt;</span> M]
+        <span class="kw">if</span> <span class="fn">len</span>(valid) <span class="op">&gt;=</span> <span class="nm">2</span>:
+            <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N):
+                prob <span class="op">+=</span> pulp.<span class="fn">lpSum</span>(x[i][j] <span class="kw">for</span> i <span class="kw">in</span> valid) <span class="op">&lt;=</span> <span class="nm">1</span>, <span class="st">f"Conflict_<span class="nm">{k}</span>_ECU_<span class="nm">{j}</span>"</span></pre>
+
+<div class="explain">
+  <p class="cn">
+    冲突集合（conflict_sets）是一些服务的集合，这些服务互相"不兼容"，不能被部署在同一个 ECU 上（例如两个软件会抢占同一个资源）。
+    对每个冲突集合 subset 和每个 ECU j，该集合中放在 ECU j 上的服务数之和不能超过 1。
+  </p>
+  <p class="en">
+    Conflict sets define groups of mutually incompatible services — at most one service from each conflict group may be placed on any single ECU. This models resource conflicts (e.g., two services contend for the same hardware peripheral).
+  </p>
+  <div class="analogy"><strong>类比:</strong> 某些学生互相吵架，不能住同一间宿舍。冲突约束就是"吵架组"规则：同一组里最多只能有一人住在同一间房。</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 8 -->
+<h2 id="s8">8. λ Update and Convergence (λ更新与收敛)</h2>
+
+<pre><span class="cm"># Solve this iteration's ILP</span>
+prob.<span class="fn">solve</span>(pulp.<span class="fn">PULP_CBC_CMD</span>(msg<span class="op">=</span><span class="kw">False</span>))
+
+<span class="kw">if</span> pulp.<span class="fn">LpStatus</span>[prob.status] <span class="op">!=</span> <span class="st">'Optimal'</span>:
+    <span class="kw">break</span>
+
+best_x, best_y <span class="op">=</span> x, y
+
+<span class="nm">active</span> <span class="op">=</span> <span class="fn">sum</span>(<span class="nm">1</span> <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N)
+             <span class="kw">if</span> pulp.<span class="fn">value</span>(y[j]) <span class="kw">is not</span> <span class="kw">None</span> <span class="kw">and</span> pulp.<span class="fn">value</span>(y[j]) <span class="op">&gt;</span> <span class="nm">0.5</span>)
+<span class="nm">total</span>  <span class="op">=</span> <span class="fn">sum</span>(
+    pulp.<span class="fn">value</span>(x[i][j]) <span class="op">*</span> n_list[i] <span class="op">/</span> e_list[j]
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(M) <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(N)
+    <span class="kw">if</span> pulp.<span class="fn">value</span>(x[i][j]) <span class="kw">is not</span> <span class="kw">None</span> <span class="kw">and</span> pulp.<span class="fn">value</span>(x[i][j]) <span class="op">&gt;</span> <span class="nm">0.5</span>
+)
+
+<span class="nm">new_lambda</span> <span class="op">=</span> total <span class="op">/</span> active
+<span class="kw">if</span> <span class="fn">abs</span>(new_lambda <span class="op">-</span> lambda_val) <span class="op">&lt;</span> tol:
+    lambda_val <span class="op">=</span> new_lambda
+    <span class="kw">break</span>
+lambda_val <span class="op">=</span> new_lambda</pre>
+
+<div class="explain">
+  <p class="cn"><strong>逐行解析：</strong></p>
+  <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
+    <li><code>prob.solve(PULP_CBC_CMD(msg=False))</code> — 调用开源 CBC 求解器静默解题（不打印调试信息）</li>
+    <li><code>LpStatus[prob.status] != 'Optimal'</code> — 如果这次 ILP 没有最优解（可能是不可行），立刻停止</li>
+    <li><code>best_x, best_y = x, y</code> — 保存当前最好的解（变量值），以防下一次迭代破坏它</li>
+    <li><code>active = sum(1 for j ... if value(y[j]) > 0.5)</code> — 统计活跃 ECU 数（二进制变量，值 >0.5 视为 1）</li>
+    <li><code>total = sum(...)</code> — 计算当前解的总利用率 F(x)</li>
+    <li><code>new_lambda = total / active</code> — 新的 λ 就是当前解的真实 AR 值</li>
+    <li><code>if abs(new_lambda - lambda_val) &lt; tol: break</code> — λ 几乎不变了 → 收敛，退出循环</li>
+  </ul>
+  <p class="en" style="margin-top:10px;">
+    After each solve, compute the true AR of the current solution and use it as the new λ. When λ stops changing (converges), we have found the globally optimal AR.
+  </p>
+  <div class="analogy">
+    <strong>类比 / Analogy:</strong> 就像反复猜"这次分配的平均利用率是多少"，然后拿猜测结果去重新优化，再看结果，直到两次结果完全一样（误差 &lt; 0.000001）。
+    <br><br>
+    数学保证（Dinkelbach定理）：每次迭代后，AR 单调增加，且最终收敛到全局最优解。
+    <br>
+    Mathematical guarantee (Dinkelbach): AR strictly increases with each iteration and converges to the global optimum.
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════ SECTION 9 -->
+<h2 id="s9">9. main() — Loading YAML &amp; Caching Results</h2>
+
+<pre><span class="nm">@timer_utils.timer</span>
+<span class="kw">def</span> <span class="fn">main</span>(**kwargs):
+    <span class="cm"># read config from YAML file</span>
+    config_path <span class="op">=</span> kwargs.<span class="fn">get</span>(<span class="st">'config_path'</span>, <span class="kw">None</span>)
+
+    <span class="cm"># If no path provided, find the latest config file</span>
+    <span class="kw">if</span> config_path <span class="kw">is</span> <span class="kw">None</span>:
+        config_dir   <span class="op">=</span> Path(__file__).parent.parent <span class="op">/</span> <span class="st">'config'</span>
+        config_files <span class="op">=</span> <span class="fn">sorted</span>(config_dir.<span class="fn">glob</span>(<span class="st">'config_*.yaml'</span>), reverse<span class="op">=</span><span class="kw">True</span>)
+        <span class="kw">if</span> config_files:
+            config_path <span class="op">=</span> config_files[<span class="nm">0</span>]</pre>
+
+<div class="explain">
+  <p class="cn">
+    <code>@timer_utils.timer</code> 是一个装饰器（decorator），自动记录 main() 函数的运行时间。
+    <code>**kwargs</code> 让函数接受任意关键字参数，这里只用到了 <code>config_path</code>。
+  </p>
+  <p class="cn" style="margin-top:8px;">
+    如果没有传入配置文件路径，程序会自动在 config/ 目录下找最新的 YAML 文件（按文件名倒序排列，最新的文件名包含时间戳所以最大）。
+  </p>
+  <p class="en">
+    If no config path is provided, the program automatically finds the most recent YAML file in the config directory (sorted by filename in reverse order — timestamps in filenames make the latest file sort last alphabetically).
+  </p>
+</div>
+
+<h3>Shared ILP Cache (共享缓存，避免重复计算)</h3>
+<pre><span class="cm"># ── Shared ILP cache ─────────────────────────────────</span>
+shared_cache_path <span class="op">=</span> output_base_dir <span class="op">/</span> <span class="st">"ilp_cache.json"</span>
+cache_key <span class="op">=</span> <span class="st">f"<span class="nm">{config_path.name}</span>__n<span class="nm">{len(scenarios)}</span>"</span>
+
+<span class="kw">if</span> shared_cache_path.<span class="fn">exists</span>():
+    <span class="kw">with</span> <span class="fn">open</span>(shared_cache_path) <span class="kw">as</span> f:
+        cache <span class="op">=</span> json.<span class="fn">load</span>(f)
+    <span class="kw">if</span> cache.<span class="fn">get</span>(<span class="st">"key"</span>) <span class="op">==</span> cache_key:
+        results <span class="op">=</span> cache.<span class="fn">get</span>(<span class="st">"results"</span>, [])
+        already <span class="op">=</span> <span class="fn">len</span>(results)
+        <span class="kw">if</span> already <span class="op">==</span> <span class="fn">len</span>(scenarios):
+            <span class="kw">print</span>(<span class="st">f"[cache] All <span class="nm">{already}</span> ILP results loaded from cache"</span>)
+            <span class="kw">return</span> results</pre>
+
+<div class="explain">
+  <p class="cn">
+    ILP 求解很耗时（有时每个场景需要几秒到几十秒）。程序使用 <code>ilp_cache.json</code> 缓存已计算的结果：
+  </p>
+  <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
+    <li><code>cache_key</code>：由配置文件名 + 场景数量组成，如果配置改了就会失效</li>
+    <li>如果缓存存在且 key 匹配，直接加载结果，跳过 ILP 求解</li>
+    <li>如果缓存只有部分结果（程序中途被中断），从断点处继续（<code>start_idx = len(results)</code>）</li>
+  </ul>
+  <p class="en">
+    Solving 40+ ILP scenarios can take minutes. The cache skips recomputation if results already exist for the exact same config. Incremental caching means even an interrupted run can resume from where it left off.
+  </p>
+  <div class="analogy"><strong>类比:</strong> 就像考试前做过的历年真题答案——如果题目没变，直接查答案，不用再算一遍。</div>
+</div>
+
+<h3>Scenario Loop and Incremental Saving (场景循环与增量保存)</h3>
+<pre>start_idx <span class="op">=</span> <span class="fn">len</span>(results)
+<span class="kw">for</span> idx, scenario <span class="kw">in</span> <span class="fn">enumerate</span>(scenarios[start_idx:], start<span class="op">=</span>start_idx):
+    M <span class="op">=</span> <span class="fn">len</span>(scenario[<span class="st">'SVCs'</span>])
+    N <span class="op">=</span> <span class="fn">len</span>(scenario[<span class="st">'ECUs'</span>])
+    e_list <span class="op">=</span> [ecu[<span class="st">'capacity'</span>]    <span class="kw">for</span> ecu <span class="kw">in</span> scenario[<span class="st">'ECUs'</span>]]
+    n_list <span class="op">=</span> [svc[<span class="st">'requirement'</span>] <span class="kw">for</span> svc <span class="kw">in</span> scenario[<span class="st">'SVCs'</span>]]
+    conflict_sets <span class="op">=</span> scenario.<span class="fn">get</span>(<span class="st">'conflict_sets'</span>, [])
+
+    result <span class="op">=</span> <span class="fn">solve_service_deployment</span>(M, N, e_list, n_list, conflict_sets)
+    results.<span class="fn">append</span>(result)
+
+    <span class="cm"># Atomic write: write to .tmp first, then rename</span>
+    tmp <span class="op">=</span> shared_cache_path.<span class="fn">with_suffix</span>(<span class="st">".tmp"</span>)
+    <span class="kw">with</span> <span class="fn">open</span>(tmp, <span class="st">"w"</span>) <span class="kw">as</span> f:
+        json.<span class="fn">dump</span>({"key": cache_key, "results": results}, f)
+    tmp.<span class="fn">replace</span>(shared_cache_path)</pre>
+
+<div class="explain">
+  <p class="cn">
+    <code>scenarios[start_idx:]</code>：从上次中断的地方（或者第 0 个场景）继续处理。
+  </p>
+  <p class="cn" style="margin-top:8px;">
+    <strong>原子写入（Atomic write）</strong>：先写到 <code>.tmp</code> 临时文件，成功后再用 <code>replace()</code> 覆盖正式缓存文件。
+    这样即使写到一半程序崩溃，也不会损坏缓存文件（要么是旧的完整版，要么是新的完整版，不会是半截的）。
+  </p>
+  <p class="en">
+    <strong>Atomic write pattern:</strong> write to a temp file first, then atomically rename it. This ensures the cache file is never in a corrupted half-written state, even if the program crashes mid-write.
+  </p>
+  <div class="analogy"><strong>类比:</strong> 就像写支票时先在草稿纸上写好，确认没错再誊到正式支票上。</div>
+</div>
+
+</main>
+
+<footer>
+  <p>Source files:</p>
+  <p style="margin-top:6px;">
+    <span class="file-path">/home/soar009/github/my_code/ecu_lt_svc_p/problem2_ilp/objects.py</span><br>
+    <span class="file-path">/home/soar009/github/my_code/ecu_lt_svc_p/problem2_ilp/optimal_solution/main.py</span>
+  </p>
+  <p style="margin-top:12px; color:#4a5568;">Generated 2026-05-25 — Problem 2 ILP Code Walkthrough</p>
+</footer>
+
+</body>
+</html>

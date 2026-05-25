@@ -110,15 +110,9 @@ class P6Env(gym.Env):
             self.ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
             self.services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
             self.initial_vms = np.array([e.capacity for e in self.ecus], dtype=np.float32)
-            sorted_order = sorted(range(len(self.services)),
-                                  key=lambda i: self.services[i].requirement, reverse=True)
-            orig_to_new = {orig: new for new, orig in enumerate(sorted_order)}
-            self.conflict_sets = [
-                {orig_to_new[i] for i in cs if i < len(self.services)} for cs in _cs
-            ]
+            self.conflict_sets = [set(cs) for cs in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
-        self.services = sorted(self.services, key=lambda s: s.requirement, reverse=True)
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]

@@ -58,8 +58,8 @@ PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── MaskablePPO hyperparameters ───────────────────────────────────────────────
 PPO_LR          = 3e-4
-PPO_N_STEPS     = 128
-PPO_BATCH_SIZE  = 128
+PPO_N_STEPS     = M      # one complete episode per rollout per env
+PPO_BATCH_SIZE  = M      # one mini-batch = one episode
 PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.99
 PPO_GAE_LAMBDA  = 0.95

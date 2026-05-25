@@ -5,6 +5,7 @@ Supports all three scenario groups by dynamically resolving the correct package
 directory and YAML config for each group.
 
 Usage:
+    python run_experiment.py --seed 3 4 5 --group all --steps 5000000
     python run_experiment.py --seed 1 --group eq
     python run_experiment.py --seed 1 2 --group eq     # multiple seeds sequentially
     python run_experiment.py --seed 1 --group lt
@@ -25,6 +26,7 @@ import argparse
 import csv
 import datetime
 import functools
+import json
 import os
 import random
 import sys
@@ -54,7 +56,7 @@ GROUP_META = {
 }
 
 # ── global training target ────────────────────────────────────────────────────
-TARGET_EPISODES = 2_000_000
+TARGET_STEPS    = 5_000_000   # converted to episodes per group via steps // M
 _MAX_TIMESTEPS  = 999_999_999
 TORCH_THREADS   = 8
 
@@ -73,8 +75,7 @@ def _import_group_modules():
     from problem_dqn.env                import DQNEnv
     from problem_ddqn.env               import DDQNEnv
     from problem_ddqn.run_all           import DDQN
-    from problem7_ppo_seq.env           import P7Env
-    return ECU, SVC, P3Env, P4Env, LagrangeEnv, P6Env, DQNEnv, DDQNEnv, DDQN, P7Env
+    return ECU, SVC, P3Env, P4Env, LagrangeEnv, P6Env, DQNEnv, DDQNEnv, DDQN
 
 
 def _import_experiment_modules():
@@ -170,7 +171,8 @@ def _make_vecenv(env_fn_list):
 
 def train_p3(ECU, SVC, P3Env, EpisodeTrackingCallback,
              train_scenarios, seed, device, target_episodes):
-    print("  [P3 PPO] training …")
+    M = len(train_scenarios[0][1])
+    print(f"  [P3 PPO] training … M={M} n_steps={M} batch={M}")
     t0 = time.time()
     ep_cb = EpisodeTrackingCallback(target_episodes)
     vec   = _make_vecenv([
@@ -178,7 +180,7 @@ def train_p3(ECU, SVC, P3Env, EpisodeTrackingCallback,
         for i in range(40)
     ])
     model = _train_ppo(vec, ep_cb, [], seed, device, dict(
-        learning_rate=3e-4, n_steps=256, batch_size=128, n_epochs=10,
+        learning_rate=3e-4, n_steps=M, batch_size=M, n_epochs=10,
         gamma=0.999, gae_lambda=0.95, clip_range=0.2,
         policy_kwargs=dict(net_arch=[256, 256]),
     ))
@@ -190,7 +192,8 @@ def train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
              train_scenarios, seed, device, target_episodes):
     from sb3_contrib import MaskablePPO
     from stable_baselines3.common.vec_env import DummyVecEnv
-    print("  [P4 MaskPPO] training …")
+    M = len(train_scenarios[0][1])
+    print(f"  [P4 MaskPPO] training … M={M} n_steps={M} batch={M}")
     t0 = time.time()
     torch.set_num_threads(TORCH_THREADS)
     ep_cb = EpisodeTrackingCallback(target_episodes)
@@ -199,8 +202,8 @@ def train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
         for i in range(40)
     ])
     model = MaskablePPO(
-        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=256,
-        batch_size=128, n_epochs=10, gamma=0.999, gae_lambda=0.95,
+        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=M,
+        batch_size=M, n_epochs=10, gamma=0.999, gae_lambda=0.95,
         clip_range=0.2, policy_kwargs=dict(net_arch=[256, 256]),
         device=device, verbose=0, seed=seed,
     )
@@ -210,48 +213,12 @@ def train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
     return model, ep_cb
 
 
-def _make_p7_env(P7Env, ECU, SVC, seed_i, train_scenarios):
-    from stable_baselines3.common.monitor import Monitor
-    from sb3_contrib.common.wrappers import ActionMasker
-    random.seed(seed_i)
-    caps, reqs, _ = train_scenarios[0]
-    ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
-    svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    env  = P7Env(ecus, svcs, scenarios=train_scenarios)
-    env  = ActionMasker(env, lambda e: e.action_masks())
-    return Monitor(env)
-
-
-def train_p7(ECU, SVC, P7Env, EpisodeTrackingCallback,
-             train_scenarios, seed, device, target_episodes):
-    from sb3_contrib import MaskablePPO
-    from stable_baselines3.common.vec_env import DummyVecEnv
-    print("  [P7 SeqPPO] training …")
-    t0 = time.time()
-    torch.set_num_threads(TORCH_THREADS)
-    ep_cb = EpisodeTrackingCallback(target_episodes)
-    vec   = DummyVecEnv([
-        functools.partial(_make_p7_env, P7Env, ECU, SVC, seed + i, train_scenarios)
-        for i in range(40)
-    ])
-    # Larger network to handle bigger action space (M×N)
-    model = MaskablePPO(
-        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=256,
-        batch_size=128, n_epochs=10, gamma=0.999, gae_lambda=0.95,
-        clip_range=0.2, policy_kwargs=dict(net_arch=[256, 256, 128]),
-        device=device, verbose=0, seed=seed,
-    )
-    model.learn(total_timesteps=_MAX_TIMESTEPS, callback=ep_cb)
-    vec.close()
-    print(f"  [P7 SeqPPO] done  {time.time()-t0:.1f}s | {ep_cb.episode_count:,} eps")
-    return model, ep_cb
-
-
 def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCallback,
              train_scenarios, seed, device, target_episodes):
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import CallbackList
-    print("  [P5 LagPPO] training …")
+    M = len(train_scenarios[0][1])
+    print(f"  [P5 LagPPO] training … M={M} n_steps={M} batch={M}")
     t0 = time.time()
     torch.set_num_threads(TORCH_THREADS)
     LAMBDA_INIT, LAMBDA_MAX, LAMBDA_LR, LAMBDA_TARGET, LAMBDA_WIN = 0.1, 5.0, 0.005, 0.0, 20
@@ -263,8 +230,8 @@ def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCal
         for i in range(40)
     ])
     model = PPO(
-        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=128,
-        batch_size=256, n_epochs=10, gamma=0.99, gae_lambda=0.95, clip_range=0.2,
+        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=M,
+        batch_size=M, n_epochs=10, gamma=0.99, gae_lambda=0.95, clip_range=0.2,
         policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[512, 512])),
         device=device, verbose=0, seed=seed,
     )
@@ -276,7 +243,8 @@ def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCal
 
 def train_p6(ECU, SVC, P6Env, EpisodeTrackingCallback,
              train_scenarios, seed, device, target_episodes):
-    print("  [P6 RepairPPO] training …")
+    M = len(train_scenarios[0][1])
+    print(f"  [P6 RepairPPO] training … M={M} n_steps={M} batch={M}")
     t0 = time.time()
     ep_cb = EpisodeTrackingCallback(target_episodes)
     vec   = _make_vecenv([
@@ -284,7 +252,7 @@ def train_p6(ECU, SVC, P6Env, EpisodeTrackingCallback,
         for i in range(40)
     ])
     model = _train_ppo(vec, ep_cb, [], seed, device, dict(
-        learning_rate=3e-4, n_steps=256, batch_size=128, n_epochs=10,
+        learning_rate=3e-4, n_steps=M, batch_size=M, n_epochs=10,
         gamma=0.999, gae_lambda=0.95, clip_range=0.2,
         policy_kwargs=dict(net_arch=[256, 256]),
     ))
@@ -390,7 +358,79 @@ def _save_agg_csv(agg: dict, outdir: Path):
 #  main experiment runner (one seed)
 # ══════════════════════════════════════════════════════════════════════════════
 
-MODELS_ORDERED = ["P3_PPO", "P4_MaskPPO", "P5_LagPPO", "P6_RepairPPO", "DQN", "DDQN", "P7_SeqPPO"]
+MODELS_ORDERED = ["P3_PPO", "P4_MaskPPO", "P5_LagPPO", "P6_RepairPPO", "DQN", "DDQN"]
+
+
+class _Tee:
+    """Write to multiple file-like objects simultaneously."""
+    def __init__(self, *files):
+        self._files = files
+    def write(self, data):
+        for f in self._files:
+            f.write(data)
+    def flush(self):
+        for f in self._files:
+            f.flush()
+    def fileno(self):
+        return self._files[0].fileno()
+
+
+def _load_ilp(group: str) -> float | None:
+    """Read cached ILP average utilisation for a group (returns None if not found)."""
+    GROUP_ENV = {"lt": "ecu_lt_svc_p", "eq": "ecu_eq_svc_p", "gt": "ecu_gt_svc_p"}
+    ILP_PROBE = ["problem4_ppo_mask", "problem3_ppo", "problem_dqn", "problem6_ppo_opt"]
+    env_dir = ROOT / GROUP_ENV.get(group, "")
+    for prob in ILP_PROBE:
+        cache = env_dir / prob / "results" / "ilp_cache.json"
+        if cache.exists():
+            try:
+                data = json.loads(cache.read_text())
+                ars  = [r["avg_utilization"] for r in data.get("results", [])
+                        if "avg_utilization" in r]
+                if ars:
+                    return round(float(np.mean(ars)), 4)
+            except Exception:
+                pass
+    return None
+
+
+def _generate_summary(exp_root: Path, groups: list[str]):
+    """Generate per-group cross-seed summary figures (fig1–4) into {GROUP}/results/figures/."""
+    print(f"\n{'='*60}\n  Generating cross-seed summary figures …\n{'='*60}")
+
+    # Reset sys.path: remove all group pkgs, ensure ROOT is at front
+    for g in GROUP_META:
+        pkg = str(GROUP_META[g]["pkg_dir"])
+        while pkg in sys.path:
+            sys.path.remove(pkg)
+    root_str = str(ROOT)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+    for mod in list(sys.modules):
+        if mod.startswith("experiment"):
+            del sys.modules[mod]
+
+    from experiment.plot_summary import load_groups_agg, plot_experiment_summary
+
+    for g in groups:
+        seeds_root = exp_root / g.upper() / "seeds"
+        if not seeds_root.exists():
+            continue
+        dirs = sorted(
+            [d for d in seeds_root.iterdir() if d.is_dir()],
+            key=lambda p: int(p.name) if p.name.isdigit() else 0,
+        )
+        if not dirs:
+            continue
+
+        group_agg = load_groups_agg({g: dirs})
+        if not group_agg:
+            continue
+
+        ilp_data = {g: _load_ilp(g)}
+        out_dir  = exp_root / g.upper() / "results" / "figures"
+        print(f"  [{g.upper()}] {len(dirs)} seeds → {out_dir}")
+        plot_experiment_summary(group_agg, ilp_data, out_dir)
 
 
 _GROUP_MODULES = [
@@ -401,7 +441,6 @@ _GROUP_MODULES = [
     "problem6_ppo_opt", "problem6_ppo_opt.env",
     "problem_dqn", "problem_dqn.env",
     "problem_ddqn", "problem_ddqn.env", "problem_ddqn.run_all",
-    "problem7_ppo_seq", "problem7_ppo_seq.env",
 ]
 
 
@@ -420,125 +459,138 @@ def _switch_group(group: str):
 
 
 def run_one_seed(seed: int, scenarios: list, group: str,
-                 target_episodes: int, outdir_root: Path,
+                 target_steps: int, outdir_root: Path,
                  run_id: str = ""):
     # ── 0. set up sys.path for this group ────────────────────────────────────
     _switch_group(group)
 
     (ECU, SVC, P3Env, P4Env, LagrangeEnv,
-     P6Env, DQNEnv, DDQNEnv, DDQN, P7Env) = _import_group_modules()
+     P6Env, DQNEnv, DDQNEnv, DDQN) = _import_group_modules()
+
+    M = len(scenarios[0][1])
+    target_episodes = target_steps // M
 
     (EpisodeTrackingCallback, LagrangianUpdateCallback,
      evaluate_model, aggregate_eval,
      plot_training_curves, plot_test_results) = _import_experiment_modules()
 
     device = _resolve_device()
-    outdir = outdir_root / f"seed_{seed}"
-    outdir.mkdir(parents=True, exist_ok=True)
+    outdir = outdir_root / str(seed)
+    train_fig_dir  = outdir / "train_curve"  / "figures"
+    train_data_dir = outdir / "train_curve"  / "data"
+    test_data_dir  = outdir / "test_results" / "data"
+    test_fig_dir   = outdir / "test_results" / "figures"
+    logs_dir       = outdir / "logs"
+    for d in [train_fig_dir, train_data_dir, test_data_dir, test_fig_dir, logs_dir]:
+        d.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n{'='*64}")
-    print(f"  Experiment: group={group}  seed={seed}  device={device}")
-    print(f"  Target episodes: {target_episodes:,}  |  outdir: {outdir}")
-    print(f"{'='*64}\n")
+    # ── tee stdout+stderr into logs/run.log ──────────────────────────────────
+    _log_fh      = open(logs_dir / "run.log", "w", buffering=1)
+    _prev_stdout = sys.stdout
+    _prev_stderr = sys.stderr
+    sys.stdout   = _Tee(_prev_stdout, _log_fh)
+    sys.stderr   = _Tee(_prev_stderr, _log_fh)
 
-    # ── 1. shared train/test split ────────────────────────────────────────────
-    train_scenarios, test_scenarios = _make_split(scenarios, seed)
-    print(f"  Split: {len(train_scenarios)} train / {len(test_scenarios)} test\n")
+    try:
+        print(f"\n{'='*64}")
+        print(f"  Experiment: group={group}  seed={seed}  device={device}")
+        print(f"  M={M}  target_steps={target_steps:,}  target_episodes={target_episodes:,}  |  outdir: {outdir}")
+        print(f"{'='*64}\n")
 
-    # ── 2. train all models ───────────────────────────────────────────────────
-    training_data: dict = {}
-    models: dict = {}
+        # ── 1. shared train/test split ────────────────────────────────────────
+        train_scenarios, test_scenarios = _make_split(scenarios, seed)
+        print(f"  Split: {len(train_scenarios)} train / {len(test_scenarios)} test\n")
 
-    def _record(name, model, cb):
-        models[name] = model
-        n = len(cb.episode_rewards)
-        training_data[name] = {
-            "episode_nums":    list(range(1, n + 1)),
-            "episode_rewards": cb.episode_rewards,
+        # ── 2. train all models ───────────────────────────────────────────────
+        training_data: dict = {}
+        models: dict = {}
+
+        def _record(name, model, cb):
+            models[name] = model
+            n = len(cb.episode_rewards)
+            training_data[name] = {
+                "episode_nums":    list(range(1, n + 1)),
+                "episode_rewards": cb.episode_rewards,
+            }
+
+        model, cb = train_p3(ECU, SVC, P3Env, EpisodeTrackingCallback,
+                             train_scenarios, seed, device, target_episodes)
+        _record("P3_PPO", model, cb)
+
+        model, cb = train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
+                             train_scenarios, seed, device, target_episodes)
+        _record("P4_MaskPPO", model, cb)
+
+        model, cb = train_p5(ECU, SVC, LagrangeEnv,
+                             EpisodeTrackingCallback, LagrangianUpdateCallback,
+                             train_scenarios, seed, device, target_episodes)
+        _record("P5_LagPPO", model, cb)
+
+        model, cb = train_p6(ECU, SVC, P6Env, EpisodeTrackingCallback,
+                             train_scenarios, seed, device, target_episodes)
+        _record("P6_RepairPPO", model, cb)
+
+        model, cb = train_dqn(ECU, SVC, DQNEnv, EpisodeTrackingCallback,
+                              train_scenarios, seed, device, target_episodes)
+        _record("DQN", model, cb)
+
+        model, cb = train_ddqn(ECU, SVC, DDQNEnv, DDQN, EpisodeTrackingCallback,
+                               train_scenarios, seed, device, target_episodes)
+        _record("DDQN", model, cb)
+
+        # ── 3. training curve ─────────────────────────────────────────────────
+        print("\n  Plotting training curves …")
+        plot_training_curves(training_data, train_fig_dir, seed=seed)
+        _save_training_csv(training_data, train_data_dir)
+
+        # ── 4. evaluate all models ────────────────────────────────────────────
+        print("\n  Evaluating on test scenarios …")
+        all_eval: dict = {}
+
+        def _ppo_fn(m):
+            def fn(obs): a, _ = m.predict(obs, deterministic=True); return int(a)
+            return fn
+
+        def _mask_fn(m):
+            def fn(obs, mask): a, _ = m.predict(obs, action_masks=mask, deterministic=True); return int(a)
+            return fn
+
+        eval_cfg = {
+            "P3_PPO":       (P3Env,       _ppo_fn,  False, {}),
+            "P4_MaskPPO":   (P4Env,       _mask_fn, True,  {}),
+            "P5_LagPPO":    (LagrangeEnv, _ppo_fn,  False, {"lambda_init": 0.0, "lambda_max": 5.0}),
+            "P6_RepairPPO": (P6Env,       _ppo_fn,  False, {}),
+            "DQN":          (DQNEnv,      _ppo_fn,  False, {}),
+            "DDQN":         (DDQNEnv,     _ppo_fn,  False, {}),
         }
 
-    model, cb = train_p3(ECU, SVC, P3Env, EpisodeTrackingCallback,
-                         train_scenarios, seed, device, target_episodes)
-    _record("P3_PPO", model, cb)
+        for name in MODELS_ORDERED:
+            env_cls, policy_builder, needs_mask, env_kw = eval_cfg[name]
+            results = evaluate_model(
+                policy_fn=policy_builder(models[name]),
+                test_scenarios=test_scenarios,
+                env_cls=env_cls,
+                env_kwargs=env_kw,
+                needs_mask=needs_mask,
+            )
+            all_eval[name] = results
+            agg = aggregate_eval(results)
+            print(f"    {name:<16} AR={agg['ar_mean']:.4f}  "
+                  f"success={agg['success_rate']:.1%}  "
+                  f"cap={agg['cap_viol_rate']:.1%}  conf={agg['conf_viol_rate']:.1%}")
 
-    model, cb = train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
-                         train_scenarios, seed, device, target_episodes)
-    _record("P4_MaskPPO", model, cb)
+        # ── 5. test result plots + CSVs ───────────────────────────────────────
+        agg_all = {name: aggregate_eval(all_eval[name]) for name in MODELS_ORDERED}
+        plot_test_results(agg_all, test_fig_dir, seed=seed)
+        _save_test_csv(all_eval, test_data_dir)
+        _save_agg_csv(agg_all, test_data_dir)
 
-    model, cb = train_p5(ECU, SVC, LagrangeEnv,
-                         EpisodeTrackingCallback, LagrangianUpdateCallback,
-                         train_scenarios, seed, device, target_episodes)
-    _record("P5_LagPPO", model, cb)
+        print(f"\n  Done seed={seed}. Outputs → {outdir}\n")
 
-    model, cb = train_p6(ECU, SVC, P6Env, EpisodeTrackingCallback,
-                         train_scenarios, seed, device, target_episodes)
-    _record("P6_RepairPPO", model, cb)
-
-    model, cb = train_dqn(ECU, SVC, DQNEnv, EpisodeTrackingCallback,
-                          train_scenarios, seed, device, target_episodes)
-    _record("DQN", model, cb)
-
-    model, cb = train_ddqn(ECU, SVC, DDQNEnv, DDQN, EpisodeTrackingCallback,
-                           train_scenarios, seed, device, target_episodes)
-    _record("DDQN", model, cb)
-
-    model, cb = train_p7(ECU, SVC, P7Env, EpisodeTrackingCallback,
-                         train_scenarios, seed, device, target_episodes)
-    _record("P7_SeqPPO", model, cb)
-
-    # ── 3. training curve ─────────────────────────────────────────────────────
-    print("\n  Plotting training curves …")
-    plot_training_curves(training_data, outdir, seed=seed)
-    _save_training_csv(training_data, outdir)
-
-    # ── 4. evaluate all models ────────────────────────────────────────────────
-    print("\n  Evaluating on test scenarios …")
-    all_eval: dict = {}
-
-    def _ppo_fn(m):
-        def fn(obs): a, _ = m.predict(obs, deterministic=True); return int(a)
-        return fn
-
-    def _mask_fn(m):
-        def fn(obs, mask): a, _ = m.predict(obs, action_masks=mask, deterministic=True); return int(a)
-        return fn
-
-    eval_cfg = {
-        "P3_PPO":       (P3Env,       _ppo_fn,  False, {}),
-        "P4_MaskPPO":   (P4Env,       _mask_fn, True,  {}),
-        "P5_LagPPO":    (LagrangeEnv, _ppo_fn,  False, {"lambda_init": 0.0, "lambda_max": 5.0}),
-        "P6_RepairPPO": (P6Env,       _ppo_fn,  False, {}),
-        "DQN":          (DQNEnv,      _ppo_fn,  False, {}),
-        "DDQN":         (DDQNEnv,     _ppo_fn,  False, {}),
-        "P7_SeqPPO":    (P7Env,       _mask_fn, True,  {}),
-    }
-
-    for name in MODELS_ORDERED:
-        env_cls, policy_builder, needs_mask, env_kw = eval_cfg[name]
-        results = evaluate_model(
-            policy_fn=policy_builder(models[name]),
-            test_scenarios=test_scenarios,
-            env_cls=env_cls,
-            env_kwargs=env_kw,
-            needs_mask=needs_mask,
-        )
-        all_eval[name] = results
-        agg = aggregate_eval(results)
-        print(f"    {name:<16} AR={agg['ar_mean']:.4f}  "
-              f"success={agg['success_rate']:.1%}  "
-              f"cap={agg['cap_viol_rate']:.1%}  conf={agg['conf_viol_rate']:.1%}")
-
-    # ── 5. test result plots + CSVs ───────────────────────────────────────────
-    agg_all = {name: aggregate_eval(all_eval[name]) for name in MODELS_ORDERED}
-    plot_test_results(agg_all, outdir, seed=seed)
-    _save_test_csv(all_eval, outdir)
-    _save_agg_csv(agg_all, outdir)
-
-    # ── 6. stamp run_id so plot_metrics.py can group this batch ──────────────
-    if run_id:
-        (outdir / ".run_id").write_text(run_id + "\n")
-
-    print(f"\n  Done seed={seed}. Outputs → {outdir}\n")
+    finally:
+        sys.stdout = _prev_stdout
+        sys.stderr = _prev_stderr
+        _log_fh.close()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -547,37 +599,67 @@ def run_one_seed(seed: int, scenarios: list, group: str,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed",     type=int, nargs="+", default=[1])
-    parser.add_argument("--group",    type=str, default="all",
+    parser.add_argument("--seed",   type=int, nargs="+", default=[1])
+    parser.add_argument("--group",  type=str, default="all",
                         choices=["eq", "lt", "gt", "all"])
-    parser.add_argument("--episodes", type=int, default=TARGET_EPISODES)
-    parser.add_argument("--outdir",   type=str, default=None)
-    parser.add_argument("--run-id",   type=str, default=None,
-                        help="Shared experiment tag (timestamp_8hex). "
-                             "Auto-generated if omitted. Pass the same value "
-                             "to all parallel group launches via run_all_parallel.py.")
+    parser.add_argument("--steps",  type=int, default=TARGET_STEPS)
+    parser.add_argument("--name",   type=str, default="ecu_exp",
+                        help="Experiment name prefix for the reports directory.")
+    parser.add_argument("--outdir", type=str, default=None,
+                        help="Override output root (skips reports/ layout).")
+    parser.add_argument("--run-id", type=str, default=None,
+                        help="Shared run tag (YYYYMMDD_HHMMSS_8hex). "
+                             "Auto-generated if omitted.")
     args = parser.parse_args()
 
-    run_id = args.run_id or (
-        datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + os.urandom(4).hex()
-    )
-    print(f"  run_id: {run_id}")
+    if args.run_id:
+        run_id = args.run_id
+        hash8  = run_id.split("_")[-1]
+    else:
+        hash8  = os.urandom(4).hex()
+        run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + hash8
+    ts = "_".join(run_id.split("_")[:2]) if run_id.count("_") >= 2 else ""
+    print(f"  run_id : {run_id}  (hash={hash8})")
 
     groups = list(GROUP_META.keys()) if args.group == "all" else [args.group]
 
+    # Determine experiment root directory
+    if args.outdir:
+        exp_root = Path(args.outdir)
+    else:
+        exp_root = ROOT / "reports" / f"{args.name}_{run_id}"
+
+    exp_root.mkdir(parents=True, exist_ok=True)
+    print(f"  exp_root: {exp_root}")
+    run_info = {
+        "name":      args.name,
+        "hash":      hash8,
+        "timestamp": ts,
+        "run_id":    run_id,
+        "groups":    groups,
+        "seeds":     args.seed,
+    }
+    info_path = exp_root / "run_info.json"
+    if not info_path.exists():
+        info_path.write_text(json.dumps(run_info, indent=2))
+
     for group in groups:
         scenarios   = _load_scenarios(group)
-        outdir_root = Path(args.outdir) / group if args.outdir else ROOT / "results" / group
+        outdir_root = exp_root / group.upper() / "seeds"
         print(f"\n{'='*60}\n  Group: {group.upper()}\n{'='*60}")
         for seed in args.seed:
             run_one_seed(
                 seed=seed,
                 scenarios=scenarios,
                 group=group,
-                target_episodes=args.episodes,
+                target_steps=args.steps,
                 outdir_root=outdir_root,
                 run_id=run_id,
             )
+
+    # ── cross-seed summary figures (only for reports/ layout) ────────────────
+    if not args.outdir:
+        _generate_summary(exp_root, groups)
 
     print("All done.")
 

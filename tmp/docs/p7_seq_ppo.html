@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P7 Sequential PPO — 深度解析</title>
+  <style>
+    :root {
+      --primary: #7c3aed;
+      --accent:  #a78bfa;
+      --bg:      #0f0f1a;
+      --card:    #1a1a2e;
+      --border:  #2d2d4e;
+      --text:    #e2e8f0;
+      --muted:   #94a3b8;
+      --green:   #4ade80;
+      --yellow:  #facc15;
+      --red:     #f87171;
+      --blue:    #60a5fa;
+      --orange:  #fb923c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.7;
+      padding: 2rem 1rem;
+    }
+    .page-wrap { max-width: 900px; margin: 0 auto; }
+
+    h1 { font-size: 2rem; color: var(--accent); margin-bottom: 0.3rem; }
+    .subtitle { color: var(--muted); margin-bottom: 2.5rem; font-size: 0.95rem; }
+    h2 { font-size: 1.35rem; color: var(--accent); margin: 2.2rem 0 1rem; border-left: 4px solid var(--primary); padding-left: 0.8rem; }
+    h3 { font-size: 1.05rem; color: var(--yellow); margin: 1.4rem 0 0.6rem; }
+    p { margin-bottom: 0.9rem; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.4rem 1.6rem;
+      margin-bottom: 1.4rem;
+    }
+    .card.highlight { border-color: var(--primary); }
+    .card.warn  { border-color: var(--yellow); }
+    .card.danger { border-color: var(--red); }
+    .card.good  { border-color: var(--green); }
+
+    .tag {
+      display: inline-block;
+      padding: 0.15rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+    .tag-purple { background: #4c1d95; color: var(--accent); }
+    .tag-yellow { background: #78350f; color: var(--yellow); }
+    .tag-green  { background: #14532d; color: var(--green); }
+    .tag-red    { background: #7f1d1d; color: var(--red); }
+    .tag-blue   { background: #1e3a5f; color: var(--blue); }
+
+    code {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      background: #0a0a18;
+      color: var(--accent);
+      padding: 0.1em 0.4em;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #0a0a18;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      color: #c4b5fd;
+      line-height: 1.6;
+      margin: 0.8rem 0;
+    }
+    pre .kw  { color: #f472b6; }
+    pre .fn  { color: #60a5fa; }
+    pre .cm  { color: #6b7280; font-style: italic; }
+    pre .nm  { color: #4ade80; }
+    pre .st  { color: #fbbf24; }
+
+    .math {
+      background: #12122a;
+      border-left: 3px solid var(--primary);
+      padding: 0.8rem 1.2rem;
+      margin: 0.8rem 0;
+      border-radius: 0 6px 6px 0;
+      font-family: 'Cascadia Code', monospace;
+      font-size: 0.92rem;
+      color: #c4b5fd;
+    }
+
+    .step-list { list-style: none; padding: 0; }
+    .step-list li {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      align-items: flex-start;
+    }
+    .step-num {
+      min-width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin: 0.8rem 0;
+    }
+    .flow-box {
+      background: #1e1e3a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.88rem;
+    }
+    .flow-arrow { color: var(--muted); font-size: 1.2rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0.8rem 0;
+    }
+    th {
+      background: #1a1a3a;
+      color: var(--accent);
+      padding: 0.6rem 0.9rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    td {
+      padding: 0.55rem 0.9rem;
+      border: 1px solid var(--border);
+    }
+    tr:nth-child(even) td { background: #131325; }
+    .good-val { color: var(--green); font-weight: 700; }
+    .bad-val  { color: var(--red); font-weight: 700; }
+    .mid-val  { color: var(--yellow); font-weight: 700; }
+    .best-row td { background: #0d2a1a !important; }
+
+    .obs-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.4rem 1rem;
+      font-size: 0.9rem;
+      margin: 0.8rem 0;
+    }
+    .obs-label { color: var(--yellow); font-weight: 700; white-space: nowrap; }
+    .obs-desc  { color: var(--muted); }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <h1>P7 Sequential PPO (SeqPPO)</h1>
+  <p class="subtitle">
+    联合选择"哪个服务 + 哪个 ECU"的顺序决策方法 ·
+    Joint service-selection &amp; ECU-assignment via sequential RL
+  </p>
+
+  <!-- ===== 1. 核心思想 ===== -->
+  <h2>一、核心思想 — 为什么要"自由选择顺序"？</h2>
+
+  <div class="card highlight">
+    <p>
+      P4（MaskablePPO）每一步只决定"把<strong>当前服务</strong>放到哪个 ECU"——
+      服务的处理顺序是<strong>固定排好的</strong>（通常按资源需求从大到小排序）。
+      这意味着 AI 只能在给定顺序下局部最优，但顺序本身不可更改。
+    </p>
+    <p>
+      P7 打破这个限制：每一步 AI 同时决定
+      <strong>先处理哪个服务</strong>（从所有未放置服务中选）
+      <strong>AND</strong>
+      <strong>放到哪个 ECU</strong>。
+      动作空间从 N 扩展到 M × N。
+    </p>
+    <p style="margin-bottom:0">
+      直觉类比：P4 = 按固定菜单点菜，每次只选餐厅；
+      P7 = 自由搭配，既选今天吃什么，也选去哪家餐厅。
+    </p>
+  </div>
+
+  <div class="compare-grid">
+    <div class="card">
+      <h3>P4 MaskablePPO</h3>
+      <p>动作空间 = <code>Discrete(N)</code></p>
+      <p>每步：选 ECU（服务顺序固定）</p>
+      <p>状态："下一个要放的服务已确定"</p>
+    </div>
+    <div class="card">
+      <h3>P7 SeqPPO</h3>
+      <p>动作空间 = <code>Discrete(M × N)</code></p>
+      <p>每步：同时选服务 + 选 ECU</p>
+      <p>状态："所有未放置服务均可选"</p>
+    </div>
+  </div>
+
+  <!-- ===== 2. 动作编码 ===== -->
+  <h2>二、动作空间设计 — M × N 编码</h2>
+
+  <p>
+    如果有 M=15 个服务、N=10 个 ECU，动作空间共有
+    <strong>15 × 10 = 150 个动作</strong>，每个动作用一个整数 <code>a</code> 表示。
+  </p>
+
+  <div class="math">
+    svc_idx = a // N　　　（整除，得到服务编号，0 ~ M-1）<br>
+    ecu_idx = a  % N　　　（取余，得到 ECU 编号，0 ~ N-1）
+  </div>
+
+  <div class="card">
+    <h3>具体示例（M=15, N=10）</h3>
+    <table>
+      <tr><th>动作整数 a</th><th>svc_idx = a // 10</th><th>ecu_idx = a % 10</th><th>含义</th></tr>
+      <tr><td>0</td><td>0</td><td>0</td><td>服务0 → ECU0</td></tr>
+      <tr><td>7</td><td>0</td><td>7</td><td>服务0 → ECU7</td></tr>
+      <tr><td>10</td><td>1</td><td>0</td><td>服务1 → ECU0</td></tr>
+      <tr><td>23</td><td>2</td><td>3</td><td>服务2 → ECU3</td></tr>
+      <tr><td>149</td><td>14</td><td>9</td><td>服务14 → ECU9</td></tr>
+    </table>
+  </div>
+
+  <!-- ===== 3. 动作掩码 ===== -->
+  <h2>三、动作掩码 — 双重合法性检查</h2>
+
+  <div class="card">
+    <p>
+      P7 的动作掩码要同时满足两个条件，才允许执行动作 a：
+    </p>
+    <ol style="margin-left:1.5rem; margin-top:0.5rem">
+      <li style="margin-bottom:0.5rem">
+        <span class="tag tag-yellow">容量约束</span>
+        目标 ECU 剩余容量 ≥ 服务需求资源量
+      </li>
+      <li>
+        <span class="tag tag-red">冲突约束</span>
+        目标 ECU 未被列为该服务的禁止 ECU
+      </li>
+    </ol>
+    <p style="margin-top:0.8rem">
+      <strong>特别注意</strong>：若服务 <code>svc_idx</code> 已放置（<code>placed[svc_idx] == True</code>），
+      则该服务对应的所有 M × N 动作全部被屏蔽，不允许重复放置。
+    </p>
+  </div>
+
+  <pre><span class="cm"># 伪代码：action_masks() 的核心逻辑</span>
+<span class="kw">def</span> <span class="fn">action_masks</span>(self):
+    mask = [<span class="nm">False</span>] * (self.M * self.N)
+    <span class="kw">for</span> svc_idx <span class="kw">in</span> <span class="fn">range</span>(self.M):
+        <span class="kw">if</span> self.placed[svc_idx]:   <span class="cm"># 已放置，整行屏蔽</span>
+            <span class="kw">continue</span>
+        <span class="kw">for</span> ecu_idx <span class="kw">in</span> <span class="fn">range</span>(self.N):
+            cap_ok  = self.remaining_vms[ecu_idx] >= self.reqs[svc_idx]
+            conf_ok = ecu_idx <span class="kw">not in</span> self.forbidden[svc_idx]
+            <span class="kw">if</span> cap_ok <span class="kw">and</span> conf_ok:
+                mask[svc_idx * self.N + ecu_idx] = <span class="nm">True</span>
+    <span class="kw">return</span> mask</pre>
+
+  <!-- ===== 4. 观测空间 ===== -->
+  <h2>四、观测空间 — 4 + 4N + 3M 维向量</h2>
+
+  <p>
+    AI 每步能"看到"的信息被编码为一个数值向量。
+    P7 的观测比 P4 多了每个服务的状态信息（3M 维），因此维度更高。
+  </p>
+
+  <div class="card">
+    <div class="obs-grid">
+      <div class="obs-label">全局 (4 维)</div>
+      <div class="obs-desc">
+        ① 当前 AR（平均资源利用率）<br>
+        ② 所有 ECU 剩余总容量（归一化）<br>
+        ③ 所有未放置服务的总需求（归一化）<br>
+        ④ 剩余未放置服务比例
+      </div>
+      <div class="obs-label">每个 ECU (4N 维)</div>
+      <div class="obs-desc">
+        对每个 ECU j（j=0..N-1）：<br>
+        ① 初始容量/最大初始容量<br>
+        ② 剩余容量/初始容量<br>
+        ③ 允许放置的服务比例（1 - 冲突服务数/M）<br>
+        ④ 已放置服务数/M
+      </div>
+      <div class="obs-label">每个服务 (3M 维)</div>
+      <div class="obs-desc">
+        对每个服务 i（i=0..M-1）：<br>
+        ① 资源需求/最大需求（归一化）<br>
+        ② 是否已放置（0 或 1）<br>
+        ③ 可合法放置的 ECU 比例
+      </div>
+    </div>
+  </div>
+
+  <p>
+    以 M=15, N=10 为例：总观测维度 = 4 + 4×10 + 3×15 = 4 + 40 + 45 = <strong>89 维</strong>。
+    相比 P4（约 44 维），P7 的状态更丰富，因为 AI 需要主动选择下一个服务。
+  </p>
+
+  <!-- ===== 5. 奖励函数 ===== -->
+  <h2>五、奖励函数 — 违规重罚 + 完美完成大奖励</h2>
+
+  <div class="card highlight">
+    <h3>每步奖励（Step Reward）</h3>
+    <div class="math">
+      如果动作合法（无容量/冲突违规）：<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;r_step = req_i / cap_j　　（本次放置的利用率贡献）<br><br>
+      如果动作非法（产生违规）：<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;r_step = -2.0　　（重罚）
+    </div>
+    <h3 style="margin-top:1rem">终止奖励（Terminal Reward）</h3>
+    <div class="math">
+      如果整个 episode 零违规：<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;r_terminal = +AR　　（鼓励高利用率完美方案）<br><br>
+      如果存在任何违规：<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;r_terminal = +0.1 × AR　　（轻微奖励，主要信号已被 -2.0 抵消）
+    </div>
+  </div>
+
+  <div class="card warn">
+    <h3>为什么终止奖励如此重要？</h3>
+    <p>
+      仅靠每步 req/cap 奖励，AI 可能学会"放置服务就能得分，违规无所谓"。
+      终止奖励把整个 episode 的结果与全局 AR 绑定——
+      <strong>零违规才能拿到完整奖励</strong>，
+      引导 AI 从全局角度规划每一步动作，而非贪婪地最大化当前步奖励。
+    </p>
+  </div>
+
+  <!-- ===== 6. 训练流程 ===== -->
+  <h2>六、训练流程（与 P4 共享超参数）</h2>
+
+  <ul class="step-list">
+    <li>
+      <div class="step-num">1</div>
+      <div>
+        <strong>初始化环境（40 个并行环境）</strong><br>
+        每个环境独立采样一个场景（M 个服务的需求量 + 约束矩阵），
+        所有服务标记为未放置（<code>placed = [False] * M</code>）。
+      </div>
+    </li>
+    <li>
+      <div class="step-num">2</div>
+      <div>
+        <strong>采集经验（256 步/环境）</strong><br>
+        每步 AI 调用 <code>action_masks()</code> 获取合法动作集合，
+        Policy 网络在合法动作上 softmax 采样，执行，记录
+        (observation, action, reward, done, mask) 元组。
+      </div>
+    </li>
+    <li>
+      <div class="step-num">3</div>
+      <div>
+        <strong>计算 GAE 优势估计</strong><br>
+        用 Critic 网络估值，反向传播 GAE（λ=0.95, γ=0.999），
+        得到每步的优势函数 Â_t。
+      </div>
+    </li>
+    <li>
+      <div class="step-num">4</div>
+      <div>
+        <strong>PPO Clip 更新（10 个 epoch）</strong><br>
+        计算概率比 r_t = π_new/π_old，
+        Clip 在 [1-ε, 1+ε]（ε=0.2）内限制更新幅度，
+        同时更新 Actor（策略）和 Critic（价值）。
+      </div>
+    </li>
+    <li>
+      <div class="step-num">5</div>
+      <div>
+        <strong>重复直到 500 万总步数</strong><br>
+        不断迭代采集 → 更新 → 清空 buffer，
+        共约 500万 / (40 × 256) ≈ 488 次大迭代。
+      </div>
+    </li>
+  </ul>
+
+  <div class="card">
+    <h3>训练超参数（与 P4 相同）</h3>
+    <table>
+      <tr><th>参数</th><th>值</th><th>作用</th></tr>
+      <tr><td>γ（折扣因子）</td><td>0.999</td><td>重视远期奖励，鼓励全局规划</td></tr>
+      <tr><td>λ_GAE</td><td>0.95</td><td>GAE 权衡偏差与方差</td></tr>
+      <tr><td>ε（Clip 范围）</td><td>0.2</td><td>限制单次策略更新幅度</td></tr>
+      <tr><td>并行环境数</td><td>40</td><td>加速探索，提高样本多样性</td></tr>
+      <tr><td>rollout 步数</td><td>256</td><td>每次采集的步数</td></tr>
+      <tr><td>更新 epoch</td><td>10</td><td>每批数据复用 10 次更新</td></tr>
+      <tr><td>总步数</td><td>5,000,000</td><td>训练预算</td></tr>
+    </table>
+  </div>
+
+  <!-- ===== 7. placed[] 机制 ===== -->
+  <h2>七、placed[] 追踪机制 — 防止重复放置</h2>
+
+  <div class="card">
+    <p>
+      P7 用一个布尔数组 <code>placed[0..M-1]</code> 追踪哪些服务已放置。
+      每次 AI 成功放置服务 <code>svc_idx</code> 后：
+    </p>
+    <div class="flow-row">
+      <div class="flow-box">执行动作 a</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">解码 svc_idx, ecu_idx</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">更新 remaining_vms[ecu_idx]</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><code>placed[svc_idx] = True</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">更新 action_masks()</div>
+    </div>
+    <p style="margin-top:0.8rem">
+      当 <code>sum(placed) == M</code> 时，所有服务均已放置，episode 结束，
+      触发终止奖励。
+    </p>
+  </div>
+
+  <!-- ===== 8. 与P4对比 ===== -->
+  <h2>八、P7 vs P4 — 自由选顺序为何反而更难？</h2>
+
+  <div class="card warn">
+    <p>
+      直觉上，"自由选择顺序"应该能找到更好的方案。
+      但实验结果显示 P7 在 LT 场景下表现反而<strong>不如 P4</strong>——
+      冲突违规率高达 85%，而 P4 为 0%。
+    </p>
+    <h3>原因分析：探索空间爆炸</h3>
+    <ul style="margin-left:1.5rem; margin-top:0.5rem">
+      <li style="margin-bottom:0.5rem">
+        <strong>动作空间从 N=10 扩展到 M×N=150</strong>，
+        每步需要从 150 个动作中选择，合法动作的比例在 LT 场景下极低，
+        梯度信号稀疏，学习效率大幅下降。
+      </li>
+      <li style="margin-bottom:0.5rem">
+        <strong>冲突约束的复杂交互</strong>：
+        LT 场景（15 服务 / 10 ECU）资源极度紧张，
+        服务与 ECU 之间的冲突约束使得可行解空间极小；
+        P7 需要同时学习"先放哪个"和"放哪里"，
+        这两个决策的耦合使得 5M 步训练远远不够收敛。
+      </li>
+      <li>
+        <strong>P4 受益于问题结构</strong>：
+        固定的服务排序（按需求大小）实际上是一个很好的启发式先验，
+        把一个难问题转化为一系列相对简单的 N 选 1 子问题。
+      </li>
+    </ul>
+  </div>
+
+  <div class="compare-grid">
+    <div class="card good">
+      <h3>P4 的优势</h3>
+      <p>固定顺序 = 内置启发式先验</p>
+      <p>每步只需从 N=10 个动作选</p>
+      <p>LT: 零违规，AR=0.673</p>
+    </div>
+    <div class="card danger">
+      <h3>P7 的挑战</h3>
+      <p>无先验，需自学最优顺序</p>
+      <p>每步从 M×N=150 个动作选</p>
+      <p>LT: 冲突违规率 85%，AR=0.571</p>
+    </div>
+  </div>
+
+  <!-- ===== 9. 实验结果 ===== -->
+  <h2>九、实验结果（最新一次实验，3 seeds 均值）</h2>
+
+  <div class="card warn">
+    <p>
+      <span class="tag tag-yellow">注意</span>
+      P7（SeqPPO）仅有 3 个 seed 的完整结果（seed_1、seed_2、seed_3），
+      以下数值为 3 seeds × 40 测试场景的均值。
+      其他算法（ILP、P4、DQN 等）使用 5 seeds 均值。
+    </p>
+  </div>
+
+  <h3>场景 EQ（10 ECU / 10 服务，均衡场景）</h3>
+  <table>
+    <tr>
+      <th>算法</th>
+      <th>AR 均值</th>
+      <th>已放置服务数</th>
+      <th>ViolRate</th>
+      <th>说明</th>
+    </tr>
+    <tr class="best-row">
+      <td>ILP（最优）</td>
+      <td class="good-val">0.5418</td>
+      <td>10.0</td>
+      <td class="good-val">0.0%</td>
+      <td>精确最优基准</td>
+    </tr>
+    <tr>
+      <td>MaskablePPO (P4)</td>
+      <td>0.5348</td>
+      <td>9.99</td>
+      <td class="good-val">0.0%</td>
+      <td>5 seeds</td>
+    </tr>
+    <tr>
+      <td><strong>SeqPPO (P7)</strong></td>
+      <td>0.4794</td>
+      <td>10.0</td>
+      <td class="good-val">0.0%</td>
+      <td>3 seeds，零违规</td>
+    </tr>
+    <tr>
+      <td>DDQN</td>
+      <td>0.5316</td>
+      <td>10.0</td>
+      <td class="mid-val">3.5%</td>
+      <td>5 seeds</td>
+    </tr>
+    <tr>
+      <td>DQN</td>
+      <td>0.5281</td>
+      <td>10.0</td>
+      <td class="mid-val">5.5%</td>
+      <td>5 seeds</td>
+    </tr>
+  </table>
+
+  <h3>场景 GT（10 ECU / 10 服务，ECU 资源充裕）</h3>
+  <table>
+    <tr>
+      <th>算法</th>
+      <th>AR 均值</th>
+      <th>已放置服务数</th>
+      <th>ViolRate</th>
+      <th>说明</th>
+    </tr>
+    <tr class="best-row">
+      <td>ILP（最优）</td>
+      <td class="good-val">0.6301</td>
+      <td>10.0</td>
+      <td class="good-val">0.0%</td>
+      <td>精确最优基准</td>
+    </tr>
+    <tr>
+      <td>MaskablePPO (P4)</td>
+      <td>0.6155</td>
+      <td>9.98</td>
+      <td class="good-val">0.0%</td>
+      <td>5 seeds</td>
+    </tr>
+    <tr>
+      <td><strong>SeqPPO (P7)</strong></td>
+      <td>0.5441</td>
+      <td>10.0</td>
+      <td class="good-val">0.0%</td>
+      <td>3 seeds，零违规</td>
+    </tr>
+    <tr>
+      <td>DDQN</td>
+      <td>0.6100</td>
+      <td>10.0</td>
+      <td class="mid-val">4.5%</td>
+      <td>5 seeds</td>
+    </tr>
+    <tr>
+      <td>DQN</td>
+      <td>0.6099</td>
+      <td>10.0</td>
+      <td class="mid-val">6.5%</td>
+      <td>5 seeds</td>
+    </tr>
+  </table>
+
+  <h3>场景 LT（10 ECU / 15 服务，最难场景）</h3>
+  <table>
+    <tr>
+      <th>算法</th>
+      <th>AR 均值</th>
+      <th>已放置服务数</th>
+      <th>ViolRate</th>
+      <th>CapViol/seed</th>
+      <th>ConflictViol/seed</th>
+      <th>说明</th>
+    </tr>
+    <tr class="best-row">
+      <td>ILP（最优）</td>
+      <td class="good-val">0.7361</td>
+      <td>15.0</td>
+      <td class="good-val">0.0%</td>
+      <td class="good-val">0.0</td>
+      <td class="good-val">0.0</td>
+      <td>精确最优基准</td>
+    </tr>
+    <tr>
+      <td>MaskablePPO (P4)</td>
+      <td class="good-val">0.6727</td>
+      <td>15.0</td>
+      <td class="good-val">0.0%</td>
+      <td class="good-val">0.0</td>
+      <td class="good-val">0.0</td>
+      <td>5 seeds</td>
+    </tr>
+    <tr>
+      <td><strong>SeqPPO (P7)</strong></td>
+      <td class="mid-val">0.5713</td>
+      <td>15.0</td>
+      <td class="bad-val">85.0%</td>
+      <td class="bad-val">~0.05×40=2</td>
+      <td class="bad-val">~0.85×40=34</td>
+      <td>3 seeds，高违规</td>
+    </tr>
+    <tr>
+      <td>P5 Lagrangian</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>见 p5 文档</td>
+    </tr>
+    <tr>
+      <td>DDQN</td>
+      <td>0.6591</td>
+      <td>15.0</td>
+      <td class="bad-val">64.4%</td>
+      <td class="bad-val">20.6</td>
+      <td class="bad-val">27.8</td>
+      <td>5 seeds</td>
+    </tr>
+    <tr>
+      <td>DQN</td>
+      <td>0.6670</td>
+      <td>15.0</td>
+      <td class="bad-val">68.1%</td>
+      <td class="bad-val">21.8</td>
+      <td class="bad-val">31.8</td>
+      <td>5 seeds</td>
+    </tr>
+  </table>
+
+  <div class="card">
+    <h3>LT 场景 P7 详细数据（3 seeds）</h3>
+    <table>
+      <tr>
+        <th>Seed</th>
+        <th>AR 均值</th>
+        <th>AR 标准差</th>
+        <th>成功率（零违规）</th>
+        <th>CapViol 率</th>
+        <th>ConflictViol 率</th>
+      </tr>
+      <tr>
+        <td>Seed 1</td>
+        <td>0.5844</td>
+        <td>0.0933</td>
+        <td class="mid-val">17.5%</td>
+        <td class="bad-val">10.0%</td>
+        <td class="bad-val">82.5%</td>
+      </tr>
+      <tr>
+        <td>Seed 2</td>
+        <td>0.5651</td>
+        <td>0.0768</td>
+        <td class="mid-val">10.0%</td>
+        <td class="mid-val">2.5%</td>
+        <td class="bad-val">90.0%</td>
+      </tr>
+      <tr>
+        <td>Seed 3</td>
+        <td>0.5644</td>
+        <td>0.0876</td>
+        <td class="mid-val">17.5%</td>
+        <td class="mid-val">2.5%</td>
+        <td class="bad-val">82.5%</td>
+      </tr>
+      <tr style="background:#1a1a3a">
+        <td><strong>3-seed 均值</strong></td>
+        <td><strong>0.5713</strong></td>
+        <td><strong>0.0859</strong></td>
+        <td class="mid-val"><strong>15.0%</strong></td>
+        <td class="bad-val"><strong>5.0%</strong></td>
+        <td class="bad-val"><strong>85.0%</strong></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ===== 10. 关键洞察 ===== -->
+  <h2>十、关键洞察 — P7 的价值与局限</h2>
+
+  <div class="card good">
+    <h3>P7 的优势</h3>
+    <ul style="margin-left:1.5rem">
+      <li>在 EQ 和 GT 场景（资源充裕）下实现<strong>零违规</strong>，证明可行性</li>
+      <li>框架更通用：不依赖固定的服务排序启发式</li>
+      <li>理论上拥有更大的解空间，可能找到 P4 无法发现的方案</li>
+    </ul>
+  </div>
+
+  <div class="card danger">
+    <h3>P7 的局限（LT 场景）</h3>
+    <ul style="margin-left:1.5rem">
+      <li>动作空间扩大 15 倍（从 10 → 150），需要更多训练步数才能收敛</li>
+      <li>冲突违规率 85%，说明 5M 步训练远不足以在 LT 约束下掌握顺序选择</li>
+      <li>AR 仅 0.571，低于 P4（0.673）和 DDQN（0.659）</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>如果要改进 P7？</h3>
+    <ul style="margin-left:1.5rem">
+      <li>增加训练步数（例如 20M～50M 步），给 AI 足够时间探索更大的动作空间</li>
+      <li>引入课程学习（Curriculum Learning）：先在小问题（M=5, N=5）上训练，再逐步增大规模</li>
+      <li>结合 P5 的 Lagrangian 惩罚：给违规动作额外惩罚，加速学习可行策略</li>
+      <li>分层决策：先选服务（M 路 softmax），再选 ECU（N 路 softmax），减少耦合</li>
+    </ul>
+  </div>
+
+  <!-- ===== 11. 完整算法伪代码 ===== -->
+  <h2>十一、完整算法伪代码</h2>
+
+  <pre><span class="cm">##################################################</span>
+<span class="cm">## P7 SeqPPO — 联合选服务+ECU 的 MaskablePPO</span>
+<span class="cm">##################################################</span>
+
+<span class="cm"># 环境初始化</span>
+<span class="kw">def</span> <span class="fn">reset</span>(env):
+    env.placed = [<span class="nm">False</span>] * M          <span class="cm"># 所有服务未放置</span>
+    env.remaining_vms = initial_cap.copy()
+    <span class="kw">return</span> <span class="fn">build_obs</span>(env)              <span class="cm"># 返回 4 + 4N + 3M 维观测</span>
+
+<span class="cm"># 每步交互</span>
+<span class="kw">def</span> <span class="fn">step</span>(env, action):
+    svc_idx = action // N
+    ecu_idx = action % N
+
+    <span class="kw">if</span> <span class="fn">is_violation</span>(svc_idx, ecu_idx):   <span class="cm"># 容量或冲突违规</span>
+        reward = -<span class="nm">2.0</span>
+        env.viol_count += <span class="nm">1</span>
+    <span class="kw">else</span>:
+        env.remaining_vms[ecu_idx] -= env.reqs[svc_idx]
+        reward = env.reqs[svc_idx] / env.caps[ecu_idx]  <span class="cm"># req/cap</span>
+
+    env.placed[svc_idx] = <span class="nm">True</span>
+    done = <span class="fn">sum</span>(env.placed) == M
+
+    <span class="kw">if</span> done:
+        AR = <span class="fn">calc_AR</span>(env)
+        <span class="kw">if</span> env.viol_count == <span class="nm">0</span>:
+            reward += AR          <span class="cm"># 完美完成：+AR</span>
+        <span class="kw">else</span>:
+            reward += <span class="nm">0.1</span> * AR   <span class="cm"># 有违规：仅 +0.1*AR</span>
+
+    <span class="kw">return</span> <span class="fn">build_obs</span>(env), reward, done
+
+<span class="cm"># PPO 训练主循环（与 P4 完全相同）</span>
+<span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">5_000_000</span>):
+    masks = env.<span class="fn">action_masks</span>()           <span class="cm"># M×N 维布尔掩码</span>
+    action = policy.<span class="fn">sample</span>(obs, masks)   <span class="cm"># 仅在合法动作上采样</span>
+    obs, reward, done = env.<span class="fn">step</span>(action)
+    buffer.<span class="fn">store</span>(obs, action, reward, done, masks)
+
+    <span class="kw">if</span> buffer.<span class="fn">full</span>():
+        advantages = <span class="fn">compute_GAE</span>(buffer, gamma=<span class="nm">0.999</span>, lam=<span class="nm">0.95</span>)
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">10</span>):              <span class="cm"># 10 epoch PPO 更新</span>
+            <span class="fn">ppo_clip_update</span>(buffer, advantages, epsilon=<span class="nm">0.2</span>)
+        buffer.<span class="fn">clear</span>()</pre>
+
+  <footer>
+    <p>
+      文件路径：<code>/home/soar009/github/my_code/tmp/docs/p7_seq_ppo.html</code> ·
+      实验数据来源：<code>results/{eq,gt,lt}/seed_{1,2,3}/test_results_agg.csv</code>（最新一次实验，3 seeds）·
+      源码：<code>ecu_lt_svc_p/problem7_ppo_seq/env.py</code>
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

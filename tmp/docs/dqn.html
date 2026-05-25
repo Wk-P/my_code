@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DQN 深度 Q 网络 — ECU部署算法详解</title>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    :root{--bg:#f7f8fa;--card:#ffffff;--border:#e2e6ea;--accent:#2563eb;--accent-light:#eff6ff;--zh:#1e293b;--en:#374151;--tag-zh:#2563eb;--tag-en:#059669;--code-bg:#f1f5f9;--code-border:#cbd5e1;--section-h:#1e40af;--shadow:0 1px 4px rgba(0,0,0,0.07);}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);font-family:"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif;color:var(--zh);line-height:1.75;padding:2rem 1rem 4rem;}
+    header{text-align:center;margin-bottom:2.5rem;}
+    header h1{font-size:1.8rem;color:var(--accent);margin-bottom:0.4rem;}
+    header p{color:#6b7280;font-size:0.95rem;}
+    .toc{max-width:860px;margin:0 auto 2rem;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.6rem;box-shadow:var(--shadow);}
+    .toc h2{font-size:0.95rem;color:#6b7280;margin-bottom:0.6rem;letter-spacing:0.05em;text-transform:uppercase;}
+    .toc ol{padding-left:1.4rem;}
+    .toc li{margin:0.25rem 0;}
+    .toc a{color:var(--accent);text-decoration:none;font-size:0.93rem;}
+    .toc a:hover{text-decoration:underline;}
+    .section{max-width:860px;margin:0 auto 2.5rem;}
+    .section-title{font-size:1.25rem;font-weight:700;color:var(--section-h);padding:0.5rem 0 0.5rem 0.9rem;border-left:4px solid var(--accent);margin-bottom:1rem;}
+    .pair{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:1rem;box-shadow:var(--shadow);overflow:hidden;}
+    .pair-zh{padding:1rem 1.4rem 0.9rem;border-bottom:1px solid var(--border);background:#fafbff;}
+    .pair-en{padding:0.9rem 1.4rem 1rem;color:var(--en);font-size:0.93rem;}
+    .lang-tag{display:inline-block;font-size:0.68rem;font-weight:700;letter-spacing:0.07em;padding:0.1em 0.5em;border-radius:4px;margin-right:0.5rem;vertical-align:middle;}
+    .lang-zh{background:#dbeafe;color:var(--tag-zh);}
+    .lang-en{background:#d1fae5;color:var(--tag-en);}
+    .formula-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:0.8rem 1.2rem;margin:0.6rem 0;font-size:1rem;overflow-x:auto;}
+    table{width:100%;border-collapse:collapse;font-size:0.88rem;margin:0.7rem 0;}
+    th{background:var(--accent-light);color:var(--accent);font-weight:700;padding:0.5rem 0.8rem;border:1px solid var(--border);text-align:left;}
+    td{padding:0.45rem 0.8rem;border:1px solid var(--border);vertical-align:top;}
+    tr:nth-child(even) td{background:#f9fafb;}
+    pre{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:0.8rem 1rem;font-size:0.83rem;overflow-x:auto;margin:0.6rem 0;line-height:1.6;}
+    code{font-family:"Fira Code","Consolas",monospace;}
+    .note{background:#fefce8;border-left:4px solid #facc15;border-radius:6px;padding:0.6rem 1rem;font-size:0.88rem;color:#713f12;margin:0.6rem 0;}
+    .step{display:flex;gap:0.8rem;margin:0.5rem 0;align-items:flex-start;}
+    .step-num{background:var(--accent);color:white;border-radius:50%;min-width:1.7rem;height:1.7rem;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;flex-shrink:0;margin-top:0.15rem;}
+    .step-body{flex:1;}
+    footer{text-align:center;color:#9ca3af;font-size:0.8rem;margin-top:3rem;}
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>DQN — 深度 Q 网络</h1>
+  <p>Deep Q-Network | 基于 Q 值的值函数强化学习 · Value-based RL</p>
+</header>
+
+<div class="toc">
+  <h2>目录 Contents</h2>
+  <ol>
+    <li><a href="#s1">Q 函数：每个选择"值多少分"</a></li>
+    <li><a href="#s2">贝尔曼方程：从未来推现在</a></li>
+    <li><a href="#s3">用神经网络近似 Q 函数</a></li>
+    <li><a href="#s4">探索与利用：ε-greedy 策略</a></li>
+    <li><a href="#s5">经验回放：打乱时序相关性</a></li>
+    <li><a href="#s6">目标网络：稳定学习目标</a></li>
+    <li><a href="#s7">完整 DQN 训练流程</a></li>
+    <li><a href="#s8">违规处理：终止惩罚机制</a></li>
+    <li><a href="#s9">实验结果（最新一次，5 seeds）</a></li>
+  </ol>
+</div>
+
+<!-- ══ S1 ══ -->
+<div class="section" id="s1">
+  <div class="section-title">一 · Q 函数：每个选择"值多少分" — The Q-Function</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>Q 值的含义：</strong><br>
+      \(Q(s, a)\) = "在状态 s 下，做动作 a，然后按最优策略继续走，能拿到的<strong>总奖励期望</strong>"<br><br>
+      <strong>举个例子：</strong><br>
+      假设现在是象棋残局（状态 s），你面前有两步可走（动作 a1, a2）：
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>\(Q(s, a1) = 100\)：走 a1 路线，预期总得分 100</li>
+        <li>\(Q(s, a2) = 60\)：走 a2 路线，预期总得分 60</li>
+      </ul>
+      显然选 a1。所以<strong>贪心策略</strong>就是：在每个状态下，选 Q 值最高的那个动作。<br><br>
+      在 ECU 部署里：Q(s, j) = "当前状态下，把服务放到 ECU j，之后最优放置，总奖励期望值"
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Meaning of Q-value:</strong><br>
+      \(Q(s, a)\) = "in state s, taking action a, then following the optimal policy — <strong>expected total reward</strong>"<br><br>
+      <strong>Example:</strong><br>
+      In a chess endgame (state s) with two possible moves (a1, a2):
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>\(Q(s, a1) = 100\): path via a1 → expected total score 100</li>
+        <li>\(Q(s, a2) = 60\): path via a2 → expected total score 60</li>
+      </ul>
+      Choose a1. The <strong>greedy policy</strong>: in each state, pick the action with the highest Q-value.<br><br>
+      In ECU deployment: Q(s, j) = "given current state, placing the service on ECU j, then playing optimally — expected total reward"
+    </div>
+  </div>
+</div>
+
+<!-- ══ S2 ══ -->
+<div class="section" id="s2">
+  <div class="section-title">二 · 贝尔曼方程：从未来推现在 — The Bellman Equation</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>Q 值的递推关系（贝尔曼最优方程）：</strong>
+      <div class="formula-block">
+        \[ Q^*(s, a) = \mathbb{E}\!\left[ r + \gamma \cdot \max_{a'} Q^*(s', a') \;\Big|\; s, a \right] \]
+      </div>
+      逐项读：
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>\(Q^*(s, a)\)：在 s 下做 a 的最优 Q 值</li>
+        <li>\(r\)：立即得到的奖励</li>
+        <li>\(\gamma \cdot \max_{a'} Q^*(s', a')\)：到达下一个状态 s'，选最优动作 a'，对应的折扣 Q 值</li>
+      </ul>
+      直觉：<strong>"现在的价值 = 立即收益 + 下一步最优价值"</strong><br>
+      就像：今天的总资产 = 今天的收入 + （折扣后的）未来最大资产。<br><br>
+      用这个方程，AI 可以在不知道未来的情况下，通过"一步一步往后看"来估算每个状态-动作对的价值。
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Recursive Q-value relationship (Bellman Optimality Equation):</strong>
+      <div class="formula-block">
+        \[ Q^*(s, a) = \mathbb{E}\!\left[ r + \gamma \cdot \max_{a'} Q^*(s', a') \;\Big|\; s, a \right] \]
+      </div>
+      Term by term:
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>\(Q^*(s, a)\): optimal Q-value for taking action a in state s</li>
+        <li>\(r\): immediate reward</li>
+        <li>\(\gamma \cdot \max_{a'} Q^*(s', a')\): discounted optimal Q-value in the next state s'</li>
+      </ul>
+      Intuition: <strong>"current value = immediate gain + (discounted) best future value"</strong><br>
+      Like: today's total wealth = today's income + (discounted) maximum future wealth.<br><br>
+      With this equation, the AI can estimate the value of each state-action pair by "bootstrapping" from future estimates, without needing to know the future in advance.
+    </div>
+  </div>
+</div>
+
+<!-- ══ S3 ══ -->
+<div class="section" id="s3">
+  <div class="section-title">三 · 用神经网络近似 Q 函数 — Neural Network Q-Approximation</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>为什么不直接列表存 Q 值？</strong><br>
+      状态空间（所有可能的状态）是连续的、高维的——有无数种可能的"剩余容量组合、需求组合"。
+      根本不可能用一张表列出所有 Q 值。<br><br>
+      <strong>解决方案：用神经网络来"记忆"Q 函数</strong>
+      <div class="formula-block">
+        Q_\theta(s, a) \approx Q^*(s, a)
+      </div>
+      神经网络参数 \(\theta\) 就是网络的权重。<br>
+      <strong>网络结构（本项目 DQN）：</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>输入：状态向量 s（维度 5N+6+M）</li>
+        <li>两层全连接：256 → 256，激活函数 ReLU</li>
+        <li>输出：N 个数，分别对应每台 ECU 的 Q 值</li>
+      </ul>
+      选动作时：取输出里最大的那个对应的 ECU。
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Why not just use a lookup table for Q-values?</strong><br>
+      The state space (all possible states) is continuous and high-dimensional — infinite combinations of remaining capacities and demands. A table is completely impractical.<br><br>
+      <strong>Solution: use a neural network to "memorize" the Q-function</strong>
+      <div class="formula-block">
+        Q_\theta(s, a) \approx Q^*(s, a)
+      </div>
+      Network parameters \(\theta\) are the weights we train.<br>
+      <strong>Network structure (this project's DQN):</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>Input: state vector s (dimension 5N+6+M)</li>
+        <li>Two fully connected layers: 256 → 256, ReLU activation</li>
+        <li>Output: N values, one Q-value per ECU</li>
+      </ul>
+      To select an action: pick the ECU with the highest output Q-value.
+    </div>
+  </div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>DQN 的学习目标（TD 目标）：</strong>
+      <div class="formula-block">
+        \[ y_t = r_t + \gamma \cdot \max_{a'} Q_{\theta^-}(s_{t+1}, a') \]
+      </div>
+      然后最小化预测误差：
+      <div class="formula-block">
+        \[ \mathcal{L}(\theta) = \mathbb{E}\!\left[\left(Q_\theta(s_t, a_t) - y_t\right)^2\right] \]
+      </div>
+      含义：让在线网络 \(Q_\theta\) 对当前动作的预测尽量接近"即时奖励 + 下一步最优价值"。<br>
+      注意：\(y_t\) 使用的是<strong>目标网络</strong> \(Q_{\theta^-}\) 而不是在线网络本身——具体见第六节。
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>DQN learning target (TD target):</strong>
+      <div class="formula-block">
+        \[ y_t = r_t + \gamma \cdot \max_{a'} Q_{\theta^-}(s_{t+1}, a') \]
+      </div>
+      Then minimize prediction error:
+      <div class="formula-block">
+        \[ \mathcal{L}(\theta) = \mathbb{E}\!\left[\left(Q_\theta(s_t, a_t) - y_t\right)^2\right] \]
+      </div>
+      Meaning: make the online network's \(Q_\theta\) prediction for the current action approach "immediate reward + best next-step value."<br>
+      Note: \(y_t\) uses the <strong>target network</strong> \(Q_{\theta^-}\), not the online network — see Section 6.
+    </div>
+  </div>
+</div>
+
+<!-- ══ S4 ══ -->
+<div class="section" id="s4">
+  <div class="section-title">四 · 探索与利用：ε-greedy 策略 — Exploration vs. Exploitation</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>困境：如果 AI 总是选 Q 值最高的动作，它永远学不到新东西。</strong><br>
+      类比：如果你只去过一家餐厅，你不知道别的餐厅是否更好；但如果你每次都随机选，永远找不到最好的那家。<br><br>
+      <strong>ε-greedy 策略的折中方案：</strong>
+      <div class="formula-block">
+        \[ a_t = \begin{cases} \text{随机选一个 ECU} & \text{以概率 } \varepsilon \text{（探索）} \\ \arg\max_a Q_\theta(s_t, a) & \text{以概率 } 1-\varepsilon \text{（利用）} \end{cases} \]
+      </div>
+      <strong>ε 的退火（逐步降低）：</strong>
+      <table>
+        <tr><th>训练阶段</th><th>ε 值</th><th>行为</th></tr>
+        <tr><td>开始</td><td>1.0</td><td>完全随机探索，收集各种经历</td></tr>
+        <tr><td>中期</td><td>逐步从1.0降到0.05</td><td>越来越多地利用已学知识</td></tr>
+        <tr><td>末期</td><td>0.05</td><td>95% 贪心选最优，5% 随机探索</td></tr>
+      </table>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Dilemma: always picking the highest Q-value action means never learning anything new.</strong><br>
+      Analogy: if you only visit one restaurant, you'll never know if others are better; but if you always pick randomly, you'll never find the best one.<br><br>
+      <strong>ε-greedy compromise:</strong>
+      <div class="formula-block">
+        \[ a_t = \begin{cases} \text{random ECU} & \text{with probability } \varepsilon \text{ (explore)} \\ \arg\max_a Q_\theta(s_t, a) & \text{with probability } 1-\varepsilon \text{ (exploit)} \end{cases} \]
+      </div>
+      <strong>ε annealing (gradual reduction):</strong>
+      <table>
+        <tr><th>Training phase</th><th>ε value</th><th>Behavior</th></tr>
+        <tr><td>Start</td><td>1.0</td><td>Fully random exploration, diverse experience collection</td></tr>
+        <tr><td>Middle</td><td>Decreasing from 1.0 to 0.05</td><td>Increasingly exploiting learned knowledge</td></tr>
+        <tr><td>Late</td><td>0.05</td><td>95% greedy, 5% random exploration</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S5 ══ -->
+<div class="section" id="s5">
+  <div class="section-title">五 · 经验回放：打乱时序相关性 — Experience Replay</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>问题：序列数据的相关性会让训练不稳定</strong><br>
+      AI 按时序收集数据：s1→s2→s3→…，相邻状态高度相关（s2 几乎是 s1 的轻微变化）。
+      如果直接用这些序列数据训练，网络会"过拟合"到局部模式，训练不稳定。<br><br>
+      <strong>解决方案：经验回放缓冲区（Replay Buffer）</strong>
+      <div class="step"><div class="step-num">1</div><div class="step-body">创建一个大容量的"记忆库"（本项目 buffer 大小 = 10,000）</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-body">每步执行后，把 (s, a, r, s', done) 存入缓冲区</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-body">训练时，<strong>随机抽取</strong> 一个小批量（batch_size = 64）进行梯度更新</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-body">随机采样打破了时序相关性，相当于从过去所有经历中随机"回忆"</div></div>
+      类比：不是只看昨天发生的事，而是随机翻开日记本的某一页——每次学习的场景都是独立的。
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Problem: temporal correlations in sequential data destabilize training</strong><br>
+      AI collects data sequentially: s1→s2→s3→…, where adjacent states are highly correlated (s2 is almost s1 with tiny changes).
+      Training directly on such sequences causes the network to overfit to local patterns, leading to instability.<br><br>
+      <strong>Solution: Experience Replay Buffer</strong>
+      <div class="step"><div class="step-num">1</div><div class="step-body">Create a large-capacity "memory" (buffer size = 10,000 in this project)</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-body">After each step, store (s, a, r, s', done) in the buffer</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-body">For training, <strong>randomly sample</strong> a mini-batch (batch_size = 64) for gradient updates</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-body">Random sampling breaks temporal correlation — equivalent to "randomly flipping to a page in your diary" from all past experiences</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S6 ══ -->
+<div class="section" id="s6">
+  <div class="section-title">六 · 目标网络：稳定学习目标 — Target Network</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>问题：如果用在线网络生成学习目标，目标会随训练不断变动</strong><br>
+      想象你在追一个目标，但目标本身也在动——很难追上，容易来回震荡。<br>
+      DQN 的目标 \(y_t = r + \gamma \max_{a'} Q_\theta(s', a')\) 如果 \(\theta\) 在持续更新，那 \(y_t\) 也在持续变化，学习很不稳定。<br><br>
+      <strong>解决方案：目标网络 \(Q_{\theta^-}\)</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>维护两个参数完全一样的网络：<strong>在线网络</strong> \(Q_\theta\) 和<strong>目标网络</strong> \(Q_{\theta^-}\)</li>
+        <li>学习目标用目标网络生成：\(y_t = r + \gamma \max_{a'} Q_{\theta^-}(s', a')\)</li>
+        <li>目标网络的参数<strong>每 500 步</strong>从在线网络复制一次（不是每步更新）</li>
+        <li>在线网络每步更新，目标网络更新慢 → 目标相对固定 → 训练稳定</li>
+      </ul>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Problem: using the online network to generate targets creates a moving target</strong><br>
+      Imagine chasing a target that also keeps moving — hard to catch, prone to oscillation.<br>
+      If \(\theta\) updates every step, then \(y_t = r + \gamma \max_{a'} Q_\theta(s', a')\) also changes every step → unstable learning.<br><br>
+      <strong>Solution: Target Network \(Q_{\theta^-}\)</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>Maintain two identical-architecture networks: <strong>online</strong> \(Q_\theta\) and <strong>target</strong> \(Q_{\theta^-}\)</li>
+        <li>Generate targets from the target network: \(y_t = r + \gamma \max_{a'} Q_{\theta^-}(s', a')\)</li>
+        <li>Target network weights are <strong>copied from online every 500 steps</strong> (not every step)</li>
+        <li>Online updates frequently, target updates slowly → targets stay relatively fixed → stable training</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S7 ══ -->
+<div class="section" id="s7">
+  <div class="section-title">七 · 完整 DQN 训练流程 — Full DQN Training Flow</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>超参数：</strong>
+      <table>
+        <tr><th>参数</th><th>值</th><th>作用</th></tr>
+        <tr><td>Replay buffer 大小</td><td>10,000</td><td>存储的最大经历条数</td></tr>
+        <tr><td>学习开始的 buffer 阈值</td><td>1,000</td><td>积累足够经历后再训练</td></tr>
+        <tr><td>Batch size</td><td>64</td><td>每次采样64条训练</td></tr>
+        <tr><td>目标网络更新频率</td><td>每 500 步</td><td>慢更新维持稳定目标</td></tr>
+        <tr><td>ε 起始值</td><td>1.0</td><td>开始完全随机探索</td></tr>
+        <tr><td>ε 最小值</td><td>0.05</td><td>最低随机探索比例</td></tr>
+        <tr><td>ε 衰减</td><td>每步乘 0.9995</td><td>逐渐从探索转向利用</td></tr>
+        <tr><td>折扣因子 \(\gamma\)</td><td>0.99</td><td>重视长远奖励</td></tr>
+        <tr><td>学习率</td><td>1e-4</td><td>Adam 优化器</td></tr>
+        <tr><td>总训练步数</td><td>5,000,000</td><td>训练总量</td></tr>
+      </table>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Hyperparameters:</strong>
+      <table>
+        <tr><th>Parameter</th><th>Value</th><th>Purpose</th></tr>
+        <tr><td>Replay buffer size</td><td>10,000</td><td>Maximum stored experiences</td></tr>
+        <tr><td>Training start threshold</td><td>1,000</td><td>Wait until enough experiences accumulated</td></tr>
+        <tr><td>Batch size</td><td>64</td><td>64 samples per training step</td></tr>
+        <tr><td>Target network update freq</td><td>every 500 steps</td><td>Slow updates keep targets stable</td></tr>
+        <tr><td>ε start</td><td>1.0</td><td>Fully random at start</td></tr>
+        <tr><td>ε minimum</td><td>0.05</td><td>Minimum exploration rate</td></tr>
+        <tr><td>ε decay</td><td>× 0.9995 per step</td><td>Gradually shift from explore to exploit</td></tr>
+        <tr><td>Discount \(\gamma\)</td><td>0.99</td><td>Value long-term rewards</td></tr>
+        <tr><td>Learning rate</td><td>1e-4</td><td>Adam optimizer</td></tr>
+        <tr><td>Total training steps</td><td>5,000,000</td><td>Total training budget</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <pre><code>初始化: 在线网络 Q_θ, 目标网络 Q_θ- (θ- = θ), 经验回放 Buffer
+
+for step = 1 to 5,000,000:
+    # 1. 用 ε-greedy 选动作
+    if random() < ε:
+        a = random_ecu()
+    else:
+        a = argmax_j Q_θ(s, j)
+
+    # 2. 执行动作，获取奖励和新状态
+    s', r, done = env.step(a)
+    Buffer.add(s, a, r, s', done)
+
+    # 3. 衰减 ε
+    ε = max(ε_min, ε * 0.9995)
+
+    # 4. 若 buffer 足够大，从中随机采样训练
+    if len(Buffer) >= 1000:
+        batch = Buffer.sample(64)
+        y = r + γ * max_a' Q_θ-(s', a')  # 用目标网络生成目标
+        loss = mean((Q_θ(s, a) - y)²)
+        反向传播，更新 θ
+
+    # 5. 每 500 步同步目标网络
+    if step % 500 == 0:
+        θ- = θ
+
+    # 6. 若 done，重置环境
+    if done:
+        s = env.reset()</code></pre>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <pre><code>Initialize: online Q_θ, target Q_θ- (θ- = θ), replay Buffer
+
+for step = 1 to 5,000,000:
+    # 1. Select action with ε-greedy
+    if random() < ε:
+        a = random_ecu()
+    else:
+        a = argmax_j Q_θ(s, j)
+
+    # 2. Execute action, get reward and next state
+    s', r, done = env.step(a)
+    Buffer.add(s, a, r, s', done)
+
+    # 3. Decay ε
+    ε = max(ε_min, ε * 0.9995)
+
+    # 4. If buffer large enough, sample and train
+    if len(Buffer) >= 1000:
+        batch = Buffer.sample(64)
+        y = r + γ * max_a' Q_θ-(s', a')  # target from target network
+        loss = mean((Q_θ(s, a) - y)²)
+        backprop, update θ
+
+    # 5. Sync target network every 500 steps
+    if step % 500 == 0:
+        θ- = θ
+
+    # 6. Reset if episode done
+    if done:
+        s = env.reset()</code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S8 ══ -->
+<div class="section" id="s8">
+  <div class="section-title">八 · 违规处理：终止惩罚机制 — Violation Handling</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>DQN 的约束处理方式（最简单、也最弱）：</strong>
+      <pre><code>if 发生违规（容量超限 or 冲突）:
+    r = -1.0    # 立即给一个负奖励
+    done = True # 直接结束这个 episode</code></pre>
+      <strong>正常步骤的奖励：</strong>
+      <div class="formula-block">
+        r_t = \frac{\mathrm{req}_i}{\mathrm{cap}_j} \quad \text{（利用率增量）}
+      </div>
+      <strong>为什么这种方式在 LT 场景失败？</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>LT 场景里约束很紧，"正确路径"极窄。AI 需要精确地走完 15 步才能得到终局奖励。</li>
+        <li>只要一步违规就全部清零（episode 结束），AI 获得完整奖励的机会极少。</li>
+        <li>没有"还有多少约束空间"的指引，AI 基本靠撞墙来学习，效率极低。</li>
+        <li>相比 P4（掩码后直接在合法空间探索），DQN 在 LT 下的违规率高达 <strong>68.1%</strong>。</li>
+      </ul>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>DQN's constraint handling (simplest — and weakest):</strong>
+      <pre><code>if violation occurs (capacity overflow or conflict):
+    r = -1.0    # immediate negative reward
+    done = True # terminate episode immediately</code></pre>
+      <strong>Normal step reward:</strong>
+      <div class="formula-block">
+        r_t = \frac{\mathrm{req}_i}{\mathrm{cap}_j} \quad \text{(utilization gain)}
+      </div>
+      <strong>Why does this fail in the LT scenario?</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>In LT, constraints are tight — the "correct path" is extremely narrow. DQN must complete all 15 placement steps to receive any meaningful reward.</li>
+        <li>One violation ends the episode immediately — very few complete episodes, very little useful signal.</li>
+        <li>No guidance on remaining constraint budget → AI learns almost entirely by hitting walls → very inefficient.</li>
+        <li>Compared to P4 (explores only in legal space), DQN's LT violation rate is <strong>68.1%</strong>.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S9 ══ -->
+<div class="section" id="s9">
+  <div class="section-title">九 · 实验结果（最新一次，5 seeds × 40 测试场景）— Experimental Results</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>DQN 在三种场景的表现：</strong>
+      <table>
+        <tr><th>场景</th><th>AR 均值±std</th><th>有违规场景占比</th><th>冲突违规/seed</th><th>容量违规/seed</th><th>P4 AR（对比）</th></tr>
+        <tr><td>EQ（均衡）</td><td>0.5281±0.0071</td><td>5.5%</td><td>0.60±0.89</td><td>1.80±1.92</td><td>0.5348</td></tr>
+        <tr><td>GT（充裕）</td><td>0.6099±0.0177</td><td>6.5%</td><td>1.20±0.45</td><td>1.60±0.55</td><td>0.6155</td></tr>
+        <tr style="background:#fee2e2;"><td>LT（紧缺）</td><td>0.6670±0.0137</td><td>68.1%</td><td>31.8±2.05 ❌</td><td>21.8±1.30 ❌</td><td>0.6727</td></tr>
+      </table>
+      <div class="note">
+        EQ 和 GT 场景下 DQN 表现尚可（资源充裕，违规触发少）。
+        但在 LT 紧缺场景，DQN 的 68.1% 有违规场景率和每 seed 31.8 次冲突违规表明：
+        纯靠"违规就终止"无法在约束密集环境中有效学习。
+      </div>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>DQN performance across three scenarios:</strong>
+      <table>
+        <tr><th>Scenario</th><th>AR mean±std</th><th>Viol. rate</th><th>Conflict viols/seed</th><th>Capacity viols/seed</th><th>P4 AR (comparison)</th></tr>
+        <tr><td>EQ (balanced)</td><td>0.5281±0.0071</td><td>5.5%</td><td>0.60±0.89</td><td>1.80±1.92</td><td>0.5348</td></tr>
+        <tr><td>GT (abundant)</td><td>0.6099±0.0177</td><td>6.5%</td><td>1.20±0.45</td><td>1.60±0.55</td><td>0.6155</td></tr>
+        <tr style="background:#fee2e2;"><td>LT (scarce)</td><td>0.6670±0.0137</td><td>68.1%</td><td>31.8±2.05 ❌</td><td>21.8±1.30 ❌</td><td>0.6727</td></tr>
+      </table>
+      <div class="note">
+        DQN performs reasonably in EQ and GT (abundant resources → fewer violations triggered).
+        But in LT, DQN's 68.1% violated-scenario rate and 31.8 conflict violations per seed demonstrate:
+        relying solely on "terminate on violation" cannot learn effectively under tight constraints.
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Generated: 2026-05-25 &nbsp;|&nbsp; /home/soar009/github/my_code/tmp/docs/dqn.html
+</footer>
+</body>
+</html>

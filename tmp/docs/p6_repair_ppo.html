@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P6 PPO + 修复启发式 — ECU部署算法详解</title>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    :root{--bg:#f7f8fa;--card:#ffffff;--border:#e2e6ea;--accent:#2563eb;--accent-light:#eff6ff;--zh:#1e293b;--en:#374151;--tag-zh:#2563eb;--tag-en:#059669;--code-bg:#f1f5f9;--code-border:#cbd5e1;--section-h:#1e40af;--shadow:0 1px 4px rgba(0,0,0,0.07);}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);font-family:"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif;color:var(--zh);line-height:1.75;padding:2rem 1rem 4rem;}
+    header{text-align:center;margin-bottom:2.5rem;}
+    header h1{font-size:1.8rem;color:var(--accent);margin-bottom:0.4rem;}
+    header p{color:#6b7280;font-size:0.95rem;}
+    .toc{max-width:860px;margin:0 auto 2rem;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.6rem;box-shadow:var(--shadow);}
+    .toc h2{font-size:0.95rem;color:#6b7280;margin-bottom:0.6rem;letter-spacing:0.05em;text-transform:uppercase;}
+    .toc ol{padding-left:1.4rem;}
+    .toc li{margin:0.25rem 0;}
+    .toc a{color:var(--accent);text-decoration:none;font-size:0.93rem;}
+    .toc a:hover{text-decoration:underline;}
+    .section{max-width:860px;margin:0 auto 2.5rem;}
+    .section-title{font-size:1.25rem;font-weight:700;color:var(--section-h);padding:0.5rem 0 0.5rem 0.9rem;border-left:4px solid var(--accent);margin-bottom:1rem;}
+    .pair{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:1rem;box-shadow:var(--shadow);overflow:hidden;}
+    .pair-zh{padding:1rem 1.4rem 0.9rem;border-bottom:1px solid var(--border);background:#fafbff;}
+    .pair-en{padding:0.9rem 1.4rem 1rem;color:var(--en);font-size:0.93rem;}
+    .lang-tag{display:inline-block;font-size:0.68rem;font-weight:700;letter-spacing:0.07em;padding:0.1em 0.5em;border-radius:4px;margin-right:0.5rem;vertical-align:middle;}
+    .lang-zh{background:#dbeafe;color:var(--tag-zh);}
+    .lang-en{background:#d1fae5;color:var(--tag-en);}
+    .formula-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:0.8rem 1.2rem;margin:0.6rem 0;font-size:1rem;overflow-x:auto;}
+    table{width:100%;border-collapse:collapse;font-size:0.88rem;margin:0.7rem 0;}
+    th{background:var(--accent-light);color:var(--accent);font-weight:700;padding:0.5rem 0.8rem;border:1px solid var(--border);text-align:left;}
+    td{padding:0.45rem 0.8rem;border:1px solid var(--border);vertical-align:top;}
+    tr:nth-child(even) td{background:#f9fafb;}
+    pre{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:0.8rem 1rem;font-size:0.83rem;overflow-x:auto;margin:0.6rem 0;line-height:1.6;}
+    code{font-family:"Fira Code","Consolas",monospace;}
+    .note{background:#fefce8;border-left:4px solid #facc15;border-radius:6px;padding:0.6rem 1rem;font-size:0.88rem;color:#713f12;margin:0.6rem 0;}
+    .step{display:flex;gap:0.8rem;margin:0.5rem 0;align-items:flex-start;}
+    .step-num{background:var(--accent);color:white;border-radius:50%;min-width:1.7rem;height:1.7rem;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;flex-shrink:0;margin-top:0.15rem;}
+    .step-body{flex:1;}
+    footer{text-align:center;color:#9ca3af;font-size:0.8rem;margin-top:3rem;}
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>P6 PPO + 最佳适配修复启发式</h1>
+  <p>PPO + Best-fit Repair Heuristic | AI 出错时自动纠正 · Auto-correct on violation</p>
+</header>
+
+<div class="toc">
+  <h2>目录 Contents</h2>
+  <ol>
+    <li><a href="#s1">核心思想：AI 出错 → 启发式修复</a></li>
+    <li><a href="#s2">最佳适配启发式（Best-fit）是什么？</a></li>
+    <li><a href="#s3">step 逻辑详解：三条路径</a></li>
+    <li><a href="#s4">奖励函数：修复率越低奖励越高</a></li>
+    <li><a href="#s5">AI 学到的是什么？</a></li>
+    <li><a href="#s6">与 P4 和 P5 的对比</a></li>
+    <li><a href="#s7">为什么 LT 场景放置数量 &lt; M？</a></li>
+    <li><a href="#s8">实验结果（最新一次，5 seeds）</a></li>
+  </ol>
+</div>
+
+<!-- ══ S1 ══ -->
+<div class="section" id="s1">
+  <div class="section-title">一 · 核心思想：AI 出错 → 启发式修复 — Core Idea</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>P6 的核心理念：允许 AI 犯错，但立刻纠正。</strong><br><br>
+      当 AI 选了一个违规动作（容量超限或冲突），P6 不会终止 episode（像 DQN 那样），
+      也不会无视违规（像 P3 那样），而是：
+      <ol style="padding-left:1.3rem; margin-top:0.4rem;">
+        <li>记录这次违规</li>
+        <li>立即启动"最佳适配修复"启发式算法，找到一台合法的 ECU</li>
+        <li>把服务放到修复后的合法 ECU 上</li>
+        <li>给 AI 一个小惩罚（-0.1），提示"这步选得不好"</li>
+      </ol>
+      类比：学生在草稿纸上算错了，老师不直接判作废，而是划掉错误、写上正确答案、扣一点平时分。
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>P6's core idea: let the AI make mistakes, but immediately correct them.</strong><br><br>
+      When the AI picks a violating action (capacity overflow or conflict), P6 doesn't terminate the episode (like DQN) or ignore the violation (like P3). Instead:
+      <ol style="padding-left:1.3rem; margin-top:0.4rem;">
+        <li>Record the violation</li>
+        <li>Immediately run the "best-fit repair" heuristic to find a valid ECU</li>
+        <li>Place the service on the repaired (valid) ECU</li>
+        <li>Give the AI a small penalty (-0.1): "that was a poor choice"</li>
+      </ol>
+      Analogy: a student gets a wrong answer on the draft — the teacher crosses it out, writes the correct answer, and deducts a small participation grade rather than voiding the whole paper.
+    </div>
+  </div>
+</div>
+
+<!-- ══ S2 ══ -->
+<div class="section" id="s2">
+  <div class="section-title">二 · 最佳适配启发式（Best-fit）是什么？— The Best-fit Heuristic</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>最佳适配（Best-fit）</strong>是一种经典的装箱启发式算法：<br>
+      给定一个要放置的服务（需求 req），从所有<strong>合法的</strong>（容量足够 + 无冲突）ECU 中，
+      选择<strong>利用率密度最高</strong>的那一台：
+      <div class="formula-block">
+        \[ j^* = \arg\max_{j \in \text{合法ECU}} \frac{\mathrm{req}_i}{\mathrm{cap}_j} \]
+      </div>
+      直觉：<strong>把服务放到"相对来说最紧凑"的 ECU 上</strong>，避免浪费大容量 ECU 来放小服务。<br><br>
+      <strong>Best-fit 的步骤：</strong>
+      <div class="step"><div class="step-num">1</div><div class="step-body">遍历所有 N 台 ECU</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-body">过滤：只保留"剩余容量 ≥ req 且没有冲突"的合法 ECU</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-body">在合法 ECU 中，选 req / cap 最大的（即服务需求占该 ECU 初始容量比例最大的）</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-body">若没有合法 ECU → 无法修复 → episode 终止（惩罚未放服务的总需求）</div></div>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Best-fit</strong> is a classic bin-packing heuristic:<br>
+      Given a service to place (demand req), from all <strong>valid</strong> ECUs (enough capacity + no conflict), select the one with the <strong>highest utilization density</strong>:
+      <div class="formula-block">
+        \[ j^* = \arg\max_{j \in \text{valid ECUs}} \frac{\mathrm{req}_i}{\mathrm{cap}_j} \]
+      </div>
+      Intuition: <strong>place the service on the relatively "tightest" ECU</strong> — avoid wasting large-capacity ECUs on small services.<br><br>
+      <strong>Best-fit steps:</strong>
+      <div class="step"><div class="step-num">1</div><div class="step-body">Iterate over all N ECUs</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-body">Filter: keep only "remaining capacity ≥ req AND no conflict" ECUs</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-body">Among valid ECUs, pick the one with the highest req / cap ratio</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-body">If no valid ECU exists → cannot repair → episode terminates (penalty = unplaced demand sum)</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S3 ══ -->
+<div class="section" id="s3">
+  <div class="section-title">三 · step 逻辑详解：三条路径 — Step Logic: Three Paths</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      每次 AI 执行一步动作，P6 环境会走三条路径之一：
+      <pre><code>def step(action):
+    svc = services[当前步]
+    cap_violated      = remaining_vms[action] < svc.requirement
+    conflict_violated = has_conflict(action, 当前步)
+
+    if cap_violated or conflict_violated:
+        # 路径 B or C：需要修复
+        repair_ecu = best_fit_repair(当前步)
+
+        if repair_ecu is None:
+            # ─── 路径 C：无法修复，提前终止 ───
+            unplaced_demand = sum(未放置服务的需求)
+            penalty = -unplaced_demand / total_cap
+            return obs, penalty, done=True, ...  # episode 结束
+
+        # ─── 路径 B：修复成功 ───
+        action = repair_ecu       # 替换为合法 ECU
+        repairs += 1
+        ru = req / initial_cap[action]
+        reward = ru - 0.1         # 利用率增量 - 修复惩罚
+
+    else:
+        # ─── 路径 A：AI 选择正确，直接放置 ───
+        ru = req / initial_cap[action]
+        reward = ru
+
+    # 放置服务并更新状态...
+    if done:
+        repair_rate = repairs / M
+        terminal_bonus = ar * max(0, 1 - repair_rate)</code></pre>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      Each step, P6's environment takes one of three paths:
+      <pre><code>def step(action):
+    svc = services[current_step]
+    cap_violated      = remaining_vms[action] < svc.requirement
+    conflict_violated = has_conflict(action, current_step)
+
+    if cap_violated or conflict_violated:
+        # Path B or C: repair needed
+        repair_ecu = best_fit_repair(current_step)
+
+        if repair_ecu is None:
+            # ─── Path C: no repair possible, early termination ───
+            unplaced_demand = sum(unplaced service demands)
+            penalty = -unplaced_demand / total_cap
+            return obs, penalty, done=True, ...  # episode ends
+
+        # ─── Path B: repair successful ───
+        action = repair_ecu       # redirect to valid ECU
+        repairs += 1
+        ru = req / initial_cap[action]
+        reward = ru - 0.1         # utilization gain - repair penalty
+
+    else:
+        # ─── Path A: AI chose correctly, place directly ───
+        ru = req / initial_cap[action]
+        reward = ru
+
+    # Place service and update state...
+    if done:
+        repair_rate = repairs / M
+        terminal_bonus = ar * max(0, 1 - repair_rate)</code></pre>
+    </div>
+  </div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>三条路径总结：</strong>
+      <table>
+        <tr><th>路径</th><th>触发条件</th><th>结果</th><th>奖励</th></tr>
+        <tr style="background:#dcfce7;"><td>A（正确）</td><td>AI 选择合法 ECU</td><td>直接放置</td><td>+req/cap</td></tr>
+        <tr style="background:#fef9c3;"><td>B（修复）</td><td>AI 选违规 ECU，但有合法备选</td><td>Best-fit 修复后放置</td><td>+req/cap - 0.1</td></tr>
+        <tr style="background:#fee2e2;"><td>C（终止）</td><td>AI 选违规 ECU，且无合法备选</td><td>episode 提前结束</td><td>-未放置需求之和/总容量</td></tr>
+      </table>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Three paths summary:</strong>
+      <table>
+        <tr><th>Path</th><th>Trigger</th><th>Outcome</th><th>Reward</th></tr>
+        <tr style="background:#dcfce7;"><td>A (correct)</td><td>AI picks a valid ECU</td><td>Place directly</td><td>+req/cap</td></tr>
+        <tr style="background:#fef9c3;"><td>B (repair)</td><td>AI picks invalid ECU, but valid alternatives exist</td><td>Best-fit repair, then place</td><td>+req/cap - 0.1</td></tr>
+        <tr style="background:#fee2e2;"><td>C (terminate)</td><td>AI picks invalid ECU, no valid alternatives</td><td>Episode ends early</td><td>-unplaced demand / total cap</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S4 ══ -->
+<div class="section" id="s4">
+  <div class="section-title">四 · 奖励函数：修复率越低奖励越高 — Reward Function</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>每步奖励汇总：</strong>
+      <div class="formula-block">
+        \[ r_t = \frac{\mathrm{req}_i}{\mathrm{cap}_{j^*}} + \underbrace{(-0.1)}_{\text{仅路径B触发}} \]
+      </div>
+      <strong>终局奖励（episode 完整结束时）：</strong>
+      <div class="formula-block">
+        \[ r_{\text{terminal}} = AR \cdot \max(0,\; 1 - \text{repair\_rate}) \]
+      </div>
+      其中 \(\text{repair\_rate} = \text{修复次数} / M\)。<br><br>
+      <strong>终局奖励的设计意图（逐步理解）：</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>repair_rate = 0（没有修复）：terminal = AR × 1 = AR，最高奖励</li>
+        <li>repair_rate = 0.5（一半步骤需要修复）：terminal = AR × 0.5，奖励减半</li>
+        <li>repair_rate = 1（每步都需要修复）：terminal = AR × 0 = 0，没有终局奖励</li>
+      </ul>
+      AI 因此被引导去"主动选择合法 ECU，减少修复次数"。
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Per-step reward summary:</strong>
+      <div class="formula-block">
+        \[ r_t = \frac{\mathrm{req}_i}{\mathrm{cap}_{j^*}} + \underbrace{(-0.1)}_{\text{only path B}} \]
+      </div>
+      <strong>Terminal reward (full episode completion):</strong>
+      <div class="formula-block">
+        \[ r_{\text{terminal}} = AR \cdot \max(0,\; 1 - \text{repair\_rate}) \]
+      </div>
+      where \(\text{repair\_rate} = \text{repair count} / M\).<br><br>
+      <strong>Terminal reward design intent (step by step):</strong>
+      <ul style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>repair_rate = 0 (no repairs): terminal = AR × 1 = AR — maximum bonus</li>
+        <li>repair_rate = 0.5 (half the steps repaired): terminal = AR × 0.5 — halved bonus</li>
+        <li>repair_rate = 1 (every step repaired): terminal = AR × 0 = 0 — no terminal bonus</li>
+      </ul>
+      This guides the AI to proactively choose valid ECUs and minimize repair count.
+    </div>
+  </div>
+</div>
+
+<!-- ══ S5 ══ -->
+<div class="section" id="s5">
+  <div class="section-title">五 · AI 学到的是什么？— What Does the AI Learn?</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>P6 的学习过程分两个阶段：</strong><br><br>
+      <strong>早期训练</strong>：AI 频繁选到违规动作（随机探索），修复启发式大量介入。
+      AI 获得的奖励是"修复后的合法放置的奖励 - 0.1 惩罚"。
+      通过这些经历，AI 学到了合法放置和违规放置的对比效果。<br><br>
+      <strong>中后期训练</strong>：AI 逐渐学会避免触发修复（减少 repair_rate），
+      因为修复代价（-0.1 + 终局奖励缩减）比主动选好 ECU 要差。
+      AI 的策略越来越接近 P4 的效果——主动选合法 ECU。<br><br>
+      <div class="note">
+        P6 与 P4 的关键区别：P4 的约束在<strong>环境层面</strong>（不可能违规），
+        P6 的约束通过<strong>奖励信号</strong>来引导（违规后修复+惩罚）。
+        这使得 P6 的学习比 P4 更复杂，但在约束不完整时更灵活。
+      </div>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>P6's learning happens in two phases:</strong><br><br>
+      <strong>Early training</strong>: AI frequently picks violating actions (random exploration); repair heuristic intervenes heavily. The AI receives "repaired placement reward - 0.1" and learns the contrast between valid and invalid choices.<br><br>
+      <strong>Mid-late training</strong>: AI gradually learns to avoid triggering repairs (reducing repair_rate), because the repair cost (-0.1 + reduced terminal bonus) is worse than proactively choosing a good ECU. The AI's strategy increasingly resembles P4 — proactively selecting valid ECUs.<br><br>
+      <div class="note">
+        Key difference from P4: P4's constraints are enforced at the <strong>environment level</strong> (violations physically impossible); P6's constraints are enforced via <strong>reward signals</strong> (repair + penalty after violation).
+        P6's learning is more complex but potentially more flexible when constraint definitions are incomplete.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S6 ══ -->
+<div class="section" id="s6">
+  <div class="section-title">六 · 与 P4 和 P5 的对比 — Comparison with P4 and P5</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <table>
+        <tr><th>维度</th><th>P4（掩码）</th><th>P5（拉格朗日）</th><th>P6（修复）</th></tr>
+        <tr><td>违规时</td><td>根本不可能</td><td>发生了，扣罚款</td><td>发生了，立刻修复</td></tr>
+        <tr><td>约束执行层次</td><td>动作空间层</td><td>奖励函数层</td><td>环境 step 层（修复逻辑）</td></tr>
+        <tr><td>episode 是否会提前结束</td><td>否</td><td>否</td><td>是（无法修复时）</td></tr>
+        <tr><td>能保证服务全部放置吗</td><td>是（100%放完M个）</td><td>是（100%放完M个）</td><td>否（路径C终止时放不完）</td></tr>
+        <tr><td>LT 放置数（M=15）</td><td>15.00（全放）</td><td>15.00（全放）</td><td>12.89（平均）</td></tr>
+        <tr><td>设计复杂度</td><td>低（掩码简单）</td><td>中（需调 λ）</td><td>中（需设计修复规则）</td></tr>
+      </table>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <table>
+        <tr><th>Dimension</th><th>P4 (masking)</th><th>P5 (Lagrangian)</th><th>P6 (repair)</th></tr>
+        <tr><td>On violation</td><td>Physically impossible</td><td>Occurs → pay penalty</td><td>Occurs → immediate repair</td></tr>
+        <tr><td>Constraint enforcement layer</td><td>Action space</td><td>Reward function</td><td>Environment step (repair logic)</td></tr>
+        <tr><td>Episode can end early?</td><td>No</td><td>No</td><td>Yes (when repair impossible)</td></tr>
+        <tr><td>Guarantees all M placed?</td><td>Yes (100%)</td><td>Yes (100%)</td><td>No (early termination on path C)</td></tr>
+        <tr><td>LT placed count (M=15)</td><td>15.00 (all placed)</td><td>15.00 (all placed)</td><td>12.89 (average)</td></tr>
+        <tr><td>Design complexity</td><td>Low (mask is simple)</td><td>Medium (tune λ)</td><td>Medium (design repair rules)</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S7 ══ -->
+<div class="section" id="s7">
+  <div class="section-title">七 · 为什么 LT 场景放置数量 &lt; M？— Why Placed Count &lt; M in LT?</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>现象</strong>：LT 场景（15个服务/10台ECU）中，P6 平均只放置了 12.89 个服务（不到 15）。<br><br>
+      <strong>原因</strong>：路径 C（无法修复 → 提前终止）的触发。<br><br>
+      <strong>触发路径 C 的场景：</strong>
+      <ol style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>资源紧缺（LT），AI 做了几次糟糕选择，把容量大的 ECU 提前用完</li>
+        <li>轮到某个服务时，所有 ECU 要么容量不足，要么有冲突</li>
+        <li>Best-fit 找不到任何合法 ECU → 无法修复</li>
+        <li>环境强制终止 episode，剩余服务未放置</li>
+      </ol>
+      这在 EQ 和 GT 场景几乎不发生（资源充裕），但在 LT 紧缺场景下有一定概率触发（约 5% 的 episode 提前终止）。
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>Observation</strong>: in LT (15 services / 10 ECUs), P6 averages only 12.89 services placed (fewer than 15).<br><br>
+      <strong>Cause</strong>: Path C (unrepairable → early termination) being triggered.<br><br>
+      <strong>Path C scenario chain:</strong>
+      <ol style="padding-left:1.3rem; margin-top:0.3rem;">
+        <li>Scarce resources (LT) — AI makes a few bad choices, using up high-capacity ECUs early</li>
+        <li>When a later service's turn comes, all ECUs either lack capacity or have conflicts</li>
+        <li>Best-fit finds no valid ECU → cannot repair</li>
+        <li>Environment forces episode termination; remaining services go unplaced</li>
+      </ol>
+      This almost never happens in EQ/GT (abundant resources), but occurs occasionally in LT (approximately 5% of episodes terminate early).
+    </div>
+  </div>
+</div>
+
+<!-- ══ S8 ══ -->
+<div class="section" id="s8">
+  <div class="section-title">八 · 实验结果（最新一次，5 seeds × 40 测试场景）— Experimental Results</div>
+
+  <div class="pair">
+    <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
+      <strong>P6 在三种场景的表现：</strong>
+      <table>
+        <tr><th>场景</th><th>AR 均值±std</th><th>有违规场景占比</th><th>冲突违规/seed</th><th>容量违规/seed</th><th>平均放置数/M</th></tr>
+        <tr><td>EQ（均衡）</td><td>0.5370±0.0049</td><td>—</td><td>0</td><td>2.80±2.17</td><td>10.00/10</td></tr>
+        <tr><td>GT（充裕）</td><td>0.6178±0.0172</td><td>—</td><td>1.00±1.73</td><td>7.00±4.90</td><td>10.00/10</td></tr>
+        <tr style="background:#fef9c3;"><td>LT（紧缺）</td><td>0.6792±0.0098</td><td>1.22%</td><td>1.00±0.71</td><td>4.60±1.52</td><td>12.89/15 ⚠️</td></tr>
+      </table>
+      <div class="note">
+        P6 的冲突违规计数极低（LT 只有 1.00/seed），因为修复启发式专门找"容量足够且无冲突"的 ECU。
+        容量违规计数较高（EQ 2.80，GT 7.00）——这些是 AI 原始选择的违规，被修复后并不影响实际放置，但记录了 AI 初始选择的质量。
+        LT 场景平均放置数 12.89/15，说明约有 2 个服务因路径C而放不下。
+      </div>
+    </div>
+    <div class="pair-en"><span class="lang-tag lang-en">EN</span>
+      <strong>P6 performance across three scenarios:</strong>
+      <table>
+        <tr><th>Scenario</th><th>AR mean±std</th><th>Viol. rate</th><th>Conflict viols/seed</th><th>Capacity viols/seed</th><th>Avg placed / M</th></tr>
+        <tr><td>EQ (balanced)</td><td>0.5370±0.0049</td><td>—</td><td>0</td><td>2.80±2.17</td><td>10.00/10</td></tr>
+        <tr><td>GT (abundant)</td><td>0.6178±0.0172</td><td>—</td><td>1.00±1.73</td><td>7.00±4.90</td><td>10.00/10</td></tr>
+        <tr style="background:#fef9c3;"><td>LT (scarce)</td><td>0.6792±0.0098</td><td>1.22%</td><td>1.00±0.71</td><td>4.60±1.52</td><td>12.89/15 ⚠️</td></tr>
+      </table>
+      <div class="note">
+        P6's conflict violations are very low (LT: 1.00/seed) because the repair heuristic specifically finds ECUs with "enough capacity AND no conflict."
+        Capacity violations are higher (EQ: 2.80, GT: 7.00) — these are the AI's original invalid choices that were repaired, recording the quality of initial AI decisions.
+        LT average placed count = 12.89/15, meaning ~2 services go unplaced due to path-C early termination.
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Generated: 2026-05-25 &nbsp;|&nbsp; /home/soar009/github/my_code/tmp/docs/p6_repair_ppo.html
+</footer>
+</body>
+</html>

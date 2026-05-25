@@ -27,6 +27,7 @@ MODEL_COLORS = {
     "P6_RepairPPO": "#72b7b2",
     "DQN":          "#54a24b",
     "DDQN":         "#b279a2",
+    "P7_SeqPPO":    "#e377c2",
 }
 
 _DEFAULT_COLOR = "#aaaaaa"
@@ -91,81 +92,85 @@ def plot_test_results(
 ) -> None:
     """
     agg_results: {model_name: aggregate_eval(...) dict}
-    Produces a 3-subplot figure.
+    Produces a 3-subplot landscape figure (AR | Success/Fail | Violations).
     """
     model_names = list(agg_results.keys())
     n = len(model_names)
     x = np.arange(n)
     colors = [MODEL_COLORS.get(m, _DEFAULT_COLOR) for m in model_names]
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    # constrained_layout avoids the tight_layout overflow that caused portrait distortion
+    fig, axes = plt.subplots(1, 3, figsize=(max(14, n * 2.2), 5),
+                             constrained_layout=True)
     title_suffix = f"  (seed={seed})" if seed is not None else ""
     fig.suptitle(f"Test Evaluation Results{title_suffix}", fontsize=13, fontweight="bold")
 
-    # ── subplot 1: average AR ────────────────────────────────────────────────
+    short = [m.replace("_PPO", "").replace("_", "\n") for m in model_names]
+
+    # ── subplot 1: average AR ─────────────────────────────────────────────────
     ax1 = axes[0]
     ar_means = [agg_results[m]["ar_mean"] for m in model_names]
     ar_stds  = [agg_results[m]["ar_std"]  for m in model_names]
-    bars = ax1.bar(x, ar_means, color=colors, alpha=0.75,
-                   yerr=ar_stds, capsize=4, ecolor="black")
-    for bar, v in zip(bars, ar_means):
-        ax1.text(
-            bar.get_x() + bar.get_width() / 2, v + 0.01,
-            f"{v:.3f}", ha="center", va="bottom", fontsize=8, fontweight="bold",
-        )
+    # clip P3's inflated AR for display; annotate actual value above bar
+    ar_display = [min(v, 1.05) for v in ar_means]
+    bars = ax1.bar(x, ar_display, color=colors, alpha=0.8,
+                   yerr=ar_stds, capsize=4, ecolor="black", error_kw={"linewidth": 1})
+    for bar, v, vd in zip(bars, ar_means, ar_display):
+        label = f"{v:.3f}" + (" ▲" if v > 1.05 else "")
+        ax1.text(bar.get_x() + bar.get_width() / 2, vd + 0.01,
+                 label, ha="center", va="bottom", fontsize=8, fontweight="bold")
     ax1.set_xticks(x)
-    ax1.set_xticklabels(model_names, rotation=25, ha="right", fontsize=9)
-    ax1.set_ylim(0.0, 1.0)
-    ax1.set_ylabel("Average AR", fontsize=11)
-    ax1.set_title("Average Resource Utilisation", fontsize=11)
-    ax1.axhline(1.0, color="gray", linestyle=":", alpha=0.5)
+    ax1.set_xticklabels(short, fontsize=8.5)
+    ax1.set_ylim(0.0, 1.18)
+    ax1.axhline(1.0, color="gray", linestyle=":", linewidth=1, alpha=0.6, label="AR=1")
+    ax1.set_ylabel("Average AR", fontsize=10)
+    ax1.set_title("Resource Utilisation (AR)", fontsize=10)
+    ax1.legend(fontsize=8)
     ax1.grid(axis="y", alpha=0.3)
 
-    # ── subplot 2: success / failure rate ────────────────────────────────────
+    # ── subplot 2: success / failure rate ─────────────────────────────────────
     ax2 = axes[1]
     success_rates = [agg_results[m]["success_rate"] for m in model_names]
     failure_rates = [agg_results[m]["failure_rate"] for m in model_names]
-    ax2.bar(x, success_rates, color="#2ecc71", alpha=0.8, label="Success")
-    ax2.bar(x, failure_rates, bottom=success_rates, color="#e74c3c", alpha=0.8, label="Failure")
+    ax2.bar(x, success_rates, color="#2ecc71", alpha=0.85, label="Success")
+    ax2.bar(x, failure_rates, bottom=success_rates, color="#e74c3c", alpha=0.85, label="Failure")
     for i, (sr, fr) in enumerate(zip(success_rates, failure_rates)):
-        ax2.text(i, sr / 2, f"{sr:.1%}", ha="center", va="center",
-                 fontsize=8, fontweight="bold", color="white")
-        if fr > 0.04:
-            ax2.text(i, sr + fr / 2, f"{fr:.1%}", ha="center", va="center",
+        if sr > 0.06:
+            ax2.text(i, sr / 2, f"{sr:.0%}", ha="center", va="center",
+                     fontsize=8, fontweight="bold", color="white")
+        if fr > 0.06:
+            ax2.text(i, sr + fr / 2, f"{fr:.0%}", ha="center", va="center",
                      fontsize=8, fontweight="bold", color="white")
     ax2.set_xticks(x)
-    ax2.set_xticklabels(model_names, rotation=25, ha="right", fontsize=9)
+    ax2.set_xticklabels(short, fontsize=8.5)
     ax2.set_ylim(0.0, 1.05)
-    ax2.set_ylabel("Rate", fontsize=11)
-    ax2.set_title("Success / Failure Rate\n(100% placed + no violation)", fontsize=11)
-    ax2.legend(fontsize=9)
+    ax2.set_ylabel("Rate", fontsize=10)
+    ax2.set_title("Success / Failure Rate", fontsize=10)
+    ax2.legend(fontsize=8)
     ax2.grid(axis="y", alpha=0.3)
 
-    # ── subplot 3: violation rates ────────────────────────────────────────────
+    # ── subplot 3: violation rates ─────────────────────────────────────────────
     ax3 = axes[2]
     w = 0.35
     cap_rates  = [agg_results[m]["cap_viol_rate"]  for m in model_names]
     conf_rates = [agg_results[m]["conf_viol_rate"] for m in model_names]
-    bars_cap  = ax3.bar(x - w / 2, cap_rates,  w, color="#e74c3c", alpha=0.75, label="Cap violation")
-    bars_conf = ax3.bar(x + w / 2, conf_rates, w, color="#f39c12", alpha=0.75, label="Conflict violation")
-    for bar, v in zip(bars_cap, cap_rates):
+    ax3.bar(x - w / 2, cap_rates,  w, color="#e74c3c", alpha=0.80, label="Cap viol.")
+    ax3.bar(x + w / 2, conf_rates, w, color="#f39c12", alpha=0.80, label="Conflict viol.")
+    for xi, v in zip(x - w / 2, cap_rates):
         if v > 0.02:
-            ax3.text(bar.get_x() + bar.get_width() / 2, v + 0.005,
-                     f"{v:.1%}", ha="center", va="bottom", fontsize=7)
-    for bar, v in zip(bars_conf, conf_rates):
+            ax3.text(xi, v + 0.01, f"{v:.0%}", ha="center", va="bottom", fontsize=7.5)
+    for xi, v in zip(x + w / 2, conf_rates):
         if v > 0.02:
-            ax3.text(bar.get_x() + bar.get_width() / 2, v + 0.005,
-                     f"{v:.1%}", ha="center", va="bottom", fontsize=7)
+            ax3.text(xi, v + 0.01, f"{v:.0%}", ha="center", va="bottom", fontsize=7.5)
     ax3.set_xticks(x)
-    ax3.set_xticklabels(model_names, rotation=25, ha="right", fontsize=9)
-    ax3.set_ylim(0.0, 1.05)
-    ax3.set_ylabel("Episode Violation Rate", fontsize=11)
-    ax3.set_title("Violation Rates\n(episodes with ≥1 violation / total episodes)", fontsize=11)
-    ax3.legend(fontsize=9)
+    ax3.set_xticklabels(short, fontsize=8.5)
+    ax3.set_ylim(0.0, 1.10)
+    ax3.set_ylabel("Episode Violation Rate", fontsize=10)
+    ax3.set_title("Violation Rates", fontsize=10)
+    ax3.legend(fontsize=8)
     ax3.grid(axis="y", alpha=0.3)
 
-    plt.tight_layout()
     path = outdir / "test_results.png"
-    plt.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
     print(f"  Saved → {path}")
