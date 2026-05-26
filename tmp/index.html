@@ -315,17 +315,6 @@
         </td>
       </tr>
       <tr>
-        <td><strong>P7 SeqPPO</strong></td>
-        <td>动作掩码（硬约束）</td>
-        <td>Discrete(M×N)</td>
-        <td style="color:var(--yellow)">0.571</td>
-        <td style="color:var(--red)">85%</td>
-        <td class="link-pair">
-          <a href="docs/p7_seq_ppo.html">原理</a>
-          <a href="code/p7_seq_ppo.html">代码</a>
-        </td>
-      </tr>
-      <tr>
         <td><strong>DQN</strong></td>
         <td>-2.0 惩罚（无掩码）</td>
         <td>Discrete(N)</td>
@@ -457,20 +446,6 @@
         </div>
       </a>
 
-      <a class="card" href="docs/p7_seq_ppo.html">
-        <div class="card-header">
-          <div class="icon" style="background:#2a1a3a">🔀</div>
-          <div>
-            <div class="card-title">P7 Sequential PPO</div>
-            <div class="card-en">Joint SVC+ECU Selection PPO</div>
-          </div>
-        </div>
-        <div class="card-desc">动作空间 M×N，同时选服务和 ECU，自由排序，LT 因探索空间爆炸而性能下降</div>
-        <div class="card-meta">
-          <span class="tag tag-ppo">PPO</span>
-          <span class="tag tag-doc">原理</span>
-        </div>
-      </a>
 
       <a class="card" href="docs/dqn.html">
         <div class="card-header">
@@ -570,17 +545,6 @@
         <div class="card-meta"><span class="tag tag-ppo">PPO</span><span class="tag tag-repair">修复</span><span class="tag tag-code">代码</span></div>
       </a>
 
-      <a class="card" href="code/p7_seq_ppo.html">
-        <div class="card-header">
-          <div class="icon" style="background:#2a1a3a">🔀</div>
-          <div>
-            <div class="card-title">P7 代码解析</div>
-            <div class="card-en">P7 Code Walkthrough</div>
-          </div>
-        </div>
-        <div class="card-desc"><code>env.py</code>：M×N 动作解码 svc_idx=a//N, ecu_idx=a%N、placed[] 追踪、4+4N+3M 观测结构</div>
-        <div class="card-meta"><span class="tag tag-ppo">PPO</span><span class="tag tag-code">代码</span></div>
-      </a>
 
       <a class="card" href="code/dqn.html">
         <div class="card-header">
