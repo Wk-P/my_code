@@ -1,8 +1,0 @@
-group,problem,method,n_seeds,ar_mean_avg,ar_mean_std,placed_mean_avg,placed_mean_std,viol_rate_avg,viol_rate_std,cap_viol_avg,cap_viol_std,conflict_viol_avg,conflict_viol_std
-ecu_lt_svc_p,ILP (Optimal),ILP (Optimal),5,0.736088,0.012842,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
-ecu_lt_svc_p,problem3_ppo,PPO (P3 unconstrained),5,11.836445,0.404368,15.0000,0.0000,1.8858,0.0088,476.60,2.51,428.60,2.61
-ecu_lt_svc_p,problem4_ppo_mask,MaskablePPO (P4),5,0.672662,0.011759,15.0000,0.0000,0.0000,0.0000,0.00,0.00,0.00,0.00
-ecu_lt_svc_p,problem5_ppo_lagrangian,Lagrange PPO (P5),5,0.700560,0.014349,15.0000,0.0000,0.0888,0.0116,5.00,1.87,37.60,4.22
-ecu_lt_svc_p,problem6_ppo_opt,PPO+Repair (P6),5,0.679176,0.009845,12.8900,0.1091,0.0122,0.0039,4.60,1.52,1.00,0.71
-ecu_lt_svc_p,problem_dqn,DQN,5,0.666982,0.013707,15.0000,0.0000,0.6813,0.0408,21.80,1.30,31.80,2.05
-ecu_lt_svc_p,problem_ddqn,DDQN,5,0.659082,0.018423,15.0000,0.0000,0.6437,0.0844,20.60,2.70,27.80,6.76
