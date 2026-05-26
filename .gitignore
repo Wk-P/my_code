@@ -12,6 +12,7 @@ run_scripts/run_background.pid
 run_scripts/results_combined/
 figures/
 panel/
+*.csv
 *.log
 *.pid
 
