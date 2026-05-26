@@ -60,8 +60,9 @@ PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.99
 PPO_GAE_LAMBDA  = 0.95
 PPO_CLIP_RANGE  = 0.2
-# Larger network to process richer observation space (3N+2 dims)
-PPO_NET_ARCH    = dict(pi=[256, 256], vf=[256, 256])
+PPO_ENT_COEF    = 0.005  # entropy regularisation prevents premature convergence
+# Separate larger VF network: value estimation benefits from more capacity
+PPO_NET_ARCH    = dict(pi=[256, 256], vf=[512, 512])
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS  = len(TEST_SCENARIOS)

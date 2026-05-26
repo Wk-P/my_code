@@ -205,8 +205,9 @@ def train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
     ])
     model = MaskablePPO(
         policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=PPO_N_STEPS,
-        batch_size=PPO_BATCH_SIZE, n_epochs=10, gamma=0.999, gae_lambda=0.95,
-        clip_range=0.2, policy_kwargs=dict(net_arch=[256, 256]),
+        batch_size=PPO_BATCH_SIZE, n_epochs=10, gamma=0.99, gae_lambda=0.95,
+        clip_range=0.2, ent_coef=0.005,
+        policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[512, 512])),
         device=device, verbose=0, seed=seed,
     )
     model.learn(total_timesteps=_MAX_TIMESTEPS, callback=ep_cb)
@@ -223,7 +224,7 @@ def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCal
     print(f"  [P5 LagPPO] training … M={M} n_steps=512 batch=256")
     t0 = time.time()
     torch.set_num_threads(TORCH_THREADS)
-    LAMBDA_INIT, LAMBDA_MAX, LAMBDA_LR, LAMBDA_TARGET, LAMBDA_WIN = 0.1, 5.0, 0.005, 0.0, 20
+    LAMBDA_INIT, LAMBDA_MAX, LAMBDA_LR, LAMBDA_TARGET, LAMBDA_WIN = 0.5, 5.0, 0.01, 0.0, 200
     ep_cb  = EpisodeTrackingCallback(target_episodes)
     lam_cb = LagrangianUpdateCallback(LAMBDA_INIT, LAMBDA_LR, LAMBDA_TARGET, LAMBDA_MAX, LAMBDA_WIN)
     vec = _make_vecenv([
@@ -234,6 +235,7 @@ def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCal
     model = PPO(
         policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=PPO_N_STEPS,
         batch_size=PPO_BATCH_SIZE, n_epochs=10, gamma=0.99, gae_lambda=0.95, clip_range=0.2,
+        ent_coef=0.005,
         policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[512, 512])),
         device=device, verbose=0, seed=seed,
     )
@@ -255,8 +257,8 @@ def train_p6(ECU, SVC, P6Env, EpisodeTrackingCallback,
     ])
     model = _train_ppo(vec, ep_cb, [], seed, device, dict(
         learning_rate=3e-4, n_steps=PPO_N_STEPS, batch_size=PPO_BATCH_SIZE, n_epochs=10,
-        gamma=0.999, gae_lambda=0.95, clip_range=0.2,
-        policy_kwargs=dict(net_arch=[256, 256]),
+        gamma=0.99, gae_lambda=0.95, clip_range=0.2, ent_coef=0.005,
+        policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[512, 512])),
     ))
     print(f"  [P6 RepairPPO] done  {time.time()-t0:.1f}s | {ep_cb.episode_count:,} eps")
     return model, ep_cb
@@ -645,7 +647,9 @@ def main():
     parser.add_argument("--seed",   type=int, nargs="+", default=[1])
     parser.add_argument("--group",  type=str, default="all",
                         choices=["eq", "lt", "gt", "all"])
-    parser.add_argument("--steps",  type=int, default=TARGET_STEPS)
+    parser.add_argument("--steps",    type=int, default=TARGET_STEPS)
+    parser.add_argument("--episodes", type=int, default=None,
+                        help="Target episodes per model (overrides --steps; steps = episodes * M per group).")
     parser.add_argument("--name",   type=str, default="ecu_exp",
                         help="Experiment name prefix for the reports directory.")
     parser.add_argument("--outdir", type=str, default=None,
@@ -687,17 +691,24 @@ def main():
         info_path.write_text(json.dumps(run_info, indent=2))
 
     # ── parallel group execution when --group all ─────────────────────────────
-    if args.group == "all" and not args.outdir:
+    if args.group == "all":
         import subprocess as _sp
         python = sys.executable
         procs: list[tuple[str, "_sp.Popen[bytes]"]] = []
         for g in groups:
+            # compute per-group steps so every group gets the same episode count
+            g_scenarios = _load_scenarios(g)
+            g_M = len(g_scenarios[0][1])
+            if args.episodes is not None:
+                g_steps = args.episodes * g_M
+            else:
+                g_steps = (args.steps // g_M) * g_M
             cmd = [
                 python, str(Path(__file__).resolve()),
                 "--group", g,
                 "--run-id", run_id,
                 "--outdir", str(exp_root),
-                "--steps", str(args.steps),
+                "--steps", str(g_steps),
                 "--name", args.name,
                 "--seed", *[str(s) for s in args.seed],
             ]
@@ -721,6 +732,8 @@ def main():
     for group in groups:
         scenarios   = _load_scenarios(group)
         outdir_root = exp_root / group.upper() / "seeds"
+        group_M     = len(scenarios[0][1])
+        target_steps = args.episodes * group_M if args.episodes is not None else args.steps
         print(f"\n{'='*60}\n  Group: {group.upper()}\n{'='*60}")
         _compute_and_save_ilp(group, scenarios, exp_root)
         for seed in args.seed:
@@ -728,7 +741,7 @@ def main():
                 seed=seed,
                 scenarios=scenarios,
                 group=group,
-                target_steps=args.steps,
+                target_steps=target_steps,
                 outdir_root=outdir_root,
                 run_id=run_id,
             )

@@ -7,9 +7,13 @@ Constraints:
     - Capacity violation → HARD (action masking strictly prevents selection).
     - Conflict violation → HARD (action masking strictly prevents selection).
     If no valid ECU exists, action_masks() returns all-False.
-    During evaluation, evaluate_model() breaks the episode cleanly (zero violations,
-    services_placed < M). During training, MaskablePPO samples uniformly and incurs
-    a heavy penalty, learning to avoid infeasible states.
+
+Reward (potential-based shaping):
+    Per step:  Δar = ar_new - ar_prev  (incremental AR contribution)
+    Terminal:  +ar_final               (completion bonus; episode return = 2 * ar_final)
+
+Services are sorted descending by requirement at each episode reset (FFD order),
+so the hardest-to-place service is always presented first.
 """
 
 import sys
@@ -104,6 +108,17 @@ class P4Env(gym.Env):
             self.conflict_sets = [set(cs) for cs in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
+
+        # Sort services descending by requirement (FFD order: hardest first).
+        # Remap conflict_sets indices to match the new order so conflict tracking
+        # stays consistent with self._step (which now indexes sorted services).
+        sort_idx = sorted(range(self.M), key=lambda i: -self.services[i].requirement)
+        self.services = [self.services[i] for i in sort_idx]
+        inv_perm = [0] * self.M
+        for new_i, old_i in enumerate(sort_idx):
+            inv_perm[old_i] = new_i
+        self.conflict_sets = [{inv_perm[k] for k in cs} for cs in self.conflict_sets]
+
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self._req_arr = np.array([s.requirement for s in self.services], dtype=np.float32)
@@ -192,6 +207,7 @@ class P4Env(gym.Env):
     def step(self, action: int):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
+        ar_prev = self.ar  # capture before placement for Δar reward
 
         cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
@@ -205,10 +221,10 @@ class P4Env(gym.Env):
         if not (cap_violated or conflict_violated):
             self.valid_placed += 1
 
-        violated = cap_violated or conflict_violated
-        # Heavy penalty applied only when forced-overflow fallback triggers a violation.
-        violation_penalty = -2.0 if violated else 0.0
-        ru = 0.0 if violated else svc.requirement / (self.initial_vms[action] + 1e-8)
+        # With action masking, violations should not occur during normal training.
+        # ru is still computed for AR tracking; violations set ru=0 as safety net.
+        ru = 0.0 if (cap_violated or conflict_violated) else \
+            svc.requirement / (self.initial_vms[action] + 1e-8)
 
         self.remaining_vms[action] -= svc.requirement
         _was_empty = not self.ecu_placements[action]
@@ -224,9 +240,12 @@ class P4Env(gym.Env):
 
         done = self._step >= self.M
         total_viol = self.capacity_violations + self.conflict_violations
-        terminal_bonus = 0.0
-        if done:
-            terminal_bonus = self.ar if total_viol == 0 else 0.1 * self.ar
+
+        # Potential-based shaped reward: Δar gives immediate per-step credit.
+        # Adding ar_final as terminal bonus means episode return = 2 * ar_final,
+        # which bootstraps the value function while keeping the signal dense.
+        delta_ar = self.ar - ar_prev
+        terminal_bonus = self.ar if (done and total_viol == 0) else 0.0
 
         info = {
             "ar":                  self.ar,
@@ -241,7 +260,7 @@ class P4Env(gym.Env):
             "episode_has_cap_violation":      self.episode_has_cap_violation,
             "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
-        return self._obs(), float(ru + violation_penalty + terminal_bonus), done, False, info
+        return self._obs(), float(delta_ar + terminal_bonus), done, False, info
 
     # ── render ────────────────────────────────────────────────────────────────
     def render(self):

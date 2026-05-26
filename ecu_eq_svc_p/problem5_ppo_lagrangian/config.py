@@ -65,15 +65,16 @@ PPO_N_EPOCHS   = 10
 PPO_GAMMA      = 0.99
 PPO_GAE_LAMBDA = 0.95
 PPO_CLIP_RANGE = 0.2
-PPO_NET_ARCH   = dict(pi=[256, 256], vf=[512, 512])  # larger network for 43-dim obs
+PPO_ENT_COEF   = 0.005   # entropy regularisation prevents premature convergence
+PPO_NET_ARCH   = dict(pi=[256, 256], vf=[512, 512])
 
 # ── Lagrangian multiplier (dual variable) ─────────────────────────────────────
-LAMBDA_INIT          = 0.1    # start with small penalty to signal constraints from the start
-LAMBDA_LR            = 0.005  # faster dual-ascent to converge to zero violations
-LAMBDA_TARGET        = 0.0    # zero-violation objective
-LAMBDA_MAX           = 5.0    # higher cap so λ can grow large enough to enforce zero violations
-LAMBDA_UPDATE_WINDOW = 20     # update λ every 20 episodes after warmup
-LAMBDA_WARMUP_EPISODES = 0    # no warmup: dual ascent starts from episode 1
+LAMBDA_INIT          = 0.5    # meaningful initial penalty from the start
+LAMBDA_LR            = 0.01   # larger step (window is also larger, signal is less noisy)
+LAMBDA_TARGET        = 0.0    # zero conflict-violation objective
+LAMBDA_MAX           = 5.0
+LAMBDA_UPDATE_WINDOW = 200    # update λ every 200 episodes (≈5 eps/env with 40 envs)
+LAMBDA_WARMUP_EPISODES = 0
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = len(TEST_SCENARIOS)

@@ -91,7 +91,10 @@ class LagrangianUpdateCallback(BaseCallback):
         for info in self.locals.get("infos", []):
             if "episode" not in info:
                 continue
-            viol_rate = float(info.get("viol_rate_ep", 0.0))
+            # Use conflict-only violation rate so λ is not polluted by capacity
+            # violations (which have their own fixed -2.0 penalty in P5).
+            viol_rate = float(info.get("conf_viol_rate_ep",
+                                       info.get("viol_rate_ep", 0.0)))
             self._window_viols.append(viol_rate)
             self._ep_since_update += 1
 

@@ -1,12 +1,19 @@
 """
 P5 Environment — Lagrangian Constraint Relaxation.
 
-Constraints are SOFT (both capacity and conflict):
-    - Violations are NOT blocking; episode always runs M steps.
-    - Each violated step incurs a per-step penalty: (lambda_val + base_penalty) * c_t.
-    - c_t = 1.0 if capacity violated OR conflict violated, else 0.0.
-    - lambda_val is updated externally by the training callback via dual ascent.
-    - Multiple services may share an ECU (no uniqueness constraint).
+Design:
+    - Capacity violation  → fixed large penalty (-2.0 per step); episode continues.
+    - Conflict violation  → adaptive Lagrangian penalty (λ + base_penalty) * c_t;
+                            λ is updated externally via dual ascent.
+    - Episode always runs M steps; remaining_vms can go negative.
+
+Reward (potential-based shaping, same as P4):
+    Δar   = ar_new - ar_prev          (dense utilisation signal)
+    - cap_penalty                      (-2.0 if capacity violated, else 0)
+    - (λ + base_penalty) * c_t        (Lagrangian conflict penalty)
+    + ar_final  (terminal, no-violation episodes only)
+
+Services are sorted descending by requirement at each reset (FFD order).
 """
 
 import sys
@@ -110,6 +117,16 @@ class LagrangeEnv(gym.Env):
             self.conflict_sets = [set(s) for s in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
+
+        # Sort services descending by requirement (FFD order).
+        # Remap conflict_set indices so self._step always indexes sorted services.
+        sort_idx = sorted(range(self.M), key=lambda i: -self.services[i].requirement)
+        self.services = [self.services[i] for i in sort_idx]
+        inv_perm = [0] * self.M
+        for new_i, old_i in enumerate(sort_idx):
+            inv_perm[old_i] = new_i
+        self.conflict_sets = [{inv_perm[k] for k in cs} for cs in self.conflict_sets]
+
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]
@@ -182,18 +199,12 @@ class LagrangeEnv(gym.Env):
     # ── step ──────────────────────────────────────────────────────────────────
     def step(self, action: int):
         svc = self.services[self._step]
-
-        # Hard capacity enforcement
-        mask = self.action_masks()
-        if not mask[action]:
-            valid = np.where(mask)[0]
-            if len(valid) > 0:
-                action = int(valid[np.argmax(self.remaining_vms[valid])])
+        ar_prev = self.ar  # capture before placement for Δar reward
 
         cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
-        violated          = conflict_violated  # only conflict counts as violation now
-        c_t               = 1.0 if conflict_violated else 0.0  # Lagrangian only for conflict
+        # λ (dual variable) tracks CONFLICT only; capacity gets a fixed large penalty.
+        c_t = 1.0 if conflict_violated else 0.0
 
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
@@ -206,6 +217,7 @@ class LagrangeEnv(gym.Env):
         _active = self._n_active
         self.ar = self._total_ru / _active
         self._step += 1
+
         if cap_violated:
             self.cap_violations += 1
             self.episode_has_cap_violation = True
@@ -218,18 +230,27 @@ class LagrangeEnv(gym.Env):
             self.valid_placed += 1
 
         done = self._step >= self.M
-        match_gain     = float(ru)  # no capacity penalty since mask enforces it
+
+        # Reward:
+        #   Δar            — potential-based dense utilisation signal
+        #   cap_penalty    — fixed -2.0 for capacity overflow (explicit, consistent gradient)
+        #   Lagrangian     — adaptive conflict penalty via dual ascent
+        #   terminal_bonus — +ar_final for clean episodes; 0 otherwise (avoid -ar instability)
+        delta_ar       = self.ar - ar_prev
+        cap_penalty    = -2.0 if cap_violated else 0.0
         base_penalty   = 0.2
-        terminal_bonus = 0.0
-        if done:
-            terminal_bonus = self.ar if self.episode_violations == 0 else -self.ar
-        reward = float(match_gain - (self.lambda_val + base_penalty) * c_t + terminal_bonus)
+        terminal_bonus = self.ar if (done and self.episode_violations == 0) else 0.0
+        reward = float(delta_ar + cap_penalty
+                       - (self.lambda_val + base_penalty) * c_t
+                       + terminal_bonus)
 
         return self._obs(), reward, done, False, {
             "ar":                             self.ar,
-            "violated":                       violated,
+            "violated":                       bool(cap_violated or conflict_violated),
             "violations_ep":                  self.episode_violations,
             "viol_rate_ep":                   self.episode_violations / self._step,
+            # λ should track ONLY conflict violations; cap violations are handled separately
+            "conf_viol_rate_ep":              self.conflict_violations / self._step,
             "cap_violations":                 self.cap_violations,
             "conflict_violations":            self.conflict_violations,
             "services_placed":                self._step,

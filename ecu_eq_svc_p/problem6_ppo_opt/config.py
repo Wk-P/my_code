@@ -59,10 +59,11 @@ PPO_LR          = 3e-4
 PPO_N_STEPS     = 512    # collect multiple episodes per rollout to amortise SB3 overhead
 PPO_BATCH_SIZE  = 256
 PPO_N_EPOCHS    = 10
-PPO_GAMMA       = 0.999  # reward is dense but still benefits from long-horizon credit assignment
+PPO_GAMMA       = 0.99
 PPO_GAE_LAMBDA  = 0.95
 PPO_CLIP_RANGE  = 0.2
-PPO_NET_ARCH    = [256, 256]
+PPO_ENT_COEF    = 0.005
+PPO_NET_ARCH    = dict(pi=[256, 256], vf=[512, 512])
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS  = len(TEST_SCENARIOS)

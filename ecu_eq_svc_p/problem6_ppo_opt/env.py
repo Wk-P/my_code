@@ -107,6 +107,16 @@ class P6Env(gym.Env):
             self.conflict_sets = [set(s) for s in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
+
+        # Sort services descending by requirement (FFD order).
+        # Remap conflict_set indices so self._step always indexes sorted services.
+        sort_idx = sorted(range(self.M), key=lambda i: -self.services[i].requirement)
+        self.services = [self.services[i] for i in sort_idx]
+        inv_perm = [0] * self.M
+        for new_i, old_i in enumerate(sort_idx):
+            inv_perm[old_i] = new_i
+        self.conflict_sets = [{inv_perm[k] for k in cs} for cs in self.conflict_sets]
+
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]
@@ -219,6 +229,7 @@ class P6Env(gym.Env):
                 self.conflict_violations += 1
 
         repair_penalty = -0.1 if was_repaired else 0.0
+        ar_prev = self.ar
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
         _was_empty = not self.ecu_placements[action]
@@ -238,7 +249,8 @@ class P6Env(gym.Env):
             repair_rate = self.repairs / max(self.M, 1)
             terminal_bonus = self.ar * max(0.0, 1.0 - repair_rate)
 
-        return self._obs(), float(ru + repair_penalty + terminal_bonus), done, False, {
+        delta_ar = self.ar - ar_prev
+        return self._obs(), float(delta_ar + repair_penalty + terminal_bonus), done, False, {
             "episode_has_cap_violation":      self.episode_has_cap_violation,
             "episode_has_conflict_violation": self.episode_has_conflict_violation,
             "ar":                  self.ar,
