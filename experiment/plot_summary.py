@@ -155,7 +155,7 @@ def fig_ar_comparison(
         ar_vals = [min(gd[m]["ar"], 1.05) for m in models]
         ar_stds = [gd[m]["ar_std"]        for m in models]
         bars = ax.bar(x, ar_vals,
-                      color=[MODEL_COLORS.get(m, _DEFAULT_COLOR) for m in models],
+                      color="#5b82b8",
                       alpha=0.82, yerr=ar_stds, capsize=4,
                       error_kw={"linewidth": 1}, edgecolor="white", linewidth=0.4)
 

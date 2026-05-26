@@ -76,15 +76,12 @@ class P6Env(gym.Env):
         return sets
 
     def _has_conflict(self, ecu_idx: int, svc_idx: int) -> bool:
-        placed = self.ecu_placements[ecu_idx]
-        if not placed:
-            return False
+        return svc_idx not in self.ecu_allowed[ecu_idx]
+
+    def _update_ecu_allowed(self, ecu_idx: int, svc_idx: int) -> None:
         for subset in self.conflict_sets:
             if svc_idx in subset:
-                for p in placed:
-                    if p in subset:
-                        return True
-        return False
+                self.ecu_allowed[ecu_idx] -= (subset - {svc_idx})
 
     # ── best-fit repair ──────────────────────────────────────────────────────
     def _best_fit_repair(self, svc_idx: int) -> int | None:
@@ -112,6 +109,9 @@ class P6Env(gym.Env):
             self.conflict_sets = self._init_conflict_sets()
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
+        self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]
+        self._req_arr = np.array([s.requirement for s in self.services], dtype=np.float32)
+        self._n_active = 0
         self.ar              = 0.0
         self._total_ru       = 0.0
         self._step           = 0
@@ -148,7 +148,7 @@ class P6Env(gym.Env):
                 dtype=np.float32,
             )
             remaining_service_demand_sum = np.float32(
-                sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
+                float(np.sum(self._req_arr[self._step:])) / total_cap
             )
             remaining_services_count   = np.float32((self.M - self._step) / max(self.M, 1))
             remaining_usable_ecu_count = np.float32(np.sum(valid_flag) / max(self.N, 1))
@@ -158,11 +158,9 @@ class P6Env(gym.Env):
         remaining_usable_capacity_sum = np.float32(
             np.sum(np.clip(self.remaining_vms, 0.0, None)) / total_cap
         )
-        remaining_svcs = np.array(
-            [self.services[t].requirement / max_cap if t >= self._step else 0.0
-             for t in range(self.M)],
-            dtype=np.float32,
-        )
+        remaining_svcs = np.zeros(self.M, dtype=np.float32)
+        if self._step < self.M:
+            remaining_svcs[self._step:] = self._req_arr[self._step:] / max_cap
 
         return np.concatenate([
             [service_demand_norm],
@@ -223,9 +221,13 @@ class P6Env(gym.Env):
         repair_penalty = -0.1 if was_repaired else 0.0
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
+        _was_empty = not self.ecu_placements[action]
         self.ecu_placements[action].add(self._step)
+        if _was_empty:
+            self._n_active += 1
+        self._update_ecu_allowed(action, self._step)
         self._total_ru += ru
-        _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
+        _active = self._n_active
         self.ar = self._total_ru / _active
         self._step += 1
         self.valid_placed += 1

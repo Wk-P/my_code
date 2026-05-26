@@ -177,7 +177,18 @@ def process_experiment(run_id: str, seed_dirs: dict[str, list[Path]],
         group_agg = load_groups_agg({group: dirs})
         if not group_agg:
             continue
-        ilp_data = {group: _load_ilp(group)}
+        ilp_val = None
+        if exp_dir is not None:
+            import json as _json
+            ilp_json = exp_dir / group.upper() / "results" / "ilp.json"
+            if ilp_json.exists():
+                try:
+                    ilp_val = float(_json.loads(ilp_json.read_text())["ilp_ar"])
+                except Exception:
+                    pass
+        if ilp_val is None:
+            ilp_val = _load_ilp(group)
+        ilp_data = {group: ilp_val}
         if exp_dir is not None:
             out_dir = exp_dir / group.upper() / "results" / "figures"
         else:

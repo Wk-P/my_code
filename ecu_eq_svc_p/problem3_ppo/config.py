@@ -51,13 +51,13 @@ TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train:]]
 
 DEVICE      = "auto"    # "auto" -> use CUDA if available, else CPU
 N_ENVS      = 40
-TORCH_NUM_THREADS = 8        # DummyVecEnv: more threads for CPU inference
+TORCH_NUM_THREADS = 16       # 28 CPUs available; 16 threads for better BLAS throughput
 PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────
 PPO_LR          = 3e-4
-PPO_N_STEPS     = M      # one complete episode per rollout per env
-PPO_BATCH_SIZE  = M      # one mini-batch = one episode
+PPO_N_STEPS     = 512    # collect multiple episodes per rollout to amortise SB3 overhead
+PPO_BATCH_SIZE  = 256
 PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.999  # high gamma: final-step reward must propagate M steps back
 PPO_GAE_LAMBDA  = 0.95

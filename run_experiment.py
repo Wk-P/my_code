@@ -58,7 +58,9 @@ GROUP_META = {
 # ── global training target ────────────────────────────────────────────────────
 TARGET_STEPS    = 5_000_000   # converted to episodes per group via steps // M
 _MAX_TIMESTEPS  = 999_999_999
-TORCH_THREADS   = 8
+TORCH_THREADS   = 16
+PPO_N_STEPS     = 512
+PPO_BATCH_SIZE  = 256
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -172,7 +174,7 @@ def _make_vecenv(env_fn_list):
 def train_p3(ECU, SVC, P3Env, EpisodeTrackingCallback,
              train_scenarios, seed, device, target_episodes):
     M = len(train_scenarios[0][1])
-    print(f"  [P3 PPO] training … M={M} n_steps={M} batch={M}")
+    print(f"  [P3 PPO] training … M={M} n_steps=512 batch=256")
     t0 = time.time()
     ep_cb = EpisodeTrackingCallback(target_episodes)
     vec   = _make_vecenv([
@@ -180,7 +182,7 @@ def train_p3(ECU, SVC, P3Env, EpisodeTrackingCallback,
         for i in range(40)
     ])
     model = _train_ppo(vec, ep_cb, [], seed, device, dict(
-        learning_rate=3e-4, n_steps=M, batch_size=M, n_epochs=10,
+        learning_rate=3e-4, n_steps=PPO_N_STEPS, batch_size=PPO_BATCH_SIZE, n_epochs=10,
         gamma=0.999, gae_lambda=0.95, clip_range=0.2,
         policy_kwargs=dict(net_arch=[256, 256]),
     ))
@@ -193,7 +195,7 @@ def train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
     from sb3_contrib import MaskablePPO
     from stable_baselines3.common.vec_env import DummyVecEnv
     M = len(train_scenarios[0][1])
-    print(f"  [P4 MaskPPO] training … M={M} n_steps={M} batch={M}")
+    print(f"  [P4 MaskPPO] training … M={M} n_steps=512 batch=256")
     t0 = time.time()
     torch.set_num_threads(TORCH_THREADS)
     ep_cb = EpisodeTrackingCallback(target_episodes)
@@ -202,8 +204,8 @@ def train_p4(ECU, SVC, P4Env, EpisodeTrackingCallback,
         for i in range(40)
     ])
     model = MaskablePPO(
-        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=M,
-        batch_size=M, n_epochs=10, gamma=0.999, gae_lambda=0.95,
+        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=PPO_N_STEPS,
+        batch_size=PPO_BATCH_SIZE, n_epochs=10, gamma=0.999, gae_lambda=0.95,
         clip_range=0.2, policy_kwargs=dict(net_arch=[256, 256]),
         device=device, verbose=0, seed=seed,
     )
@@ -218,7 +220,7 @@ def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCal
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import CallbackList
     M = len(train_scenarios[0][1])
-    print(f"  [P5 LagPPO] training … M={M} n_steps={M} batch={M}")
+    print(f"  [P5 LagPPO] training … M={M} n_steps=512 batch=256")
     t0 = time.time()
     torch.set_num_threads(TORCH_THREADS)
     LAMBDA_INIT, LAMBDA_MAX, LAMBDA_LR, LAMBDA_TARGET, LAMBDA_WIN = 0.1, 5.0, 0.005, 0.0, 20
@@ -230,8 +232,8 @@ def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCal
         for i in range(40)
     ])
     model = PPO(
-        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=M,
-        batch_size=M, n_epochs=10, gamma=0.99, gae_lambda=0.95, clip_range=0.2,
+        policy="MlpPolicy", env=vec, learning_rate=3e-4, n_steps=PPO_N_STEPS,
+        batch_size=PPO_BATCH_SIZE, n_epochs=10, gamma=0.99, gae_lambda=0.95, clip_range=0.2,
         policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[512, 512])),
         device=device, verbose=0, seed=seed,
     )
@@ -244,7 +246,7 @@ def train_p5(ECU, SVC, LagrangeEnv, EpisodeTrackingCallback, LagrangianUpdateCal
 def train_p6(ECU, SVC, P6Env, EpisodeTrackingCallback,
              train_scenarios, seed, device, target_episodes):
     M = len(train_scenarios[0][1])
-    print(f"  [P6 RepairPPO] training … M={M} n_steps={M} batch={M}")
+    print(f"  [P6 RepairPPO] training … M={M} n_steps=512 batch=256")
     t0 = time.time()
     ep_cb = EpisodeTrackingCallback(target_episodes)
     vec   = _make_vecenv([
@@ -252,7 +254,7 @@ def train_p6(ECU, SVC, P6Env, EpisodeTrackingCallback,
         for i in range(40)
     ])
     model = _train_ppo(vec, ep_cb, [], seed, device, dict(
-        learning_rate=3e-4, n_steps=M, batch_size=M, n_epochs=10,
+        learning_rate=3e-4, n_steps=PPO_N_STEPS, batch_size=PPO_BATCH_SIZE, n_epochs=10,
         gamma=0.999, gae_lambda=0.95, clip_range=0.2,
         policy_kwargs=dict(net_arch=[256, 256]),
     ))
@@ -394,6 +396,38 @@ def _load_ilp(group: str) -> float | None:
     return None
 
 
+def _compute_and_save_ilp(group: str, scenarios: list, exp_root: Path) -> float | None:
+    """Compute ILP optimal AR for a group and persist to reports; skip if already done."""
+    ilp_json = exp_root / group.upper() / "results" / "ilp.json"
+    if ilp_json.exists():
+        try:
+            return float(json.loads(ilp_json.read_text())["ilp_ar"])
+        except Exception:
+            pass
+
+    val = _load_ilp(group)
+    if val is None:
+        _switch_group(group)
+        if "run_utils" in sys.modules:
+            del sys.modules["run_utils"]
+        try:
+            from run_utils import solve_ilp_all_scenarios
+            meta      = GROUP_META[group]
+            yaml_path = meta["pkg_dir"] / "problem2_ilp" / "config" / meta["yaml_name"]
+            outdir    = meta["pkg_dir"] / "results"
+            print(f"  [ILP] computing for {group.upper()} ({len(scenarios)} scenarios) …")
+            mean_ar, _ = solve_ilp_all_scenarios(yaml_path, scenarios, outdir)
+            val = round(float(mean_ar), 4)
+            print(f"  [ILP] {group.upper()}: mean AR = {val}")
+        except Exception as e:
+            print(f"  [ILP] warning: could not compute ILP for {group}: {e}")
+            return None
+
+    ilp_json.parent.mkdir(parents=True, exist_ok=True)
+    ilp_json.write_text(json.dumps({"ilp_ar": val}))
+    return val
+
+
 def _generate_summary(exp_root: Path, groups: list[str]):
     """Generate per-group cross-seed summary figures (fig1–4) into {GROUP}/results/figures/."""
     print(f"\n{'='*60}\n  Generating cross-seed summary figures …\n{'='*60}")
@@ -427,7 +461,16 @@ def _generate_summary(exp_root: Path, groups: list[str]):
         if not group_agg:
             continue
 
-        ilp_data = {g: _load_ilp(g)}
+        ilp_val  = None
+        ilp_json = exp_root / g.upper() / "results" / "ilp.json"
+        if ilp_json.exists():
+            try:
+                ilp_val = float(json.loads(ilp_json.read_text())["ilp_ar"])
+            except Exception:
+                pass
+        if ilp_val is None:
+            ilp_val = _load_ilp(g)
+        ilp_data = {g: ilp_val}
         out_dir  = exp_root / g.upper() / "results" / "figures"
         print(f"  [{g.upper()}] {len(dirs)} seeds → {out_dir}")
         plot_experiment_summary(group_agg, ilp_data, out_dir)
@@ -643,10 +686,43 @@ def main():
     if not info_path.exists():
         info_path.write_text(json.dumps(run_info, indent=2))
 
+    # ── parallel group execution when --group all ─────────────────────────────
+    if args.group == "all" and not args.outdir:
+        import subprocess as _sp
+        python = sys.executable
+        procs: list[tuple[str, "_sp.Popen[bytes]"]] = []
+        for g in groups:
+            cmd = [
+                python, str(Path(__file__).resolve()),
+                "--group", g,
+                "--run-id", run_id,
+                "--outdir", str(exp_root),
+                "--steps", str(args.steps),
+                "--name", args.name,
+                "--seed", *[str(s) for s in args.seed],
+            ]
+            log_path = exp_root / g.upper() / "group.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            fh = open(log_path, "w", buffering=1)
+            p = _sp.Popen(cmd, stdout=fh, stderr=fh)
+            procs.append((g, p, fh))
+            print(f"  [{g.upper()}] spawned PID={p.pid}  log → {log_path}")
+
+        for g, p, fh in procs:
+            rc = p.wait()
+            fh.close()
+            print(f"  [{g.upper()}] finished  rc={rc}")
+
+        _generate_summary(exp_root, groups)
+        print("All done.")
+        return
+
+    # ── single-group execution (also used by parallel sub-processes) ──────────
     for group in groups:
         scenarios   = _load_scenarios(group)
         outdir_root = exp_root / group.upper() / "seeds"
         print(f"\n{'='*60}\n  Group: {group.upper()}\n{'='*60}")
+        _compute_and_save_ilp(group, scenarios, exp_root)
         for seed in args.seed:
             run_one_seed(
                 seed=seed,

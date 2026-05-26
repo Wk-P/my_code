@@ -19,10 +19,12 @@ class EpisodeTrackingCallback(BaseCallback):
     Collects episode reward and key metrics for plotting.
     """
 
-    def __init__(self, target_episodes: int, progress_every: int = 50_000):
+    def __init__(self, target_episodes: int, progress_every: int | None = None):
         super().__init__()
         self.target_episodes = target_episodes
-        self.progress_every  = progress_every
+        # default: every 5% of target
+        self.progress_every  = progress_every if progress_every is not None \
+            else max(1, target_episodes // 20)
 
         self.episode_count:   int        = 0
         self.episode_rewards: list[float] = []  # cumulative reward per episode (from Monitor)
@@ -31,7 +33,7 @@ class EpisodeTrackingCallback(BaseCallback):
         self.episode_conf_viol:     list[bool]  = []  # episode had conflict violation
 
         self._t_start = 0.0
-        self._next_log = progress_every
+        self._next_log = self.progress_every
 
     def _on_training_start(self) -> None:
         self._t_start = time.time()

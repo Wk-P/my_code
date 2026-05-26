@@ -1,0 +1,16 @@
+{
+  "name": "ecu_exp",
+  "hash": "f1da3ad2",
+  "timestamp": "20260526_210125",
+  "run_id": "20260526_210125_f1da3ad2",
+  "groups": [
+    "eq",
+    "lt",
+    "gt"
+  ],
+  "seeds": [
+    48,
+    13,
+    19
+  ]
+}

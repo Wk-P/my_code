@@ -4,10 +4,12 @@ P4 Environment — Hard capacity AND hard conflict (both masked).
 N = M: each ECU hosts exactly one service on average.
 
 Constraints:
-    - Capacity violation → HARD (action masking; forced-overflow fallback
-      triggers only when ALL ECUs are full, incurring a heavy penalty).
-    - Conflict violation → HARD (action masking; forced-overflow fallback
-      may still trigger a conflict if the capacity-fallback ECU has a conflict).
+    - Capacity violation → HARD (action masking strictly prevents selection).
+    - Conflict violation → HARD (action masking strictly prevents selection).
+    If no valid ECU exists, action_masks() returns all-False.
+    During evaluation, evaluate_model() breaks the episode cleanly (zero violations,
+    services_placed < M). During training, MaskablePPO samples uniformly and incurs
+    a heavy penalty, learning to avoid infeasible states.
 """
 
 import sys
@@ -104,6 +106,8 @@ class P4Env(gym.Env):
             self.conflict_sets = self._init_conflict_sets()
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
+        self._req_arr = np.array([s.requirement for s in self.services], dtype=np.float32)
+        self._n_active = 0
         self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]
         self.ar              = 0.0
         self._total_ru       = 0.0
@@ -125,11 +129,6 @@ class P4Env(gym.Env):
              for j in range(self.N)],
             dtype=bool,
         )
-        if not np.any(mask):
-            # Forced-overflow fallback: ECU with most remaining capacity.
-            best = int(np.argmax(self.remaining_vms))
-            mask = np.zeros(self.N, dtype=bool)
-            mask[best] = True
         return mask
 
     # ── observation ──────────────────────────────────────────────────────────
@@ -153,7 +152,7 @@ class P4Env(gym.Env):
             )
             valid_flag = self.action_masks().astype(np.float32)
             remaining_service_demand_sum = np.float32(
-                sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
+                float(np.sum(self._req_arr[self._step:])) / total_cap
             )
             remaining_services_count   = np.float32((self.M - self._step) / max(self.M, 1))
             remaining_usable_ecu_count = np.float32(
@@ -165,11 +164,9 @@ class P4Env(gym.Env):
         remaining_usable_capacity_sum = np.float32(
             np.sum(np.clip(self.remaining_vms, 0.0, None)) / total_cap
         )
-        remaining_svcs = np.array(
-            [self.services[t].requirement / max_cap if t >= self._step else 0.0
-             for t in range(self.M)],
-            dtype=np.float32,
-        )
+        remaining_svcs = np.zeros(self.M, dtype=np.float32)
+        if self._step < self.M:
+            remaining_svcs[self._step:] = self._req_arr[self._step:] / max_cap
 
         ecu_allowed_frac = np.array(
             [len(self.ecu_allowed[j]) / self.M for j in range(self.N)],
@@ -214,11 +211,14 @@ class P4Env(gym.Env):
         ru = 0.0 if violated else svc.requirement / (self.initial_vms[action] + 1e-8)
 
         self.remaining_vms[action] -= svc.requirement
+        _was_empty = not self.ecu_placements[action]
         self.ecu_placements[action].add(self._step)
+        if _was_empty:
+            self._n_active += 1
         self._update_ecu_allowed(action, self._step)
         if ru > 0:
             self._total_ru += ru
-        _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
+        _active = self._n_active
         self.ar = self._total_ru / _active if _active > 0 else 0.0
         self._step += 1
 

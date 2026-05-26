@@ -107,6 +107,8 @@ class LagrangeEnv(gym.Env):
             self.conflict_sets = self._init_conflict_sets()
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
+        self._req_arr = np.array([s.requirement for s in self.services], dtype=np.float32)
+        self._n_active = 0
         self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]
         self.ar              = 0.0
         self._total_ru       = 0.0
@@ -152,7 +154,7 @@ class LagrangeEnv(gym.Env):
             )
             valid_flag = (self.remaining_vms >= svc.requirement).astype(np.float32)
             remaining_service_demand_sum = np.float32(
-                sum(self.services[t].requirement for t in range(self._step, self.M)) / total_cap
+                float(np.sum(self._req_arr[self._step:])) / total_cap
             )
             remaining_services_count   = np.float32((self.M - self._step) / max(self.M, 1))
             remaining_usable_ecu_count = np.float32(
@@ -164,11 +166,9 @@ class LagrangeEnv(gym.Env):
         remaining_usable_capacity_sum = np.float32(
             np.sum(np.clip(self.remaining_vms, 0.0, None)) / total_cap
         )
-        remaining_svcs = np.array(
-            [self.services[t].requirement / max_cap if t >= self._step else 0.0
-             for t in range(self.M)],
-            dtype=np.float32,
-        )
+        remaining_svcs = np.zeros(self.M, dtype=np.float32)
+        if self._step < self.M:
+            remaining_svcs[self._step:] = self._req_arr[self._step:] / max_cap
         lambda_norm = np.float32(np.clip(self.lambda_val / self.lambda_max, 0.0, 1.0))
 
         ecu_allowed_frac = np.array(
@@ -220,10 +220,13 @@ class LagrangeEnv(gym.Env):
         match_gain              = svc.requirement / (self.initial_vms[action] + 1e-8)
 
         self.remaining_vms[action] -= svc.requirement
+        _was_empty = not self.ecu_placements[action]
         self.ecu_placements[action].add(self._step)
+        if _was_empty:
+            self._n_active += 1
         self._update_ecu_allowed(action, self._step)
         self._total_ru += match_gain  # always add (conflict penalized via λ, not ru=0)
-        _active = sum(1 for j in range(self.N) if self.ecu_placements[j])
+        _active = self._n_active
         self.ar = self._total_ru / _active if _active > 0 else 0.0
         self._step += 1
 
