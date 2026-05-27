@@ -236,36 +236,42 @@
 
   <div class="pair">
     <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
-      <strong>每步奖励：</strong>
+      <strong>每步奖励（势差奖励 Δar + 软约束惩罚）：</strong>
       <div class="formula-block">
-        \[ r_t = \underbrace{\frac{\mathrm{req}_i}{\mathrm{cap}_j}}_{\text{利用率贡献}} - \underbrace{(\lambda + 0.2) \cdot c_t}_{\text{冲突违规惩罚}} \]
+        \[ r_t = \underbrace{\Delta AR_t}_{\text{势差奖励}} + \underbrace{(-2.0)\cdot\mathbf{1}[\text{容量违规}]}_{\text{容量惩罚}} - \underbrace{(\lambda + 0.2) \cdot c_t}_{\text{冲突违规惩罚}} \]
+        \[ \Delta AR_t = AR_t - AR_{t-1} \]
       </div>
       其中 \(c_t = 1\) 若本步放置触发冲突违规，否则 \(c_t = 0\)。<br>
       <ul style="padding-left:1.3rem; margin-top:0.3rem;">
-        <li>惩罚 = \(\lambda + 0.2\)：\(\lambda\) 是动态调整项，+0.2 是固定的最低惩罚，确保 \(\lambda=0\) 时仍有惩罚。</li>
-        <li>注意：P5 没有掩码，AI <strong>可以选择违规动作</strong>，但要付代价。</li>
+        <li><strong>势差奖励 ΔAR</strong>：每步 AR 的增量，整回合求和恰等于最终 AR，形成稳定 bootstrapping 信号。</li>
+        <li><strong>容量惩罚 -2.0</strong>：若本步导致容量超限，额外扣 2.0（硬掩码已阻止容量违规）。</li>
+        <li><strong>冲突惩罚 \(-(\lambda+0.2) \cdot c_t\)</strong>：\(\lambda\) 动态调整，+0.2 是固定底线，确保 \(\lambda=0\) 时仍有惩罚。</li>
+        <li>注意：P5 对冲突没有掩码，AI <strong>可以选择违规动作</strong>，但要付代价。</li>
       </ul>
       <strong>终局奖励（回合结束时）：</strong>
       <div class="formula-block">
-        \[ r_{\text{terminal}} = \begin{cases} +AR_{\text{最终}} & \text{全回合零冲突违规} \\ -AR_{\text{最终}} & \text{有任何冲突违规} \end{cases} \]
+        \[ r_{\text{terminal}} = \begin{cases} +AR_{\text{最终}} & \text{全回合零冲突违规} \\ 0.0 & \text{有任何冲突违规} \end{cases} \]
       </div>
-      终局奖励是强信号：违规会让所有利用率收益变成"负数"，极力引导 AI 避免违规。
+      终局奖励引导 AI 追求零违规完成部署；有违规时终局奖励为 0，不再给予部分奖励。
     </div>
     <div class="pair-en"><span class="lang-tag lang-en">EN</span>
-      <strong>Per-step reward:</strong>
+      <strong>Per-step reward (potential-based Δar + soft-constraint penalties):</strong>
       <div class="formula-block">
-        \[ r_t = \underbrace{\frac{\mathrm{req}_i}{\mathrm{cap}_j}}_{\text{utilization gain}} - \underbrace{(\lambda + 0.2) \cdot c_t}_{\text{conflict violation penalty}} \]
+        \[ r_t = \underbrace{\Delta AR_t}_{\text{potential reward}} + \underbrace{(-2.0)\cdot\mathbf{1}[\text{cap violated}]}_{\text{capacity penalty}} - \underbrace{(\lambda + 0.2) \cdot c_t}_{\text{conflict penalty}} \]
+        \[ \Delta AR_t = AR_t - AR_{t-1} \]
       </div>
       where \(c_t = 1\) if placing service i on ECU j causes a conflict violation, else 0.<br>
       <ul style="padding-left:1.3rem; margin-top:0.3rem;">
-        <li>Penalty = \(\lambda + 0.2\): \(\lambda\) is dynamically tuned; +0.2 is a fixed floor ensuring some penalty even when \(\lambda=0\).</li>
-        <li>Note: P5 has no mask — the AI <strong>can choose violating actions</strong>, but pays the price.</li>
+        <li><strong>Potential reward ΔAR</strong>: per-step AR increment; sums to final AR over the episode — stable bootstrapping signal.</li>
+        <li><strong>Capacity penalty -2.0</strong>: applied if this step causes a capacity overflow.</li>
+        <li><strong>Conflict penalty \(-(\lambda+0.2) \cdot c_t\)</strong>: \(\lambda\) is dynamically tuned; +0.2 is a fixed floor ensuring some penalty even when \(\lambda=0\).</li>
+        <li>Note: P5 has no conflict mask — the AI <strong>can choose violating actions</strong>, but pays the price.</li>
       </ul>
       <strong>Terminal reward (episode end):</strong>
       <div class="formula-block">
-        \[ r_{\text{terminal}} = \begin{cases} +AR_{\text{final}} & \text{zero conflict violations in episode} \\ -AR_{\text{final}} & \text{any conflict violation occurred} \end{cases} \]
+        \[ r_{\text{terminal}} = \begin{cases} +AR_{\text{final}} & \text{zero conflict violations in episode} \\ 0.0 & \text{any conflict violation occurred} \end{cases} \]
       </div>
-      The terminal reward is a strong signal: any violation flips all utilization gains to negative, powerfully discouraging violations.
+      The terminal reward incentivizes zero-violation completion. Any violation sets the terminal bonus to 0.0 — no partial credit.
     </div>
   </div>
 </div>

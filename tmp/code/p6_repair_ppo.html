@@ -222,9 +222,9 @@ Constraints:
     <span class="cm"># → agent picks ONE ECU index (0..N-1) each step</span>
 
     <span class="nm">self</span>.observation_space = gym.spaces.<span class="fn">Box</span>(
-        low=<span class="num">-1.0</span>, high=<span class="num">1.0</span>, shape=(<span class="num">5</span> * <span class="nm">self</span>.N + <span class="num">6</span> + <span class="nm">self</span>.M,), dtype=np.float32,
+        low=<span class="num">0.0</span>, high=<span class="num">1.0</span>, shape=(<span class="num">4</span> * <span class="nm">self</span>.N + <span class="num">6</span> + <span class="nm">self</span>.M,), dtype=np.float32,
     )
-    <span class="cm"># → obs vector length = 5N + 6 + M</span>
+    <span class="cm"># → obs vector length = 4N + 6 + M (no ecu_allowed_frac in P6)</span>
 
     <span class="nm">self</span>.initial_vms = np.<span class="fn">array</span>([e.capacity <span class="kw">for</span> e <span class="kw">in</span> ecus], dtype=np.float32)
 
@@ -236,10 +236,10 @@ Constraints:
     <div class="explain-box">
       <h4>中文解读</h4>
       <p>P6 的动作空间是 <code>Discrete(N)</code>：每步 AI 选一个 ECU 编号（0 到 N-1）来部署当前服务。</p>
-      <p>观测向量长度 = <strong>5N + 6 + M</strong>：</p>
+      <p>观测向量长度 = <strong>4N + 6 + M</strong>：</p>
       <ul>
         <li>6 个全局特征（当前服务需求、AR、剩余容量等）</li>
-        <li>5×N 个 ECU 特征（每个 ECU 的初始容量、剩余容量、冲突标志、允许比例、合法标志）</li>
+        <li>4×N 个 ECU 特征（每个 ECU 的初始容量、剩余容量、冲突标志、合法标志；无 ecu_allowed_frac）</li>
         <li>M 个服务的剩余需求列表</li>
       </ul>
       <p>比 P4 多了三个计数器：<code>repairs</code>（修复次数）、<code>cap_violations</code>（容量违规次数）、<code>conflict_violations</code>（冲突违规次数）</p>
@@ -263,9 +263,8 @@ Constraints:
         <tr><td>init_cap_pct[N]</td><td>[6:6+N]</td><td>每个 ECU 的初始容量比 / initial capacity per ECU</td></tr>
         <tr><td>remaining_abs_norm[N]</td><td>[6+N:6+2N]</td><td>每个 ECU 的剩余容量 / remaining capacity per ECU</td></tr>
         <tr><td>conflict_flag[N]</td><td>[6+2N:6+3N]</td><td>当前服务在该 ECU 是否冲突 / conflict flag per ECU</td></tr>
-        <tr><td>ecu_allowed_frac[N]</td><td>[6+3N:6+4N]</td><td>该 ECU 还可放多少服务 / ECU's remaining allowed capacity</td></tr>
-        <tr><td>valid_flag[N]</td><td>[6+4N:6+5N]</td><td>该 ECU 是否合法（容量OK且无冲突）/ valid action flag</td></tr>
-        <tr><td>remaining_svcs[M]</td><td>[6+5N:end]</td><td>所有服务的剩余需求（按降序）/ remaining SVC demands</td></tr>
+        <tr><td>valid_flag[N]</td><td>[6+3N:6+4N]</td><td>该 ECU 是否合法（容量OK且无冲突）/ valid action flag</td></tr>
+        <tr><td>remaining_svcs[M]</td><td>[6+4N:end]</td><td>所有服务的剩余需求（按降序）/ remaining SVC demands</td></tr>
       </tbody>
     </table>
   </div>
@@ -417,15 +416,24 @@ Constraints:
 
     <span class="cm"># ── 计算奖励 / Compute reward ──</span>
     repair_penalty = <span class="num">-0.1</span> <span class="kw">if</span> was_repaired <span class="kw">else</span> <span class="num">0.0</span>
+    ar_prev = <span class="nm">self</span>.ar  <span class="cm"># capture before placement for Δar</span>
     ru = svc.requirement / (<span class="nm">self</span>.initial_vms[action] + <span class="num">1e-8</span>)
-    <span class="cm"># ru = utilization density = service fills what fraction of this ECU</span>
+    <span class="cm"># ru = utilization density; accumulated to compute AR</span>
 
     <span class="nm">self</span>.remaining_vms[action] -= svc.requirement   <span class="cm"># 扣减容量</span>
+    _was_empty = <span class="kw">not</span> <span class="nm">self</span>.ecu_placements[action]
     <span class="nm">self</span>.ecu_placements[action].<span class="fn">add</span>(<span class="nm">self</span>._step)      <span class="cm"># 记录部署</span>
+    <span class="kw">if</span> _was_empty:
+        <span class="nm">self</span>._n_active += <span class="num">1</span>
     <span class="nm">self</span>.<span class="fn">_update_ecu_allowed</span>(action, <span class="nm">self</span>._step)     <span class="cm"># 更新冲突集合</span>
+    <span class="nm">self</span>._total_ru += ru
+    _active = <span class="nm">self</span>._n_active
+    <span class="nm">self</span>.ar = <span class="nm">self</span>._total_ru / _active
     <span class="nm">self</span>._step += <span class="num">1</span>
+    <span class="nm">self</span>.valid_placed += <span class="num">1</span>
 
-    <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), <span class="fn">float</span>(ru + repair_penalty + terminal_bonus), done, <span class="kw">False</span>, info</pre>
+    delta_ar = <span class="nm">self</span>.ar - ar_prev  <span class="cm"># potential-based shaped reward</span>
+    <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), <span class="fn">float</span>(delta_ar + repair_penalty + terminal_bonus), done, <span class="kw">False</span>, info</pre>
 
     <div class="path-diagram">
       <div style="color:var(--accent); font-weight:700; margin-bottom:8px;">═══ STEP() 三条路径 / Three Paths ═══</div>
@@ -433,7 +441,7 @@ Constraints:
         ┌─ PATH A: 智能体选对了 / Agent chose correctly ──────────────────┐
         │  条件: cap OK AND no conflict                                    │
         │  动作: 直接部署到该 ECU                                          │
-        │  奖励: +ru  (利用率密度，越高越好)                               │
+        │  奖励: +Δar  (AR 的增量，势差奖励)                              │
         │  惩罚: 无 / none                                                 │
         └──────────────────────────────────────────────────────────────────┘
       </div>
@@ -443,7 +451,7 @@ Constraints:
         │  条件: cap violated OR conflict violated                         │
         │        AND _best_fit_repair() returns valid ECU                  │
         │  动作: 强制换到修复后的最佳 ECU                                  │
-        │  奖励: +ru - 0.1   (仍有利用率奖励，但扣除修复惩罚)             │
+        │  奖励: +Δar - 0.1  (仍有利用率信号，但扣除修复惩罚)            │
         │  计数: self.repairs += 1                                         │
         └──────────────────────────────────────────────────────────────────┘
       </div>
@@ -461,11 +469,11 @@ Constraints:
 
     <div class="reward-row">
       <div class="reward-card">
-        <div class="rval" style="color:var(--green)">+ru</div>
+        <div class="rval" style="color:var(--green)">+Δar</div>
         <div class="rlabel">PATH A<br>correct choice<br>路径A：选对了</div>
       </div>
       <div class="reward-card">
-        <div class="rval" style="color:var(--yellow)">+ru − 0.1</div>
+        <div class="rval" style="color:var(--yellow)">+Δar − 0.1</div>
         <div class="rlabel">PATH B<br>repaired<br>路径B：修复了</div>
       </div>
       <div class="reward-card">
@@ -475,12 +483,14 @@ Constraints:
     </div>
 
     <div class="explain-box">
-      <h4>ru（利用率密度）是什么 / What is ru?</h4>
-      <p><code>ru = svc.requirement / (initial_vms[action] + 1e-8)</code></p>
+      <h4>Δar（势差奖励）是什么 / What is Δar?</h4>
+      <p><code>Δar = ar_new - ar_prev</code></p>
       <ul>
-        <li>如果服务需求是 80，ECU 初始容量是 100 → ru = 0.80（填充了 80%）</li>
-        <li>如果服务需求是 80，ECU 初始容量是 400 → ru = 0.20（填充了 20%）</li>
-        <li>ru 越高 → AI 把服务分配到更小的 ECU → 资源利用更紧凑 → 奖励越高</li>
+        <li><code>ru = svc.requirement / (initial_vms[action] + 1e-8)</code>（利用率密度）</li>
+        <li>每步累加 ru → 计算 AR = _total_ru / 活跃ECU数</li>
+        <li>step 奖励 = Δar（AR 的增量），而非直接用 ru</li>
+        <li>Δar 是 potential-based reward shaping：提供稠密信号且保证最优策略不变</li>
+        <li>ru 越高 → AR 增加越多 → Δar 越大 → 分配到更小 ECU 奖励更高</li>
       </ul>
     </div>
   </div>
@@ -555,17 +565,18 @@ terminal_bonus = <span class="num">0.0</span>
         <span class="nm">self</span>.ecus     = [ECU(f<span class="st">"ECU{i}"</span>, cap) <span class="kw">for</span> i, cap <span class="kw">in</span> <span class="fn">enumerate</span>(caps)]
         <span class="nm">self</span>.services = [SVC(f<span class="st">"SVC{i}"</span>, req) <span class="kw">for</span> i, req <span class="kw">in</span> <span class="fn">enumerate</span>(reqs)]
         <span class="nm">self</span>.initial_vms = np.<span class="fn">array</span>([e.capacity <span class="kw">for</span> e <span class="kw">in</span> <span class="nm">self</span>.ecus], dtype=np.float32)
+        <span class="nm">self</span>.conflict_sets = [<span class="fn">set</span>(s) <span class="kw">for</span> s <span class="kw">in</span> _cs]
+    <span class="kw">else</span>:
+        <span class="nm">self</span>.conflict_sets = <span class="nm">self</span>.<span class="fn">_init_conflict_sets</span>()
 
-        <span class="cm"># ── 关键：重映射冲突集合中的服务索引 ──</span>
-        sorted_order = <span class="fn">sorted</span>(<span class="fn">range</span>(<span class="fn">len</span>(<span class="nm">self</span>.services)),
-                              key=<span class="kw">lambda</span> i: <span class="nm">self</span>.services[i].requirement, reverse=<span class="kw">True</span>)
-        orig_to_new = {orig: new <span class="kw">for</span> new, orig <span class="kw">in</span> <span class="fn">enumerate</span>(sorted_order)}
-        <span class="nm">self</span>.conflict_sets = [
-            {orig_to_new[i] <span class="kw">for</span> i <span class="kw">in</span> cs <span class="kw">if</span> i < <span class="fn">len</span>(<span class="nm">self</span>.services)} <span class="kw">for</span> cs <span class="kw">in</span> _cs
-        ]
-
-    <span class="cm"># 按需求量降序排列服务（大服务先部署）</span>
-    <span class="nm">self</span>.services = <span class="fn">sorted</span>(<span class="nm">self</span>.services, key=<span class="kw">lambda</span> s: s.requirement, reverse=<span class="kw">True</span>)
+    <span class="cm"># Sort services descending by requirement (FFD order).</span>
+    <span class="cm"># Remap conflict_set indices so self._step always indexes sorted services.</span>
+    sort_idx = <span class="fn">sorted</span>(<span class="fn">range</span>(<span class="nm">self</span>.M), key=<span class="kw">lambda</span> i: -<span class="nm">self</span>.services[i].requirement)
+    <span class="nm">self</span>.services = [<span class="nm">self</span>.services[i] <span class="kw">for</span> i <span class="kw">in</span> sort_idx]
+    inv_perm = [<span class="num">0</span>] * <span class="nm">self</span>.M
+    <span class="kw">for</span> new_i, old_i <span class="kw">in</span> <span class="fn">enumerate</span>(sort_idx):
+        inv_perm[old_i] = new_i
+    <span class="nm">self</span>.conflict_sets = [{inv_perm[k] <span class="kw">for</span> k <span class="kw">in</span> cs} <span class="kw">for</span> cs <span class="kw">in</span> <span class="nm">self</span>.conflict_sets]
     <span class="nm">self</span>.remaining_vms   = <span class="nm">self</span>.initial_vms.<span class="fn">copy</span>()
     <span class="nm">self</span>.ecu_placements  = [<span class="fn">set</span>() <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
     <span class="nm">self</span>.ecu_allowed     = [<span class="fn">set</span>(<span class="fn">range</span>(<span class="nm">self</span>.M)) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
@@ -581,8 +592,8 @@ terminal_bonus = <span class="num">0.0</span>
     <div class="explain-box">
       <h4>中文解读</h4>
       <ul>
-        <li><strong>服务按需求量降序排列</strong>：需求量大的服务先部署（贪心策略——大服务更难放，先放更安全）</li>
-        <li><strong>冲突集合重映射</strong>：因为排序后服务索引改变了，需要把原来的冲突集合中的索引也重新映射到新的顺序</li>
+        <li><strong>服务按需求量降序排列（FFD）</strong>：需求量大的服务先部署（大服务更难放，先放更安全，减少 PATH C 提前终止）</li>
+        <li><strong>冲突集合重映射（sort_idx/inv_perm）</strong>：<code>sort_idx[i] = old_i</code>，<code>inv_perm[old_i] = i</code>，将冲突集合中的旧索引转换为新排序后的索引</li>
         <li><code>ecu_allowed[j] = set(range(M))</code>：一开始每个 ECU 可以放所有服务（无冲突限制）；随着部署进行，冲突集合会逐步更新</li>
         <li>所有 P6 特有计数器（repairs, cap_violations, conflict_violations）归零</li>
       </ul>
@@ -616,10 +627,10 @@ terminal_bonus = <span class="num">0.0</span>
       </thead>
       <tbody>
         <tr>
-          <td><code>+ru</code></td>
+          <td><code>+Δar</code></td>
           <td>每步成功部署（修复或不修复）</td>
           <td><span class="tag tag-green">正值 / positive</span></td>
-          <td>鼓励高利用率部署</td>
+          <td>势差奖励，鼓励高利用率部署（Δar = ar_new − ar_prev）</td>
         </tr>
         <tr>
           <td><code>-0.1</code></td>
@@ -647,8 +658,8 @@ terminal_bonus = <span class="num">0.0</span>
 </div><!-- end .container -->
 
 <footer class="container">
-  <p>Source file: <code>/home/soar009/github/my_code/ecu_lt_svc_p/problem6_ppo_opt/env.py</code></p>
-  <p>Class: <code>P6Env(gym.Env)</code> — Action space: <code>Discrete(N)</code> — Obs shape: <code>5N+6+M</code></p>
+  <p>Source file: <code>/home/soar009/github/my_code/ecu_eq_svc_p/problem6_ppo_opt/env.py</code></p>
+  <p>Class: <code>P6Env(gym.Env)</code> — Action space: <code>Discrete(N)</code> — Obs shape: <code>4N+6+M</code></p>
   <p>Generated for high school bilingual audience. P6 Code Walkthrough.</p>
 </footer>
 

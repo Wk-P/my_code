@@ -168,7 +168,7 @@
       <strong>Actor（策略网络 \(\pi_\theta\)）：做决策</strong><br>
       输入：当前状态 s<br>
       输出：在每台 ECU 上放置当前服务的概率分布 \(\pi_\theta(a|s)\)<br>
-      结构：两层全连接网络，每层 256 个神经元，激活函数 Tanh<br>
+      结构：两层全连接网络，每层 256 个神经元，激活函数 Tanh（<code>pi=[256, 256]</code>）<br>
       类比：老司机看路况（状态），判断"踩油门/刹车/打方向"各有多大概率合适（策略）。
     </div>
     <div class="pair-en"><span class="lang-tag lang-en">EN</span>
@@ -176,7 +176,7 @@
       <strong>Actor (policy network \(\pi_\theta\)): makes decisions</strong><br>
       Input: current state s<br>
       Output: probability distribution \(\pi_\theta(a|s)\) over which ECU to place the current service on<br>
-      Architecture: two-layer MLP, 256 units each, Tanh activation<br>
+      Architecture: two-layer MLP, 256 units each, Tanh activation (<code>pi=[256, 256]</code>)<br>
       Analogy: an experienced driver assesses road conditions (state) and judges the probability of each maneuver (policy).
     </div>
   </div>
@@ -186,7 +186,7 @@
       <strong>Critic（价值网络 \(V_\phi\)）：评估局势</strong><br>
       输入：当前状态 s<br>
       输出：一个数 \(V(s)\)，表示"从状态 s 出发，按当前策略走，预期能拿到多少总奖励"<br>
-      结构：与 Actor 相同，256×256 MLP，最后输出 1 个数<br><br>
+      结构：更宽的价值网络（<code>vf=[512, 512]</code>），比策略网络宽，输出 1 个标量；更大的 VF 容量有助于准确估计长期回报<br><br>
       类比：裁判员不参与比赛，但能给出"这个局面还能拿多少分"的预测。<br><br>
       <strong>为什么同时需要两个网络？</strong><br>
       Actor 决定怎么走，Critic 告诉 Actor 走得好还是坏。
@@ -196,7 +196,7 @@
       <strong>Critic (value network \(V_\phi\)): evaluates the situation</strong><br>
       Input: current state s<br>
       Output: a single number \(V(s)\) — "expected total reward from state s under the current policy"<br>
-      Architecture: same 256×256 MLP, outputs one scalar<br><br>
+      Architecture: wider value network (<code>vf=[512, 512]</code>) vs. policy network (<code>pi=[256, 256]</code>); the larger VF capacity helps accurately estimate long-term returns<br><br>
       Analogy: a referee who doesn't play but can predict "how many more points this team will score from this position."<br><br>
       <strong>Why need both networks?</strong><br>
       Actor decides what to do; Critic tells Actor whether it's good or bad.
@@ -223,7 +223,7 @@
         <li>\(\delta_t > 0\)：比预期好（出现了意外收获）</li>
         <li>\(\delta_t < 0\)：比预期差（情况不如预期）</li>
       </ul>
-      <strong>折扣因子 \(\gamma = 0.999\)</strong>：接近1说明非常重视长远奖励。因为 M 步中每一步的放置都影响最终 AR，所以不能只看眼前。
+      <strong>折扣因子 \(\gamma = 0.99\)</strong>：接近1说明非常重视长远奖励。因为 M 步中每一步的放置都影响最终 AR，所以不能只看眼前。
     </div>
     <div class="pair-en"><span class="lang-tag lang-en">EN</span>
       <strong>Temporal Difference (TD) error</strong> measures "how much better or worse than Critic's prediction":
@@ -238,7 +238,7 @@
         <li>\(\delta_t > 0\): better than expected (positive surprise)</li>
         <li>\(\delta_t < 0\): worse than expected (negative surprise)</li>
       </ul>
-      <strong>Discount factor \(\gamma = 0.999\)</strong>: close to 1 means future rewards are nearly as important as immediate ones. Since every one of the M placement steps affects the final AR, we can't be shortsighted.
+      <strong>Discount factor \(\gamma = 0.99\)</strong>: close to 1 means future rewards are nearly as important as immediate ones. Since every one of the M placement steps affects the final AR, we can't be shortsighted.
     </div>
   </div>
 </div>
@@ -350,7 +350,7 @@
         \[ \text{mask}[j] = \begin{cases} 1 & \text{若 ECU } j \text{ 剩余容量} \geq \text{当前服务需求 AND 无冲突} \\ 0 & \text{否则（非法）} \end{cases} \]
       </div>
       然后把掩码为 0 的 ECU 的 logit（原始分数）设为 \(-\infty\)，经过 softmax 后概率变为 0。<br>
-      <strong>兜底机制</strong>：如果所有 ECU 都不合法（mask 全为0），选容量最大的那台（最后的退路）并记录一次违规。
+      若所有 ECU 均不合法（mask 全为 0），直接返回全 False 的掩码；在 FFD 降序排列下，此情况极少出现。
     </div>
     <div class="pair-en"><span class="lang-tag lang-en">EN</span>
       <strong>Core idea: illegal actions can never be chosen.</strong><br>
@@ -359,7 +359,7 @@
         \[ \text{mask}[j] = \begin{cases} 1 & \text{if ECU } j \text{ has enough capacity AND no conflict} \\ 0 & \text{otherwise (illegal)} \end{cases} \]
       </div>
       Set the logit (raw score) of masked-out ECUs to \(-\infty\); after softmax, their probability becomes 0.<br>
-      <strong>Fallback</strong>: if all ECUs are illegal (mask all 0), pick the one with the most remaining capacity and record a violation.
+      If all ECUs are illegal (mask all 0), the mask is returned as-is (all False); in practice this is rare with proper FFD ordering.
     </div>
   </div>
 
@@ -391,34 +391,36 @@
 
   <div class="pair">
     <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
-      <strong>P4 每步奖励：</strong>
+      <strong>P4 每步奖励（势差奖励 Δar）：</strong>
       <div class="formula-block">
-        \[ r_t = \underbrace{\frac{\mathrm{req}_i}{\mathrm{cap}_j}}_{\text{利用率贡献}} + \underbrace{(-2.0)\cdot\mathbf{1}[\text{兜底触发}]}_{\text{违规惩罚}} \]
+        \[ r_t = \underbrace{\Delta AR_t}_{\text{势差奖励}} + \underbrace{r_{\text{terminal}}}_{\text{终局奖励（仅最后一步）}} \]
+        \[ \Delta AR_t = AR_t - AR_{t-1} \]
       </div>
       <ul style="padding-left:1.3rem; margin-top:0.3rem;">
-        <li><strong>利用率贡献</strong>：把服务 i 放到 ECU j，ECU j 的利用率增加了多少（req/cap 比值）。这让 AI 倾向于把服务放到利用率高的 ECU 上。</li>
-        <li><strong>违规惩罚 -2.0</strong>：仅在触发兜底（所有 ECU 都不合法，强制选容量最大那台）时触发。正常掩码下不会触发。</li>
+        <li><strong>势差奖励 ΔAR</strong>：当前步放置后累计 AR 与上一步 AR 之差。每步 ΔAR 均为非负，且整个回合所有 ΔAR 之和恰好等于最终 AR，形成稳定的 bootstrapping 信号。</li>
+        <li><strong>无显式违规惩罚</strong>：掩码机制已从根本上禁止非法动作，无需额外惩罚项。</li>
       </ul>
       <strong>回合结束时的终局奖励：</strong>
       <div class="formula-block">
-        \[ r_{\text{terminal}} = \begin{cases} AR_{\text{最终}} & \text{全回合零违规} \\ 0.1 \times AR_{\text{最终}} & \text{有任何违规} \end{cases} \]
+        \[ r_{\text{terminal}} = \begin{cases} AR_{\text{最终}} & \text{全回合零违规} \\ 0.0 & \text{有任何违规} \end{cases} \]
       </div>
-      终局奖励强烈引导 AI 追求"零违规完成所有部署"。
+      终局奖励强烈引导 AI 追求"零违规完成所有部署"。有违规时终局奖励为 0，不再给予部分奖励。
     </div>
     <div class="pair-en"><span class="lang-tag lang-en">EN</span>
-      <strong>P4 per-step reward:</strong>
+      <strong>P4 per-step reward (potential-based shaping Δar):</strong>
       <div class="formula-block">
-        \[ r_t = \underbrace{\frac{\mathrm{req}_i}{\mathrm{cap}_j}}_{\text{utilization gain}} + \underbrace{(-2.0)\cdot\mathbf{1}[\text{fallback triggered}]}_{\text{violation penalty}} \]
+        \[ r_t = \underbrace{\Delta AR_t}_{\text{potential reward}} + \underbrace{r_{\text{terminal}}}_{\text{terminal bonus (last step only)}} \]
+        \[ \Delta AR_t = AR_t - AR_{t-1} \]
       </div>
       <ul style="padding-left:1.3rem; margin-top:0.3rem;">
-        <li><strong>Utilization gain</strong>: how much ECU j's utilization increases from placing service i (req/cap ratio). This encourages the AI to choose ECUs that yield higher utilization.</li>
-        <li><strong>Violation penalty -2.0</strong>: only triggered when the fallback fires (all ECUs are illegal, forced to pick the one with most capacity). Never triggered under normal masking.</li>
+        <li><strong>Potential reward ΔAR</strong>: change in cumulative AR after this placement. Each step's ΔAR is non-negative, and the sum of all ΔARs over an episode equals the final AR — a stable bootstrapping signal.</li>
+        <li><strong>No explicit violation penalty</strong>: the masking mechanism already prohibits illegal actions by construction, so no extra penalty term is needed.</li>
       </ul>
       <strong>Terminal (episode-end) reward:</strong>
       <div class="formula-block">
-        \[ r_{\text{terminal}} = \begin{cases} AR_{\text{final}} & \text{zero violations in episode} \\ 0.1 \times AR_{\text{final}} & \text{any violation occurred} \end{cases} \]
+        \[ r_{\text{terminal}} = \begin{cases} AR_{\text{final}} & \text{zero violations in episode} \\ 0.0 & \text{any violation occurred} \end{cases} \]
       </div>
-      The terminal reward strongly incentivizes the AI to complete all placements with zero violations.
+      The terminal reward strongly incentivizes zero-violation completion. With any violation, the terminal bonus is 0.0 — no partial credit.
     </div>
   </div>
 </div>
@@ -439,9 +441,11 @@
         <tr><td>Mini-batch 大小</td><td>128</td><td>每次取128条数据更新梯度</td></tr>
         <tr><td>总训练步数</td><td>5,000,000</td><td>约 488 轮收集-更新循环</td></tr>
         <tr><td>学习率</td><td>3e-4</td><td>Adam 优化器步长</td></tr>
-        <tr><td>\(\gamma\)</td><td>0.999</td><td>折扣因子</td></tr>
+        <tr><td>\(\gamma\)</td><td>0.99</td><td>折扣因子</td></tr>
         <tr><td>\(\lambda_{\text{GAE}}\)</td><td>0.95</td><td>GAE 权重</td></tr>
         <tr><td>\(\varepsilon_{\text{clip}}\)</td><td>0.2</td><td>PPO 截断范围</td></tr>
+        <tr><td>ent_coef</td><td>0.005</td><td>熵正则化系数，防止策略过早收敛</td></tr>
+        <tr><td>net_arch</td><td>pi=[256,256], vf=[512,512]</td><td>非对称网络结构：Critic 更宽，提升价值估计精度</td></tr>
       </table>
     </div>
     <div class="pair-en"><span class="lang-tag lang-en">EN</span>
@@ -455,9 +459,11 @@
         <tr><td>Mini-batch size</td><td>128</td><td>Sample 128 transitions per gradient step</td></tr>
         <tr><td>Total training steps</td><td>5,000,000</td><td>~488 rollout-update cycles</td></tr>
         <tr><td>Learning rate</td><td>3e-4</td><td>Adam optimizer step size</td></tr>
-        <tr><td>\(\gamma\)</td><td>0.999</td><td>Discount factor</td></tr>
+        <tr><td>\(\gamma\)</td><td>0.99</td><td>Discount factor</td></tr>
         <tr><td>\(\lambda_{\text{GAE}}\)</td><td>0.95</td><td>GAE weight</td></tr>
         <tr><td>\(\varepsilon_{\text{clip}}\)</td><td>0.2</td><td>PPO clip range</td></tr>
+        <tr><td>ent_coef</td><td>0.005</td><td>Entropy regularization coefficient — prevents premature convergence</td></tr>
+        <tr><td>net_arch</td><td>pi=[256,256], vf=[512,512]</td><td>Asymmetric architecture: wider Critic for better value estimation</td></tr>
       </table>
     </div>
   </div>

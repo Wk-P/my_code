@@ -288,19 +288,25 @@ footer code { color: var(--accent); font-size: 0.82rem; }
 <pre><span class="cm">"""
 P4 Environment — Hard capacity AND hard conflict (both masked).
 
-N &lt; M: each ECU hosts multiple services.
+N = M: each ECU hosts exactly one service on average.
 
 Constraints:
-    - Capacity violation → HARD (action masking; forced-overflow fallback
-      triggers only when ALL ECUs are full, incurring a heavy penalty).
-    - Conflict violation → HARD (action masking; forced-overflow fallback
-      may still trigger a conflict if the capacity-fallback ECU has a conflict).
+    - Capacity violation → HARD (action masking strictly prevents selection).
+    - Conflict violation → HARD (action masking strictly prevents selection).
+    If no valid ECU exists, action_masks() returns all-False.
+
+Reward (potential-based shaping):
+    Per step:  Δar = ar_new - ar_prev  (incremental AR contribution)
+    Terminal:  +ar_final               (completion bonus; episode return = 2 * ar_final)
+
+Services are sorted descending by requirement at each episode reset (FFD order),
+so the hardest-to-place service is always presented first.
 """</span>
 
 <span class="kw">class</span> <span class="fn">P4Env</span>(<span class="nm">gym</span>.<span class="nm">Env</span>):
     <span class="cm">"""
-    Each episode assigns M services to N ECUs (N &lt; M), one service per step.
-    Multiple services share ECUs.
+    Each episode assigns M services to N ECUs (N = M), one service per step.
+    Multiple services may share ECUs.
 
     action_masks() returns True only for ECUs that satisfy BOTH capacity
     and conflict constraints.  If no such ECU exists, the fallback ECU
@@ -321,9 +327,8 @@ Constraints:
         [6+5N:6+5N+M] remaining service demands (sorted descending)
 
     Reward:
-        +ru            valid assignment
-        -2.0           forced-overflow penalty (capacity or conflict violated via fallback)
-        terminal_bonus: +ar (zero violations) or +0.1*ar (some violations)
+        Δar = ar_new - ar_prev   (potential-based per-step reward)
+        terminal_bonus: +ar_final (zero violations) or 0 (any violation)
     """</span></pre>
 
 <div class="bilingual">
@@ -486,15 +491,20 @@ Constraints:
         <span class="nm">self</span>.ecus     = [<span class="fn">ECU</span>(<span class="st">f"ECU{i}"</span>, <span class="nm">cap</span>) <span class="kw">for</span> <span class="nm">i</span>, <span class="nm">cap</span> <span class="kw">in</span> <span class="fn">enumerate</span>(<span class="nm">caps</span>)]
         <span class="nm">self</span>.services = [<span class="fn">SVC</span>(<span class="st">f"SVC{i}"</span>, <span class="nm">req</span>) <span class="kw">for</span> <span class="nm">i</span>, <span class="nm">req</span> <span class="kw">in</span> <span class="fn">enumerate</span>(<span class="nm">reqs</span>)]
         <span class="nm">self</span>.initial_vms = <span class="nm">np</span>.<span class="fn">array</span>([<span class="nm">e</span>.capacity <span class="kw">for</span> <span class="nm">e</span> <span class="kw">in</span> <span class="nm">self</span>.ecus], <span class="nm">dtype</span>=<span class="nm">np</span>.<span class="nm">float32</span>)
-        <span class="nm">sorted_order</span> = <span class="fn">sorted</span>(<span class="fn">range</span>(<span class="fn">len</span>(<span class="nm">self</span>.services)),
-                              <span class="nm">key</span>=<span class="kw">lambda</span> <span class="nm">i</span>: <span class="nm">self</span>.services[<span class="nm">i</span>].requirement, <span class="nm">reverse</span>=<span class="kw">True</span>)
-        <span class="nm">orig_to_new</span> = {<span class="nm">orig</span>: <span class="nm">new</span> <span class="kw">for</span> <span class="nm">new</span>, <span class="nm">orig</span> <span class="kw">in</span> <span class="fn">enumerate</span>(<span class="nm">sorted_order</span>)}
-        <span class="nm">self</span>.conflict_sets = [
-            {<span class="nm">orig_to_new</span>[<span class="nm">i</span>] <span class="kw">for</span> <span class="nm">i</span> <span class="kw">in</span> <span class="nm">cs</span> <span class="kw">if</span> <span class="nm">i</span> &lt; <span class="fn">len</span>(<span class="nm">self</span>.services)} <span class="kw">for</span> <span class="nm">cs</span> <span class="kw">in</span> <span class="nm">_cs</span>
-        ]
+        <span class="nm">self</span>.conflict_sets = [<span class="fn">set</span>(<span class="nm">cs</span>) <span class="kw">for</span> <span class="nm">cs</span> <span class="kw">in</span> <span class="nm">_cs</span>]
     <span class="kw">else</span>:
         <span class="nm">self</span>.conflict_sets = <span class="nm">self</span>.<span class="fn">_init_conflict_sets</span>()
-    <span class="nm">self</span>.services = <span class="fn">sorted</span>(<span class="nm">self</span>.services, <span class="nm">key</span>=<span class="kw">lambda</span> <span class="nm">s</span>: <span class="nm">s</span>.requirement, <span class="nm">reverse</span>=<span class="kw">True</span>)
+
+    <span class="cm"># Sort services descending by requirement (FFD order: hardest first).</span>
+    <span class="cm"># Remap conflict_sets indices to match new order so conflict tracking stays</span>
+    <span class="cm"># consistent with self._step (which now indexes sorted services).</span>
+    <span class="nm">sort_idx</span> = <span class="fn">sorted</span>(<span class="fn">range</span>(<span class="nm">self</span>.M), <span class="nm">key</span>=<span class="kw">lambda</span> <span class="nm">i</span>: <span class="op">-</span><span class="nm">self</span>.services[<span class="nm">i</span>].requirement)
+    <span class="nm">self</span>.services = [<span class="nm">self</span>.services[<span class="nm">i</span>] <span class="kw">for</span> <span class="nm">i</span> <span class="kw">in</span> <span class="nm">sort_idx</span>]
+    <span class="nm">inv_perm</span> = [<span class="num">0</span>] <span class="op">*</span> <span class="nm">self</span>.M
+    <span class="kw">for</span> <span class="nm">new_i</span>, <span class="nm">old_i</span> <span class="kw">in</span> <span class="fn">enumerate</span>(<span class="nm">sort_idx</span>):
+        <span class="nm">inv_perm</span>[<span class="nm">old_i</span>] = <span class="nm">new_i</span>
+    <span class="nm">self</span>.conflict_sets = [{<span class="nm">inv_perm</span>[<span class="nm">k</span>] <span class="kw">for</span> <span class="nm">k</span> <span class="kw">in</span> <span class="nm">cs</span>} <span class="kw">for</span> <span class="nm">cs</span> <span class="kw">in</span> <span class="nm">self</span>.conflict_sets]
+
     <span class="nm">self</span>.remaining_vms   = <span class="nm">self</span>.initial_vms.<span class="fn">copy</span>()
     <span class="nm">self</span>.ecu_placements  = [<span class="fn">set</span>() <span class="kw">for</span> <span class="nm">_</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
     <span class="nm">self</span>.ecu_allowed     = [<span class="fn">set</span>(<span class="fn">range</span>(<span class="nm">self</span>.M)) <span class="kw">for</span> <span class="nm">_</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
@@ -510,14 +520,14 @@ Constraints:
     <div class="lang-label">中文解释</div>
     <p><strong>从场景库随机取一个场景</strong>（训练时，每个 episode 都可能用不同的容量/需求组合，增强泛化能力）。若没有场景库，则用构造时传入的固定数据。</p>
     <p><strong>服务按需求降序排列</strong>（<code>reverse=True</code>）：贪心策略——先处理"最难放"的大服务，减少后续无解的情况。</p>
-    <p><strong>索引重映射</strong>：排序后服务索引变了，冲突子集里存的是原始索引，必须用 <code>orig_to_new</code> 字典把它们转换成新索引，否则冲突规则会乱掉。</p>
+    <p><strong>索引重映射</strong>：排序后服务索引变了，冲突子集里存的是原始索引，必须用 <code>inv_perm</code> 逆排列数组把它们转换成新索引，否则冲突规则会乱掉。<code>sort_idx[i] = old_i</code> 表示"新位置 i 的原索引"，<code>inv_perm[old_i] = i</code> 是它的逆映射。</p>
     <p><strong>ecu_allowed 初始化</strong>：每个 ECU 的允许集合重置为全集 <code>set(range(M))</code>，表示"尚未放置任何服务，所有服务都可以放"。</p>
   </div>
   <div class="lang-en">
     <div class="lang-label">English Explanation</div>
     <p><strong>Random scenario sampling</strong>: During training, each episode may use a different (capacity, demand) combination from a pre-built scenario library. This prevents the agent from memorizing one layout and forces it to generalize.</p>
     <p><strong>Sort descending by requirement</strong>: Greedy scheduling heuristic — tackle the largest, hardest-to-place services first, reducing infeasibility later in the episode.</p>
-    <p><strong>Index remapping</strong>: After sorting, service indices change. The conflict sets store original indices, so they must be remapped using <code>orig_to_new</code> so conflict rules remain correct after the reordering.</p>
+    <p><strong>Index remapping</strong>: After sorting, service indices change. <code>sort_idx[i] = old_i</code> means "new position i came from original index old_i." <code>inv_perm[old_i] = i</code> is the inverse — it maps original indices to new ones, used to remap each conflict set so rules remain correct after reordering.</p>
     <p><strong>ecu_allowed init</strong>: Each ECU's allowed set is reset to <code>set(range(M))</code> — all services are initially placeable on all ECUs since no placements have been made yet.</p>
   </div>
 </div>
@@ -538,11 +548,7 @@ Constraints:
          <span class="kw">for</span> <span class="nm">j</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)],
         <span class="nm">dtype</span>=<span class="nm">bool</span>,
     )
-    <span class="kw">if not</span> <span class="nm">np</span>.<span class="fn">any</span>(<span class="nm">mask</span>):
-        <span class="cm"># Forced-overflow fallback: ECU with most remaining capacity.</span>
-        <span class="nm">best</span> = <span class="fn">int</span>(<span class="nm">np</span>.<span class="fn">argmax</span>(<span class="nm">self</span>.remaining_vms))
-        <span class="nm">mask</span> = <span class="nm">np</span>.<span class="fn">zeros</span>(<span class="nm">self</span>.N, <span class="nm">dtype</span>=<span class="nm">bool</span>)
-        <span class="nm">mask</span>[<span class="nm">best</span>] = <span class="kw">True</span>
+    <span class="cm"># If no valid ECU exists, returns all-False; MaskablePPO handles this edge case.</span>
     <span class="kw">return</span> <span class="nm">mask</span></pre>
 
 <div class="bilingual">
@@ -553,7 +559,7 @@ Constraints:
       <li><code>remaining_vms[j] >= svc.requirement</code>：剩余容量足够（容量约束）</li>
       <li><code>not _has_conflict(j, step)</code>：没有冲突（冲突约束）</li>
     </ol>
-    <p><strong>Fallback（兜底）机制</strong>：如果<em>没有任何</em> ECU 同时满足两个条件（极端情况），则选剩余容量最大的 ECU（<code>argmax</code>）。这会触发 -2.0 惩罚，因为几乎必然违反至少一个约束。</p>
+    <p><strong>全 False 边缘情况</strong>：如果没有任何 ECU 同时满足两个条件（极端情况），mask 全为 False。MaskablePPO 有内部保护，不会因空掩码崩溃。FFD 排序大幅减少了这种情况发生的概率。</p>
     <p><strong>MaskablePPO 如何使用这个掩码</strong>：在神经网络输出 logits（对 N 个动作的评分）之后，被掩码为 False 的动作的 logit 被设为 -∞，softmax 之后概率变为 0，智能体永远不会选那些动作。</p>
   </div>
   <div class="lang-en">
@@ -563,16 +569,16 @@ Constraints:
       <li><code>remaining_vms[j] >= svc.requirement</code>: Enough remaining capacity (capacity constraint)</li>
       <li><code>not _has_conflict(j, step)</code>: No conflict exists (conflict constraint)</li>
     </ol>
-    <p><strong>Fallback mechanism</strong>: If <em>no</em> ECU satisfies both conditions (extreme edge case), the ECU with the most remaining capacity is selected via <code>argmax</code>. This virtually guarantees a -2.0 penalty since at least one constraint will be violated.</p>
+    <p><strong>All-False edge case</strong>: If no ECU satisfies both conditions (very rare with FFD ordering), the mask returns all-False. MaskablePPO has internal safeguards against empty masks. The descending FFD service sort greatly reduces the likelihood of this scenario.</p>
     <p><strong>How MaskablePPO uses this</strong>: After the neural network outputs logits for all N actions, logits for False-masked actions are set to −∞. After softmax, their probability becomes 0 — the agent can never pick them.</p>
   </div>
 </div>
 
-<div class="callout callout-warn">
-  <strong>Fallback 不等于 "零违约" · Fallback ≠ Zero Violations:</strong><br>
-  在 fallback 情况下，系统选的是"容量最大"的 ECU，但它可能<em>仍然</em>有冲突或容量不足。这就是为什么文档字符串说"零违约在正常情况下保证"，而非绝对零违约。设计上，Fallback 是一个安全阀，确保游戏继续，同时用 -2.0 的重罚来阻止智能体进入这种状态。
+<div class="callout callout-ok">
+  <strong>P4 是强制零违约 · P4 guarantees zero violations:</strong><br>
+  由于动作掩码覆盖了容量和冲突两个约束，正确训练后的 P4 智能体在推断时几乎不会产生任何违约。FFD 排序进一步降低了遇到空掩码边缘情况的概率。
   <br><br>
-  In fallback, the chosen ECU (max capacity) may still violate conflict or capacity. This is why the guarantee of zero violations holds only under "normal" conditions. The -2.0 penalty acts as a strong deterrent to drive the agent away from situations where no valid ECU exists.
+  Because action masking covers both capacity and conflict constraints, a correctly trained P4 agent produces virtually zero violations at inference time. FFD ordering further reduces the probability of encountering the all-False mask edge case.
 </div>
 </div>
 
@@ -648,55 +654,62 @@ Constraints:
 
 <pre><span class="kw">def</span> <span class="fn">step</span>(<span class="nm">self</span>, <span class="nm">action</span>: <span class="nm">int</span>):
     <span class="nm">svc</span> = <span class="nm">self</span>.services[<span class="nm">self</span>._step]
+    <span class="nm">ar_prev</span> = <span class="nm">self</span>.ar  <span class="cm"># capture before placement for Δar reward</span>
 
     <span class="nm">cap_violated</span>      = <span class="fn">bool</span>(<span class="nm">self</span>.remaining_vms[<span class="nm">action</span>] &lt; <span class="nm">svc</span>.requirement)
     <span class="nm">conflict_violated</span> = <span class="nm">self</span>.<span class="fn">_has_conflict</span>(<span class="nm">action</span>, <span class="nm">self</span>._step)
 
-    <span class="nm">violated</span> = <span class="nm">cap_violated</span> <span class="kw">or</span> <span class="nm">conflict_violated</span>
-    <span class="nm">violation_penalty</span> = <span class="op">-</span><span class="num">2.0</span> <span class="kw">if</span> <span class="nm">violated</span> <span class="kw">else</span> <span class="num">0.0</span>
-    <span class="nm">ru</span> = <span class="num">0.0</span> <span class="kw">if</span> <span class="nm">violated</span> <span class="kw">else</span> <span class="nm">svc</span>.requirement <span class="op">/</span> (<span class="nm">self</span>.initial_vms[<span class="nm">action</span>] <span class="op">+</span> <span class="num">1e-8</span>)
+    <span class="cm"># With action masking, violations should not occur during normal training.</span>
+    <span class="cm"># ru is still computed for AR tracking; violations set ru=0 as safety net.</span>
+    <span class="nm">ru</span> = <span class="num">0.0</span> <span class="kw">if</span> (<span class="nm">cap_violated</span> <span class="kw">or</span> <span class="nm">conflict_violated</span>) <span class="kw">else</span> \
+        <span class="nm">svc</span>.requirement <span class="op">/</span> (<span class="nm">self</span>.initial_vms[<span class="nm">action</span>] <span class="op">+</span> <span class="num">1e-8</span>)
 
     <span class="nm">self</span>.remaining_vms[<span class="nm">action</span>] <span class="op">-=</span> <span class="nm">svc</span>.requirement
+    <span class="nm">_was_empty</span> = <span class="kw">not</span> <span class="nm">self</span>.ecu_placements[<span class="nm">action</span>]
     <span class="nm">self</span>.ecu_placements[<span class="nm">action</span>].<span class="fn">add</span>(<span class="nm">self</span>._step)
+    <span class="kw">if</span> <span class="nm">_was_empty</span>:
+        <span class="nm">self</span>._n_active <span class="op">+=</span> <span class="num">1</span>
     <span class="nm">self</span>.<span class="fn">_update_ecu_allowed</span>(<span class="nm">action</span>, <span class="nm">self</span>._step)
     <span class="kw">if</span> <span class="nm">ru</span> > <span class="num">0</span>:
         <span class="nm">self</span>._total_ru <span class="op">+=</span> <span class="nm">ru</span>
-    <span class="nm">_active</span> = <span class="fn">sum</span>(<span class="num">1</span> <span class="kw">for</span> <span class="nm">j</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N) <span class="kw">if</span> <span class="nm">self</span>.ecu_placements[<span class="nm">j</span>])
+    <span class="nm">_active</span> = <span class="nm">self</span>._n_active
     <span class="nm">self</span>.ar = <span class="nm">self</span>._total_ru <span class="op">/</span> <span class="nm">_active</span> <span class="kw">if</span> <span class="nm">_active</span> > <span class="num">0</span> <span class="kw">else</span> <span class="num">0.0</span>
     <span class="nm">self</span>._step <span class="op">+=</span> <span class="num">1</span>
 
     <span class="nm">done</span> = <span class="nm">self</span>._step >= <span class="nm">self</span>.M
-    <span class="nm">terminal_bonus</span> = <span class="num">0.0</span>
-    <span class="kw">if</span> <span class="nm">done</span>:
-        <span class="nm">terminal_bonus</span> = <span class="nm">self</span>.ar <span class="kw">if</span> <span class="nm">total_viol</span> == <span class="num">0</span> <span class="kw">else</span> <span class="num">0.1</span> <span class="op">*</span> <span class="nm">self</span>.ar
+    <span class="nm">total_viol</span> = <span class="nm">self</span>.capacity_violations <span class="op">+</span> <span class="nm">self</span>.conflict_violations
 
-    <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), <span class="fn">float</span>(<span class="nm">ru</span> <span class="op">+</span> <span class="nm">violation_penalty</span> <span class="op">+</span> <span class="nm">terminal_bonus</span>), <span class="nm">done</span>, <span class="kw">False</span>, <span class="nm">info</span></pre>
+    <span class="cm"># Potential-based shaped reward: Δar gives immediate per-step credit.</span>
+    <span class="cm"># Terminal bonus = ar_final for clean episodes → episode return = 2 * ar_final.</span>
+    <span class="nm">delta_ar</span> = <span class="nm">self</span>.ar <span class="op">-</span> <span class="nm">ar_prev</span>
+    <span class="nm">terminal_bonus</span> = <span class="nm">self</span>.ar <span class="kw">if</span> (<span class="nm">done</span> <span class="kw">and</span> <span class="nm">total_viol</span> == <span class="num">0</span>) <span class="kw">else</span> <span class="num">0.0</span>
+
+    <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), <span class="fn">float</span>(<span class="nm">delta_ar</span> <span class="op">+</span> <span class="nm">terminal_bonus</span>), <span class="nm">done</span>, <span class="kw">False</span>, <span class="nm">info</span></pre>
 
 <div class="bilingual">
   <div class="lang-zh">
     <div class="lang-label">中文解释</div>
-    <p><strong>两种违约独立检查</strong>：容量违约和冲突违约分别计数，但在 P4 中它们共用同一个惩罚 -2.0（只要有任何一种违约）。</p>
-    <p><strong>ru（资源利用率）</strong>：= 服务需求 / ECU 初始容量，表示这次放置对 ECU 利用率的贡献。违约时 ru=0，不计入统计。</p>
+    <p><strong>Δar（势差奖励）</strong>：= ar_new - ar_prev。每步奖励不再是 ru，而是 AR 的增量，是 potential-based reward shaping 的经典形式：既提供稠密信号，又保证最优策略不变（势函数为当前 AR）。</p>
+    <p><strong>ru（资源利用率）</strong>：仍然计算，用于 AR 追踪。违约时 ru=0 且不计入 _total_ru，保证 AR 只反映合规放置。</p>
     <p><strong>AR（平均资源利用率）</strong>：= 所有有效 ru 之和 / 活跃 ECU 数（活跃 = 至少放了一个服务的 ECU）。这是整体性能的核心指标。</p>
-    <p><strong>terminal_bonus</strong>：只在最后一步（done=True）时才加。零违约奖励 +ar（相当于整集 AR 再奖励一次），有违约只奖励 +0.1*ar（大幅缩水），激励智能体追求零违约。</p>
+    <p><strong>terminal_bonus</strong>：只在最后一步（done=True）且零违约时才加 +ar_final。有违约时 bonus=0（不再是 +0.1*ar）。加上每步的 Δar 求和 = ar_final，整集回报 = 2 × ar_final，形成稳定的 value function bootstrap。</p>
   </div>
   <div class="lang-en">
     <div class="lang-label">English Explanation</div>
-    <p><strong>Independent violation checks</strong>: Capacity and conflict violations are tracked separately (useful for debugging), but in P4 they share the same -2.0 penalty — any violation costs the same.</p>
-    <p><strong>ru (resource utilization)</strong>: = service requirement / ECU initial capacity. Measures how much of the ECU's capacity this placement fills. Set to 0 if a violation occurred.</p>
-    <p><strong>AR (average resource utilization)</strong>: = sum of valid ru / number of active ECUs (active = has at least one placed service). This is the primary performance metric.</p>
-    <p><strong>terminal_bonus</strong>: Added only at the last step (done=True). Zero violations → bonus = +ar (doubling the final AR reward). Any violations → bonus = +0.1*ar (severely discounted). This creates strong incentive for zero-violation episodes.</p>
+    <p><strong>Δar (potential-based shaping)</strong>: = ar_new − ar_prev. The per-step reward is the incremental AR change, not raw ru. This is a standard potential-based reward shaping trick: it provides dense gradient signal while provably preserving the optimal policy (potential function = current AR).</p>
+    <p><strong>ru (resource utilization)</strong>: Still computed internally for AR tracking. Set to 0 if a violation occurred — violations are excluded from the AR accumulator, keeping AR a pure measure of compliant placements.</p>
+    <p><strong>AR (average resource utilization)</strong>: = sum of valid ru / number of active ECUs (active = has at least one placed service). Primary performance metric.</p>
+    <p><strong>terminal_bonus</strong>: Added only at the last step when total violations = 0. Sum of all Δar over the episode equals ar_final, so total episode return = 2 × ar_final — a stable bootstrap target for the value function. If any violation occurred, bonus = 0 (not the old +0.1*ar).</p>
   </div>
 </div>
 
-<div class="formula">reward_t = ru + violation_penalty + terminal_bonus</div>
+<div class="formula">reward_t = Δar + terminal_bonus &nbsp;&nbsp; | &nbsp;&nbsp; Δar = ar_new − ar_prev</div>
 
 <table>
   <tr><th>奖励项 Reward Component</th><th>值 Value</th><th>何时发生 When</th></tr>
-  <tr><td>ru (资源利用率)</td><td>0.0 ~ 1.0</td><td>每步，无违约时</td></tr>
-  <tr><td>violation_penalty</td><td>-2.0</td><td>每步，有任何违约时（fallback 触发）</td></tr>
-  <tr><td>terminal_bonus (零违约)</td><td>+ar</td><td>最后一步，episode 无违约</td></tr>
-  <tr><td>terminal_bonus (有违约)</td><td>+0.1 × ar</td><td>最后一步，episode 有违约</td></tr>
+  <tr><td>Δar（势差奖励）</td><td>通常 &gt; 0，违约时 ≈ 0</td><td>每步（无违约时正值，与 ru 同号）</td></tr>
+  <tr><td>terminal_bonus（零违约）</td><td>+ar_final</td><td>最后一步，且整集无违约</td></tr>
+  <tr><td>terminal_bonus（有违约）</td><td>0.0</td><td>最后一步，有任何违约时不加</td></tr>
 </table>
 </div>
 
@@ -757,6 +770,7 @@ Constraints:
         <span class="nm">gamma</span>         = <span class="nm">C</span>.<span class="nm">PPO_GAMMA</span>,
         <span class="nm">gae_lambda</span>    = <span class="nm">C</span>.<span class="nm">PPO_GAE_LAMBDA</span>,
         <span class="nm">clip_range</span>    = <span class="nm">C</span>.<span class="nm">PPO_CLIP_RANGE</span>,
+        <span class="nm">ent_coef</span>      = <span class="nm">C</span>.<span class="nm">PPO_ENT_COEF</span>,
         <span class="nm">policy_kwargs</span> = <span class="fn">dict</span>(<span class="nm">net_arch</span>=<span class="nm">C</span>.<span class="nm">PPO_NET_ARCH</span>),
         <span class="nm">device</span>        = <span class="nm">device</span>,
         <span class="nm">verbose</span>       = <span class="num">0</span>,
@@ -783,9 +797,9 @@ Constraints:
 <table>
   <tr><th>参数 Parameter</th><th>典型值 Typical Value</th><th>中文说明</th><th>English Explanation</th></tr>
   <tr>
-    <td><code>gamma</code></td><td>0.999</td>
-    <td>折扣因子。接近1表示"重视遥远未来"，适合长序列决策（M个步骤都重要）</td>
-    <td>Discount factor. Close to 1 = far-sighted agent. Suitable since the terminal bonus at the last step must influence early decisions.</td>
+    <td><code>gamma</code></td><td>0.99</td>
+    <td>折扣因子。0.99 在短序列（M=10 步）下既能看到 terminal_bonus 又不会使 variance 过大。Δar 奖励比原 ru 更稠密，不再需要 0.999 那么高的折扣。</td>
+    <td>Discount factor. 0.99 is sufficient for M=10 step episodes — the Δar potential shaping provides dense per-step signal, so the agent doesn't need the near-1 discount required when rewards are sparse.</td>
   </tr>
   <tr>
     <td><code>gae_lambda</code></td><td>0.95</td>
@@ -816,6 +830,16 @@ Constraints:
     <td><code>n_envs</code></td><td>40</td>
     <td>并行环境数。约40×加速数据收集。是 P4 能快速训练的关键</td>
     <td>Number of parallel environments. ~40× data collection speedup — key to P4's training speed.</td>
+  </tr>
+  <tr>
+    <td><code>ent_coef</code></td><td>0.005</td>
+    <td>熵正则化系数。鼓励策略保持探索性，防止过早收敛到次优确定性策略。</td>
+    <td>Entropy regularization coefficient. Penalizes overly deterministic policies, preventing premature convergence to suboptimal greedy strategies.</td>
+  </tr>
+  <tr>
+    <td><code>net_arch</code></td><td>dict(pi=[256,256], vf=[512,512])</td>
+    <td>策略网络（pi）和价值网络（vf）分离设计：vf 更宽以提升价值估计精度，pi 保持紧凑避免过拟合。</td>
+    <td>Asymmetric architecture: wider value network (512×512) for better return estimation; compact policy network (256×256) to avoid overfitting the action distribution.</td>
   </tr>
   <tr>
     <td><code>policy="MlpPolicy"</code></td><td>—</td>
@@ -885,8 +909,8 @@ Constraints:
 
 <footer>
   <p>源文件 Source Files:</p>
-  <p><code>/home/soar009/github/my_code/ecu_lt_svc_p/problem4_ppo_mask/env.py</code></p>
-  <p><code>/home/soar009/github/my_code/ecu_lt_svc_p/problem4_ppo_mask/run_all.py</code></p>
+  <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem4_ppo_mask/env.py</code></p>
+  <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem4_ppo_mask/run_all.py</code></p>
   <p style="margin-top:1rem; color: var(--muted);">P4 — Maskable PPO Code Walkthrough · 双语代码精读 · Generated 2026-05</p>
 </footer>
 

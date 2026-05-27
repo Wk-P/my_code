@@ -152,13 +152,13 @@
         # ─── 路径 B：修复成功 ───
         action = repair_ecu       # 替换为合法 ECU
         repairs += 1
-        ru = req / initial_cap[action]
-        reward = ru - 0.1         # 利用率增量 - 修复惩罚
+        delta_ar = ar_new - ar_prev   # 势差奖励
+        reward = delta_ar - 0.1       # 势差奖励 - 修复惩罚
 
     else:
         # ─── 路径 A：AI 选择正确，直接放置 ───
-        ru = req / initial_cap[action]
-        reward = ru
+        delta_ar = ar_new - ar_prev   # 势差奖励
+        reward = delta_ar
 
     # 放置服务并更新状态...
     if done:
@@ -185,13 +185,13 @@
         # ─── Path B: repair successful ───
         action = repair_ecu       # redirect to valid ECU
         repairs += 1
-        ru = req / initial_cap[action]
-        reward = ru - 0.1         # utilization gain - repair penalty
+        delta_ar = ar_new - ar_prev   # potential reward
+        reward = delta_ar - 0.1       # potential reward - repair penalty
 
     else:
         # ─── Path A: AI chose correctly, place directly ───
-        ru = req / initial_cap[action]
-        reward = ru
+        delta_ar = ar_new - ar_prev   # potential reward
+        reward = delta_ar
 
     # Place service and update state...
     if done:
@@ -205,8 +205,8 @@
       <strong>三条路径总结：</strong>
       <table>
         <tr><th>路径</th><th>触发条件</th><th>结果</th><th>奖励</th></tr>
-        <tr style="background:#dcfce7;"><td>A（正确）</td><td>AI 选择合法 ECU</td><td>直接放置</td><td>+req/cap</td></tr>
-        <tr style="background:#fef9c3;"><td>B（修复）</td><td>AI 选违规 ECU，但有合法备选</td><td>Best-fit 修复后放置</td><td>+req/cap - 0.1</td></tr>
+        <tr style="background:#dcfce7;"><td>A（正确）</td><td>AI 选择合法 ECU</td><td>直接放置</td><td>+Δar</td></tr>
+        <tr style="background:#fef9c3;"><td>B（修复）</td><td>AI 选违规 ECU，但有合法备选</td><td>Best-fit 修复后放置</td><td>+Δar - 0.1</td></tr>
         <tr style="background:#fee2e2;"><td>C（终止）</td><td>AI 选违规 ECU，且无合法备选</td><td>episode 提前结束</td><td>-未放置需求之和/总容量</td></tr>
       </table>
     </div>
@@ -214,8 +214,8 @@
       <strong>Three paths summary:</strong>
       <table>
         <tr><th>Path</th><th>Trigger</th><th>Outcome</th><th>Reward</th></tr>
-        <tr style="background:#dcfce7;"><td>A (correct)</td><td>AI picks a valid ECU</td><td>Place directly</td><td>+req/cap</td></tr>
-        <tr style="background:#fef9c3;"><td>B (repair)</td><td>AI picks invalid ECU, but valid alternatives exist</td><td>Best-fit repair, then place</td><td>+req/cap - 0.1</td></tr>
+        <tr style="background:#dcfce7;"><td>A (correct)</td><td>AI picks a valid ECU</td><td>Place directly</td><td>+Δar</td></tr>
+        <tr style="background:#fef9c3;"><td>B (repair)</td><td>AI picks invalid ECU, but valid alternatives exist</td><td>Best-fit repair, then place</td><td>+Δar - 0.1</td></tr>
         <tr style="background:#fee2e2;"><td>C (terminate)</td><td>AI picks invalid ECU, no valid alternatives</td><td>Episode ends early</td><td>-unplaced demand / total cap</td></tr>
       </table>
     </div>
@@ -228,9 +228,9 @@
 
   <div class="pair">
     <div class="pair-zh"><span class="lang-tag lang-zh">中</span>
-      <strong>每步奖励汇总：</strong>
+      <strong>每步奖励汇总（势差奖励 Δar）：</strong>
       <div class="formula-block">
-        \[ r_t = \frac{\mathrm{req}_i}{\mathrm{cap}_{j^*}} + \underbrace{(-0.1)}_{\text{仅路径B触发}} \]
+        \[ r_t = \underbrace{\Delta AR_t}_{\text{势差奖励}} + \underbrace{(-0.1)}_{\text{仅路径B触发}} \quad \Delta AR_t = AR_t - AR_{t-1} \]
       </div>
       <strong>终局奖励（episode 完整结束时）：</strong>
       <div class="formula-block">
@@ -246,9 +246,9 @@
       AI 因此被引导去"主动选择合法 ECU，减少修复次数"。
     </div>
     <div class="pair-en"><span class="lang-tag lang-en">EN</span>
-      <strong>Per-step reward summary:</strong>
+      <strong>Per-step reward summary (potential-based Δar):</strong>
       <div class="formula-block">
-        \[ r_t = \frac{\mathrm{req}_i}{\mathrm{cap}_{j^*}} + \underbrace{(-0.1)}_{\text{only path B}} \]
+        \[ r_t = \underbrace{\Delta AR_t}_{\text{potential reward}} + \underbrace{(-0.1)}_{\text{only path B}} \quad \Delta AR_t = AR_t - AR_{t-1} \]
       </div>
       <strong>Terminal reward (full episode completion):</strong>
       <div class="formula-block">

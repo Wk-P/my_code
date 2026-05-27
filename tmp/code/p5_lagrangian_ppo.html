@@ -366,7 +366,7 @@ footer code { color: var(--accent); font-size: 0.82rem; }
     <p><strong>冲突约束</strong>：软惩罚 — 拉格朗日 λ (Soft λ)</p>
     <p><strong>动作掩码条件</strong>：仅检查容量</p>
     <p><strong>冲突处理方式</strong>：智能体可选冲突 ECU，但收到 -(λ+0.2) 惩罚</p>
-    <p><strong>观测维度</strong>：5N + 7 + M (多一个 λ_norm)</p>
+    <p><strong>观测维度</strong>：4N + 7 + M（去掉 ecu_allowed_frac，加 λ_norm）</p>
     <p><strong>奖励设计</strong>：冲突 → match_gain 仍计，但 lagrange_penalty=-(λ+0.2)</p>
     <p><strong>terminal_bonus (无违约)</strong>：+ar</p>
     <p><strong>terminal_bonus (有违约)</strong>：-ar (更严厉！)</p>
@@ -476,14 +476,14 @@ Constraints:
     <div class="lang-label">中文解释</div>
     <p><strong>lambda_init=0.0</strong>：训练开始时 λ=0，冲突惩罚只有 base_penalty=0.2（很小）。智能体可以自由探索，甚至选择冲突动作。</p>
     <p><strong>lambda_max=10.0</strong>：λ 的上限，防止惩罚无限增大导致梯度爆炸。归一化时用 <code>λ / λ_max</code> 将 λ 映射到 [0, 1] 区间。</p>
-    <p><strong>obs shape = 5N+7+M</strong>：比 P4 多一维，多的那一维是 <code>λ_norm</code>（归一化后的 λ 值）。这让神经网络"知道"当前惩罚有多重，从而根据 λ 调整策略。</p>
+    <p><strong>obs shape = 4N+7+M</strong>：P5 没有 ecu_allowed_frac 维度（P4 有），但多一个 <code>λ_norm</code>。P4 是 5N+6+M，P5 移除了 ecu_allowed_frac → 4N，加了 λ_norm → +1，合计 4N+7+M。</p>
     <p><strong>max(..., 1e-8)</strong>：防止 lambda_max=0 导致除以零。</p>
   </div>
   <div class="lang-en">
     <div class="lang-label">English Explanation</div>
     <p><strong>lambda_init=0.0</strong>: Training starts with λ=0, so conflict penalty is only base_penalty=0.2 (very small). The agent is free to explore and may initially choose conflicting actions.</p>
     <p><strong>lambda_max=10.0</strong>: Upper bound for λ, preventing penalty from growing without bound (which would cause gradient explosion). Normalization uses <code>λ / λ_max</code> to map λ into [0, 1].</p>
-    <p><strong>obs shape = 5N+7+M</strong>: One extra dimension vs P4 — the final element is <code>λ_norm</code>. This lets the neural network "see" the current penalty level and adapt its policy accordingly.</p>
+    <p><strong>obs shape = 4N+7+M</strong>: P5 removes the ecu_allowed_frac segment (present in P4's 5N+6+M), but adds <code>λ_norm</code>. Net change: −N (dropped ecu_allowed_frac) + 1 (added λ_norm) → 4N+7+M. This lets the neural network see the current penalty level and adapt its policy accordingly.</p>
     <p><strong>max(..., 1e-8)</strong>: Prevents division-by-zero if someone accidentally passes lambda_max=0.</p>
   </div>
 </div>
@@ -567,10 +567,22 @@ Constraints:
     <span class="nm">super</span>().<span class="fn">reset</span>(<span class="nm">seed</span>=<span class="nm">seed</span>)
     <span class="kw">if</span> <span class="nm">self</span>._scenarios <span class="kw">is not None</span>:
         <span class="nm">caps</span>, <span class="nm">reqs</span>, <span class="nm">_cs</span> = <span class="nm">random</span>.<span class="fn">choice</span>(<span class="nm">self</span>._scenarios)
-        <span class="cm"># ... rebuild ECUs, SVCs, remap conflict_sets (same as P4) ...</span>
+        <span class="nm">self</span>.ecus     = [<span class="fn">ECU</span>(<span class="st">f"ECU{i}"</span>, <span class="nm">cap</span>) <span class="kw">for</span> <span class="nm">i</span>, <span class="nm">cap</span> <span class="kw">in</span> <span class="fn">enumerate</span>(<span class="nm">caps</span>)]
+        <span class="nm">self</span>.services = [<span class="fn">SVC</span>(<span class="st">f"SVC{i}"</span>, <span class="nm">req</span>) <span class="kw">for</span> <span class="nm">i</span>, <span class="nm">req</span> <span class="kw">in</span> <span class="fn">enumerate</span>(<span class="nm">reqs</span>)]
+        <span class="nm">self</span>.initial_vms = <span class="nm">np</span>.<span class="fn">array</span>([<span class="nm">e</span>.capacity <span class="kw">for</span> <span class="nm">e</span> <span class="kw">in</span> <span class="nm">self</span>.ecus], <span class="nm">dtype</span>=<span class="nm">np</span>.<span class="nm">float32</span>)
+        <span class="nm">self</span>.conflict_sets = [<span class="fn">set</span>(<span class="nm">s</span>) <span class="kw">for</span> <span class="nm">s</span> <span class="kw">in</span> <span class="nm">_cs</span>]
     <span class="kw">else</span>:
         <span class="nm">self</span>.conflict_sets = <span class="nm">self</span>.<span class="fn">_init_conflict_sets</span>()
-    <span class="nm">self</span>.services = <span class="fn">sorted</span>(<span class="nm">self</span>.services, <span class="nm">key</span>=<span class="kw">lambda</span> <span class="nm">s</span>: <span class="nm">s</span>.requirement, <span class="nm">reverse</span>=<span class="kw">True</span>)
+
+    <span class="cm"># Sort services descending by requirement (FFD order).</span>
+    <span class="cm"># Remap conflict_set indices so self._step always indexes sorted services.</span>
+    <span class="nm">sort_idx</span> = <span class="fn">sorted</span>(<span class="fn">range</span>(<span class="nm">self</span>.M), <span class="nm">key</span>=<span class="kw">lambda</span> <span class="nm">i</span>: <span class="op">-</span><span class="nm">self</span>.services[<span class="nm">i</span>].requirement)
+    <span class="nm">self</span>.services = [<span class="nm">self</span>.services[<span class="nm">i</span>] <span class="kw">for</span> <span class="nm">i</span> <span class="kw">in</span> <span class="nm">sort_idx</span>]
+    <span class="nm">inv_perm</span> = [<span class="num">0</span>] <span class="op">*</span> <span class="nm">self</span>.M
+    <span class="kw">for</span> <span class="nm">new_i</span>, <span class="nm">old_i</span> <span class="kw">in</span> <span class="fn">enumerate</span>(<span class="nm">sort_idx</span>):
+        <span class="nm">inv_perm</span>[<span class="nm">old_i</span>] = <span class="nm">new_i</span>
+    <span class="nm">self</span>.conflict_sets = [{<span class="nm">inv_perm</span>[<span class="nm">k</span>] <span class="kw">for</span> <span class="nm">k</span> <span class="kw">in</span> <span class="nm">cs</span>} <span class="kw">for</span> <span class="nm">cs</span> <span class="kw">in</span> <span class="nm">self</span>.conflict_sets]
+
     <span class="nm">self</span>.remaining_vms   = <span class="nm">self</span>.initial_vms.<span class="fn">copy</span>()
     <span class="nm">self</span>.ecu_placements  = [<span class="fn">set</span>() <span class="kw">for</span> <span class="nm">_</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
     <span class="nm">self</span>.ecu_allowed     = [<span class="fn">set</span>(<span class="fn">range</span>(<span class="nm">self</span>.M)) <span class="kw">for</span> <span class="nm">_</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
@@ -731,74 +743,80 @@ Constraints:
 
 <pre><span class="kw">def</span> <span class="fn">step</span>(<span class="nm">self</span>, <span class="nm">action</span>: <span class="nm">int</span>):
     <span class="nm">svc</span> = <span class="nm">self</span>.services[<span class="nm">self</span>._step]
+    <span class="nm">ar_prev</span> = <span class="nm">self</span>.ar  <span class="cm"># capture before placement for Δar reward</span>
 
     <span class="nm">cap_violated</span>      = <span class="fn">bool</span>(<span class="nm">self</span>.remaining_vms[<span class="nm">action</span>] &lt; <span class="nm">svc</span>.requirement)
     <span class="nm">conflict_violated</span> = <span class="nm">self</span>.<span class="fn">_has_conflict</span>(<span class="nm">action</span>, <span class="nm">self</span>._step)
+    <span class="cm"># λ (dual variable) tracks CONFLICT only; capacity gets a fixed large penalty.</span>
+    <span class="nm">c_t</span> = <span class="num">1.0</span> <span class="kw">if</span> <span class="nm">conflict_violated</span> <span class="kw">else</span> <span class="num">0.0</span>
 
-    <span class="cm"># Lagrangian penalty for conflict only; -2.0 for forced overflow (cap).</span>
-    <span class="cm"># match_gain is always computed — conflict penalized separately via λ</span>
-    <span class="nm">base_penalty</span>            = <span class="num">0.2</span>
-    <span class="nm">c_t</span>                     = <span class="num">1.0</span> <span class="kw">if</span> <span class="nm">conflict_violated</span> <span class="kw">else</span> <span class="num">0.0</span>
-    <span class="nm">lagrange_penalty</span>        = <span class="op">-</span>(<span class="nm">self</span>.lambda_val <span class="op">+</span> <span class="nm">base_penalty</span>) <span class="op">*</span> <span class="nm">c_t</span>
-    <span class="nm">forced_overflow_penalty</span> = <span class="op">-</span><span class="num">2.0</span> <span class="kw">if</span> <span class="nm">cap_violated</span> <span class="kw">else</span> <span class="num">0.0</span>
-    <span class="nm">match_gain</span>              = <span class="nm">svc</span>.requirement <span class="op">/</span> (<span class="nm">self</span>.initial_vms[<span class="nm">action</span>] <span class="op">+</span> <span class="num">1e-8</span>)
-
+    <span class="nm">ru</span> = <span class="nm">svc</span>.requirement <span class="op">/</span> (<span class="nm">self</span>.initial_vms[<span class="nm">action</span>] <span class="op">+</span> <span class="num">1e-8</span>)
     <span class="nm">self</span>.remaining_vms[<span class="nm">action</span>] <span class="op">-=</span> <span class="nm">svc</span>.requirement
+    <span class="nm">_was_empty</span> = <span class="kw">not</span> <span class="nm">self</span>.ecu_placements[<span class="nm">action</span>]
     <span class="nm">self</span>.ecu_placements[<span class="nm">action</span>].<span class="fn">add</span>(<span class="nm">self</span>._step)
+    <span class="kw">if</span> <span class="nm">_was_empty</span>:
+        <span class="nm">self</span>._n_active <span class="op">+=</span> <span class="num">1</span>
     <span class="nm">self</span>.<span class="fn">_update_ecu_allowed</span>(<span class="nm">action</span>, <span class="nm">self</span>._step)
-    <span class="nm">self</span>._total_ru <span class="op">+=</span> <span class="nm">match_gain</span>  <span class="cm"># always add (conflict penalized via λ, not ru=0)</span>
-    <span class="nm">_active</span> = <span class="fn">sum</span>(<span class="num">1</span> <span class="kw">for</span> <span class="nm">j</span> <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N) <span class="kw">if</span> <span class="nm">self</span>.ecu_placements[<span class="nm">j</span>])
-    <span class="nm">self</span>.ar = <span class="nm">self</span>._total_ru <span class="op">/</span> <span class="nm">_active</span> <span class="kw">if</span> <span class="nm">_active</span> > <span class="num">0</span> <span class="kw">else</span> <span class="num">0.0</span>
+    <span class="nm">self</span>._total_ru <span class="op">+=</span> <span class="nm">ru</span>  <span class="cm"># always add (conflict penalized via λ, not ru=0)</span>
+    <span class="nm">_active</span> = <span class="nm">self</span>._n_active
+    <span class="nm">self</span>.ar = <span class="nm">self</span>._total_ru <span class="op">/</span> <span class="nm">_active</span>
     <span class="nm">self</span>._step <span class="op">+=</span> <span class="num">1</span>
 
-    <span class="nm">done</span> = <span class="nm">self</span>._step >= <span class="nm">self</span>.M
-    <span class="nm">terminal_bonus</span> = <span class="num">0.0</span>
-    <span class="kw">if</span> <span class="nm">done</span>:
-        <span class="nm">terminal_bonus</span> = <span class="nm">self</span>.ar <span class="kw">if</span> <span class="nm">self</span>.episode_violations == <span class="num">0</span> <span class="kw">else</span> <span class="op">-</span><span class="nm">self</span>.ar
-
-    <span class="nm">reward</span> = <span class="fn">float</span>(<span class="nm">match_gain</span> <span class="op">+</span> <span class="nm">lagrange_penalty</span> <span class="op">+</span> <span class="nm">forced_overflow_penalty</span> <span class="op">+</span> <span class="nm">terminal_bonus</span>)
+    <span class="cm"># Reward:</span>
+    <span class="cm">#   Δar          — potential-based dense utilisation signal</span>
+    <span class="cm">#   cap_penalty  — fixed -2.0 for capacity overflow</span>
+    <span class="cm">#   Lagrangian   — adaptive conflict penalty via dual ascent</span>
+    <span class="cm">#   terminal_bonus — +ar_final for clean episodes; 0 otherwise</span>
+    <span class="nm">delta_ar</span>     = <span class="nm">self</span>.ar <span class="op">-</span> <span class="nm">ar_prev</span>
+    <span class="nm">cap_penalty</span>  = <span class="op">-</span><span class="num">2.0</span> <span class="kw">if</span> <span class="nm">cap_violated</span> <span class="kw">else</span> <span class="num">0.0</span>
+    <span class="nm">base_penalty</span> = <span class="num">0.2</span>
+    <span class="nm">terminal_bonus</span> = <span class="nm">self</span>.ar <span class="kw">if</span> (<span class="nm">done</span> <span class="kw">and</span> <span class="nm">self</span>.episode_violations == <span class="num">0</span>) <span class="kw">else</span> <span class="num">0.0</span>
+    <span class="nm">reward</span> = <span class="fn">float</span>(<span class="nm">delta_ar</span> <span class="op">+</span> <span class="nm">cap_penalty</span>
+                   <span class="op">-</span> (<span class="nm">self</span>.lambda_val <span class="op">+</span> <span class="nm">base_penalty</span>) <span class="op">*</span> <span class="nm">c_t</span>
+                   <span class="op">+</span> <span class="nm">terminal_bonus</span>)
     <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), <span class="nm">reward</span>, <span class="nm">done</span>, <span class="kw">False</span>, {<span class="cm">...</span>}</pre>
 
 <div class="bilingual">
   <div class="lang-zh">
     <div class="lang-label">中文解释</div>
     <p>P5 奖励由四项组成，下面逐项分析：</p>
-    <p><strong>1. match_gain（匹配收益）</strong> = 服务需求 / ECU 初始容量。表示这次放置对 ECU 利用率的贡献。</p>
-    <p>与 P4 的关键区别：P4 在冲突时 ru=0（惩罚方式是"清零"），P5 在冲突时 match_gain 仍然计算（惩罚方式是"额外扣分"）。这符合拉格朗日松弛的数学形式：原目标函数不变，只增加惩罚项。</p>
+    <p><strong>1. Δar（势差奖励）</strong> = ar_new - ar_prev。与 P4 相同，使用 potential-based reward shaping 提供稠密信号。ru 始终计入 _total_ru（即使有冲突），保持 AR 反映实际资源占用。</p>
+    <p>与 P4 的关键区别：P4 在冲突时 ru=0（冲突被排除在 AR 外），P5 始终累加 ru（冲突通过 λ 惩罚体现，不影响 AR 计算）。</p>
     <p><strong>2. lagrange_penalty（拉格朗日惩罚）</strong> = -(λ + 0.2) × c_t</p>
     <ul>
       <li><code>c_t</code>：冲突指示变量，有冲突=1，无冲突=0</li>
       <li><code>base_penalty = 0.2</code>：基础惩罚，确保即使 λ=0 时冲突也有惩罚</li>
       <li><code>lambda_val</code>：自适应惩罚，随双重上升逐渐增大</li>
     </ul>
-    <p><strong>3. forced_overflow_penalty（强制溢出惩罚）</strong> = -2.0（仅容量违约时）。与 P4 相同，容量约束被硬性保留。</p>
-    <p><strong>4. terminal_bonus（终局奖励）</strong>：这里比 P4 严厉得多！有任何违约 → 终局惩罚 = -ar（负的！），而非 P4 的 +0.1*ar。这意味着有违约的 episode 在终局会把整个 AR 都扣掉，极大激励智能体追求零违约。</p>
+    <p><strong>3. cap_penalty（容量惩罚）</strong> = -2.0（仅容量违约时）。容量约束硬性保留（与 P4 一致）。</p>
+    <p><strong>4. terminal_bonus（终局奖励）</strong>：零违约 → +ar_final，有违约 → 0.0（不再是 -ar）。与 Δar 求和 = ar_final，整集回报 = 2 × ar_final（和 P4 一致的 bootstrap 设计）。</p>
   </div>
   <div class="lang-en">
     <div class="lang-label">English Explanation</div>
     <p>P5 reward has four components:</p>
-    <p><strong>1. match_gain</strong> = service requirement / ECU initial capacity. Measures this placement's contribution to ECU utilization.</p>
-    <p>Key difference from P4: P4 zeroes out ru on conflict (punishment = "wipe the gain"). P5 always computes match_gain and applies a separate penalty term (punishment = "subtract extra"). This matches the mathematical form of Lagrangian relaxation: original objective unchanged, penalty added alongside it.</p>
+    <p><strong>1. Δar (potential-based shaping)</strong> = ar_new − ar_prev. Same approach as P4. ru is always accumulated into _total_ru (even on conflicts) so AR reflects actual resource occupation; conflict is penalized separately via λ rather than by zeroing ru.</p>
+    <p>Key difference from P4: P4 zeroes out ru on conflict. P5 always computes ru — this matches Lagrangian relaxation: original objective (AR) unchanged, penalty term added alongside.</p>
     <p><strong>2. lagrange_penalty</strong> = -(λ + 0.2) × c_t</p>
     <ul>
       <li><code>c_t</code>: conflict indicator — 1 if conflict, 0 otherwise</li>
-      <li><code>base_penalty = 0.2</code>: ensures some penalty even when λ=0 (prevents the agent from ignoring conflicts entirely at startup)</li>
+      <li><code>base_penalty = 0.2</code>: ensures some penalty even when λ=0</li>
       <li><code>lambda_val</code>: adaptive component that grows via dual ascent</li>
     </ul>
-    <p><strong>3. forced_overflow_penalty</strong> = -2.0 (capacity violations only). Same as P4 — capacity remains a hard constraint.</p>
-    <p><strong>4. terminal_bonus</strong>: Much harsher than P4! Any violation → terminal bonus = -ar (negative!), vs P4's +0.1*ar (positive). An episode with violations subtracts the entire AR at the end — a strong incentive to achieve zero violations.</p>
+    <p><strong>3. cap_penalty</strong> = -2.0 (capacity violations only). Capacity remains a hard constraint with a fixed large penalty.</p>
+    <p><strong>4. terminal_bonus</strong>: Zero violations → +ar_final; any violations → 0.0 (not -ar). Combined with the Δar sum over the episode = ar_final, total episode return = 2 × ar_final — same bootstrap design as P4.</p>
   </div>
 </div>
 
 <div class="formula">
   reward_t =
-  <span class="formula-term">match_gain</span>
+  <span class="formula-term">Δar</span>
+  + <span class="formula-penalty">cap_penalty</span>
   + <span class="formula-penalty">lagrange_penalty</span>
-  + <span class="formula-penalty">forced_overflow_penalty</span>
   + terminal_bonus
 </div>
 
 <div class="formula">
+  Δar = ar_new − ar_prev &nbsp;&nbsp; | &nbsp;&nbsp;
   lagrange_penalty = -(λ + 0.2) × c_t &nbsp;&nbsp; | &nbsp;&nbsp;
   c_t ∈ {0, 1}
 </div>
@@ -806,40 +824,34 @@ Constraints:
 <table>
   <tr><th>奖励项 Component</th><th>P4 值</th><th>P5 值</th><th>差异 Difference</th></tr>
   <tr>
-    <td>match_gain (无违约)</td>
-    <td>req / cap</td>
-    <td>req / cap</td>
-    <td>相同 Same</td>
-  </tr>
-  <tr>
-    <td>match_gain (有冲突)</td>
-    <td>0.0 (清零)</td>
-    <td>req / cap (保留!)</td>
-    <td>P5 仍计算 Still computed</td>
+    <td>per-step 奖励基础</td>
+    <td>Δar (ru 违约时=0，不计入 AR)</td>
+    <td>Δar (ru 始终计入 AR)</td>
+    <td>P5 的 AR 包含冲突放置</td>
   </tr>
   <tr>
     <td>冲突惩罚 Conflict penalty</td>
-    <td>-2.0 (fallback时)</td>
-    <td>-(λ + 0.2)</td>
+    <td>无（冲突被掩码屏蔽）</td>
+    <td>-(λ + 0.2) × c_t</td>
     <td>P5 自适应增长</td>
   </tr>
   <tr>
     <td>容量惩罚 Cap penalty</td>
+    <td>无（掩码保证无容量违约）</td>
     <td>-2.0</td>
-    <td>-2.0</td>
-    <td>相同 Same</td>
+    <td>P5 可能有容量违约</td>
   </tr>
   <tr>
     <td>terminal (零违约)</td>
-    <td>+ar</td>
-    <td>+ar</td>
+    <td>+ar_final</td>
+    <td>+ar_final</td>
     <td>相同 Same</td>
   </tr>
   <tr>
     <td>terminal (有违约)</td>
-    <td style="color:var(--yellow)">+0.1 × ar</td>
-    <td style="color:var(--red)">-ar (负的!)</td>
-    <td>P5 更严厉 Much harsher</td>
+    <td style="color:var(--muted)">0.0</td>
+    <td style="color:var(--muted)">0.0</td>
+    <td>相同 Same（均不加 terminal bonus）</td>
   </tr>
 </table>
 
@@ -849,14 +861,14 @@ Constraints:
   <div class="lang-zh">
     <div class="lang-label">中文解释</div>
     <p>P4：<code>if ru > 0: self._total_ru += ru</code>（冲突时 ru=0，不计入）</p>
-    <p>P5：<code>self._total_ru += match_gain</code>（<em>始终</em>计入，即使有冲突）</p>
-    <p>这让 P5 的 AR 统计包含了"有冲突的放置"的贡献，而 P4 不包含。两种设计各有道理：P4 的 AR 更纯净（只统计合规放置），P5 的 AR 更接近实际资源占用（不论是否合规）。</p>
+    <p>P5：<code>self._total_ru += ru</code>（<em>始终</em>计入，即使有冲突）</p>
+    <p>这让 P5 的 AR 统计包含了"有冲突的放置"的贡献，而 P4 不包含。P4 的 AR 更纯净（只统计合规放置），P5 的 AR 更接近实际资源占用（不论是否合规），与拉格朗日松弛"不硬性排除违约"的哲学一致。</p>
   </div>
   <div class="lang-en">
     <div class="lang-label">English Explanation</div>
     <p>P4: <code>if ru > 0: self._total_ru += ru</code> — conflict placements (ru=0) are excluded from AR.</p>
-    <p>P5: <code>self._total_ru += match_gain</code> — <em>always</em> accumulates, even on conflict placements.</p>
-    <p>P5's AR thus includes the contribution of conflicting placements. P4's AR is "purer" (compliant placements only). P5's AR better reflects actual resource occupation regardless of compliance — a deliberate design choice aligned with Lagrangian relaxation's philosophy of not fully blocking violations.</p>
+    <p>P5: <code>self._total_ru += ru</code> — <em>always</em> accumulates, even on conflict placements.</p>
+    <p>P5's AR includes conflicting placements, P4's is "purer" (compliant only). This is deliberate: Lagrangian relaxation doesn't hard-block violations, so AR should reflect actual resource usage including conflicting ones. The λ penalty term provides the signal to reduce conflicts without warping the AR metric.</p>
   </div>
 </div>
 </div>
@@ -926,13 +938,11 @@ Constraints:
   </div>
 </div>
 
-<div class="callout callout-warn">
-  <strong>为什么 P5 的 terminal_bonus 在有违约时是 -ar（而不是 P4 的 +0.1*ar）？</strong><br><br>
-  因为 P5 的 match_gain 即使在违约时也计入，AR 数值会更高（P4 违约时 ru=0 不计入）。如果 P5 也用 +0.1*ar，智能体发现"稍微违约 + 大 match_gain"的组合反而有更高总奖励，就不会努力消除违约了。<br>
-  用 -ar 作为有违约的终局惩罚，确保违约 episode 的总奖励 = 步骤奖励之和 - AR。当 λ 足够大时，步骤惩罚 + 终局惩罚会远超 match_gain 增益，强制收敛到零违约。
+<div class="callout callout-info">
+  <strong>P5 terminal_bonus 设计：0.0 vs P4 的 0.0（相同）</strong><br><br>
+  P4 和 P5 都在有违约时 terminal_bonus=0.0。区别在于：P5 的 Δar 信号本身已包含冲突影响（ru 始终计入），所以不需要额外用 -ar 来"惩罚"违约——λ 惩罚项已经在步骤级别处理了冲突。整集回报 = Σ Δar + ar_final (仅零违约) = 2 × ar_final，和 P4 一样的 bootstrap 设计。
   <br><br>
-  <strong>Why -ar (not +0.1*ar like P4) for episodes with violations?</strong><br>
-  Because P5 always computes match_gain (even on conflicts), AR values are higher than P4's. If P5 used +0.1*ar, the agent could exploit "slight conflicts + large match_gain" for higher total reward and never fully eliminate violations. The -ar terminal penalty ensures violation episodes pay back their entire AR gain, becoming unprofitable once λ is large enough.
+  <strong>P5 terminal_bonus design:</strong> Same as P4 — 0.0 when any violation occurred. The Lagrangian penalty in each step already handles conflict discouragement; there's no need for an additional terminal punishment. Episode return = Σ Δar + ar_final (clean only) = 2 × ar_final, matching P4's bootstrap structure.
 </div>
 
 <h3>P4 vs P5 双重约束执行哲学总结 · Summary</h3>
@@ -983,9 +993,9 @@ Constraints:
 
 <footer>
   <p>源文件 Source File:</p>
-  <p><code>/home/soar009/github/my_code/ecu_lt_svc_p/problem5_ppo_lagrangian/env.py</code></p>
+  <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem5_ppo_lagrangian/env.py</code></p>
   <p>参考对比 Reference P4:</p>
-  <p><code>/home/soar009/github/my_code/ecu_lt_svc_p/problem4_ppo_mask/env.py</code></p>
+  <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem4_ppo_mask/env.py</code></p>
   <p style="margin-top:1rem; color: var(--muted);">P5 — Lagrangian PPO Code Walkthrough · 双语代码精读 · Generated 2026-05</p>
 </footer>
 
