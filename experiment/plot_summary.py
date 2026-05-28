@@ -24,7 +24,8 @@ import matplotlib.pyplot as plt
 
 GROUPS = ["eq", "lt", "gt"]
 GL     = {"eq": "EQ  (N=M=10)", "lt": "LT  (N<M)", "gt": "GT  (N>M)"}
-MODELS = ["P3_PPO", "P4_MaskPPO", "P5_LagPPO", "P6_RepairPPO", "DQN", "DDQN", "P7_SeqPPO"]
+MODELS      = ["P3_PPO", "P4_MaskPPO", "P5_LagPPO", "P6_RepairPPO", "DQN", "DDQN", "P7_SeqPPO"]
+PLOT_MODELS = [m for m in MODELS if m != "P3_PPO"]
 MS     = {
     "P3_PPO":       "P3",
     "P4_MaskPPO":   "P4\nMask",
@@ -90,7 +91,7 @@ def load_groups_agg(
                     break
 
         group_agg: dict[str, dict] = {}
-        for model in MODELS:
+        for model in PLOT_MODELS:
             rows = per_model.get(model, [])
             if not rows:
                 continue
@@ -118,7 +119,7 @@ def _present_groups(groups_agg: dict) -> list[str]:
 
 
 def _models_in_group(group_agg: dict) -> list[str]:
-    return [m for m in MODELS if m in group_agg]
+    return [m for m in PLOT_MODELS if m in group_agg]
 
 
 def _fig3cols(groups_agg: dict, figw_per_col: float = 5.5, figh: float = 5.5):

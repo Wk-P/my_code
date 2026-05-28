@@ -24,7 +24,7 @@ class LagrangeEnv(gym.Env):
     """
     Each episode assigns M services to N ECUs (N < M), one service per step.
 
-    Observation (shape: 5N+7+M):
+    Observation (shape: 5N+7+2M):
         [0]          current service demand (normalised)
         [1]          current cumulative AR
         [2]          sum of remaining ECU capacity (normalised, clipped ≥ 0)
@@ -37,7 +37,8 @@ class LagrangeEnv(gym.Env):
         [6+3N:6+4N]  ECU allowed fraction (fraction of SVCs still placeable without conflict)
         [6+4N:6+5N]  valid-action flags (1 = sufficient capacity)
         [6+5N:6+5N+M] remaining service demands (sorted descending)
-        [6+5N+M]     current λ value, normalised by λ_max
+        [6+5N+M:6+5N+2M] valid ECU count per remaining service (normalised by N; 0 for placed)
+        [6+5N+2M]    current λ value, normalised by λ_max
 
     Reward per step:
         r_t = match_gain - (lambda_val + base_penalty) * c_t - forced_overflow_penalty
@@ -60,7 +61,7 @@ class LagrangeEnv(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
-            low=-1.0, high=1.0, shape=(5 * self.N + 7 + self.M,), dtype=np.float32,
+            low=-1.0, high=1.0, shape=(5 * self.N + 7 + 2 * self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -105,6 +106,7 @@ class LagrangeEnv(gym.Env):
             self.conflict_sets = [set(cs) for cs in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
+        self.services.sort(key=lambda s: s.requirement, reverse=True)
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self._req_arr = np.array([s.requirement for s in self.services], dtype=np.float32)
@@ -176,6 +178,14 @@ class LagrangeEnv(gym.Env):
             dtype=np.float32,
         )
 
+        svc_valid_ecus = np.zeros(self.M, dtype=np.float32)
+        for i in range(self._step, self.M):
+            svc_valid_ecus[i] = sum(
+                1 for j in range(self.N)
+                if self.remaining_vms[j] >= self.services[i].requirement
+                and not self._has_conflict(j, i)
+            ) / self.N
+
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
@@ -189,6 +199,7 @@ class LagrangeEnv(gym.Env):
             ecu_allowed_frac,
             valid_flag,
             remaining_svcs,
+            svc_valid_ecus,
             np.array([lambda_norm], dtype=np.float32),
         ]).astype(np.float32)
 
@@ -274,7 +285,7 @@ if __name__ == "__main__":
 
     env = LagrangeEnv(ecus, services, lambda_init=1.0)
     obs, _ = env.reset()
-    print(f"Obs shape: {obs.shape}  (expected {5*N + 7 + M})")
+    print(f"Obs shape: {obs.shape}  (expected {5*N + 7 + 2*M})")
 
     done = False
     while not done:

@@ -99,6 +99,44 @@ def _regen_one_seed(seed_dir: Path, group: str, seed_num: int | None = None):
     plot_test_results(agg, fig_out_dir, seed=seed_num)
 
 
+# ── Regenerate per-seed training_curve.png ───────────────────────────────────
+
+def _regen_train_curve(seed_dir: Path, group: str, seed_num: int | None = None):
+    """Re-plot training_curve.png (+ P3 separate) from training_rewards.csv."""
+    csv_path = seed_dir / "train_curve" / "data" / "training_rewards.csv"
+    if not csv_path.exists():
+        print(f"  [skip train] no training_rewards.csv in {seed_dir}")
+        return
+
+    training_data: dict[str, dict] = {}
+    try:
+        with open(csv_path, newline="") as f:
+            for row in csv.DictReader(f):
+                m = row["model"]
+                if m not in training_data:
+                    training_data[m] = {"episode_nums": [], "episode_rewards": []}
+                training_data[m]["episode_nums"].append(float(row["episode"]))
+                training_data[m]["episode_rewards"].append(float(row["reward"]))
+    except Exception as e:
+        print(f"  [error] reading {csv_path}: {e}")
+        return
+
+    fig_out_dir = seed_dir / "train_curve" / "figures"
+    fig_out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Always import from ROOT/experiment/plots.py (not group-specific copy)
+    for mod in list(sys.modules):
+        if "experiment.plots" in mod or mod == "experiment":
+            del sys.modules[mod]
+    if str(ROOT) in sys.path:
+        sys.path.remove(str(ROOT))
+    sys.path.insert(0, str(ROOT))
+
+    from experiment.plots import plot_training_curves
+    print(f"  Regenerating {seed_dir.name} → train_curve/figures/training_curve.png")
+    plot_training_curves(training_data, fig_out_dir, seed=seed_num)
+
+
 # ── Collect seed dirs for a run ───────────────────────────────────────────────
 
 def _seed_dirs_legacy(run_id: str) -> dict[str, list[Path]]:
@@ -149,7 +187,7 @@ def process_experiment(run_id: str, seed_dirs: dict[str, list[Path]],
     print(f"  Groups: {list(seed_dirs.keys())}")
     print(f"{'='*60}")
 
-    # 1. Regenerate per-seed test_results.png
+    # 1. Regenerate per-seed test_results.png + training_curve.png
     for group, dirs in seed_dirs.items():
         print(f"\n  [group={group}] Regenerating per-seed figures …")
         for sd in dirs:
@@ -162,6 +200,7 @@ def process_experiment(run_id: str, seed_dirs: dict[str, list[Path]],
                 except ValueError:
                     pass
             _regen_one_seed(sd, group, seed_num)
+            _regen_train_curve(sd, group, seed_num)
 
     # 2. Generate per-group cross-seed summary figures
     print(f"\n  Generating cross-seed summary figures …")

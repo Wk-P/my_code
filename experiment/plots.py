@@ -41,6 +41,26 @@ def _moving_avg(vals: list[float], w: int) -> tuple[np.ndarray, int]:
     return smoothed, (w - 1) // 2
 
 
+def _plot_curves_to_ax(ax, training_data: dict[str, dict], smooth_w: int, title: str) -> None:
+    for model_name, data in training_data.items():
+        ep_nums = np.array(data["episode_nums"],    dtype=float)
+        ep_rews = np.array(data["episode_rewards"], dtype=float)
+        color   = MODEL_COLORS.get(model_name, _DEFAULT_COLOR)
+
+        ax.plot(ep_nums, ep_rews, color=color, alpha=0.15, linewidth=0.6)
+
+        sm, off = _moving_avg(ep_rews, smooth_w)
+        if len(sm) > 0:
+            ax.plot(ep_nums[off: off + len(sm)], sm,
+                    color=color, linewidth=2.0, label=model_name)
+
+    ax.set_xlabel("Episode", fontsize=12)
+    ax.set_ylabel("Episode Reward", fontsize=12)
+    ax.set_title(title, fontsize=13)
+    ax.legend(fontsize=9, loc="lower right")
+    ax.grid(alpha=0.3)
+
+
 def plot_training_curves(
     training_data: dict[str, dict],
     outdir: Path,
@@ -49,40 +69,35 @@ def plot_training_curves(
 ) -> None:
     """
     training_data: {model_name: {"episode_nums": [...], "episode_rewards": [...]}}
+    P3_PPO is excluded from the combined plot and saved separately at outdir/p3/training_curve.png.
     """
-    fig, ax = plt.subplots(figsize=(12, 5))
-    title = "Training Reward vs Episode"
-    if seed is not None:
-        title += f"  (seed={seed})"
+    title_suffix = f"  (seed={seed})" if seed is not None else ""
 
-    for model_name, data in training_data.items():
-        ep_nums   = np.array(data["episode_nums"],   dtype=float)
-        ep_rews   = np.array(data["episode_rewards"], dtype=float)
-        color     = MODEL_COLORS.get(model_name, _DEFAULT_COLOR)
+    p3_data   = {k: v for k, v in training_data.items() if k == "P3_PPO"}
+    main_data = {k: v for k, v in training_data.items() if k != "P3_PPO"}
 
-        ax.plot(ep_nums, ep_rews, color=color, alpha=0.15, linewidth=0.6)
+    # Combined plot (no P3)
+    if main_data:
+        fig, ax = plt.subplots(figsize=(12, 5))
+        _plot_curves_to_ax(ax, main_data, smooth_w, f"Training Reward vs Episode{title_suffix}")
+        plt.tight_layout()
+        path = outdir / "training_curve.png"
+        plt.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved → {path}")
 
-        sm, off = _moving_avg(ep_rews, smooth_w)
-        if len(sm) > 0:
-            ax.plot(
-                ep_nums[off: off + len(sm)],
-                sm,
-                color=color,
-                linewidth=2.0,
-                label=model_name,
-            )
-
-    ax.set_xlabel("Episode", fontsize=12)
-    ax.set_ylabel("Episode Reward", fontsize=12)
-    ax.set_title(title, fontsize=13)
-    ax.legend(fontsize=9, loc="lower right")
-    ax.grid(alpha=0.3)
-
-    plt.tight_layout()
-    path = outdir / "training_curve.png"
-    plt.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved → {path}")
+    # P3-only plot — saved at seeds/{n}/p3/training_curve.png
+    if p3_data:
+        p3_dir = outdir.parent.parent / "p3"
+        p3_dir.mkdir(parents=True, exist_ok=True)
+        fig, ax = plt.subplots(figsize=(12, 5))
+        _plot_curves_to_ax(ax, p3_data, smooth_w,
+                           f"P3_PPO Training Reward vs Episode{title_suffix}")
+        plt.tight_layout()
+        path = p3_dir / "training_curve.png"
+        plt.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved → {path}")
 
 
 def plot_test_results(
@@ -94,7 +109,7 @@ def plot_test_results(
     agg_results: {model_name: aggregate_eval(...) dict}
     Produces a 3-subplot landscape figure (AR | Success/Fail | Violations).
     """
-    model_names = list(agg_results.keys())
+    model_names = [m for m in agg_results.keys() if m != "P3_PPO"]
     n = len(model_names)
     x = np.arange(n)
     colors = [MODEL_COLORS.get(m, _DEFAULT_COLOR) for m in model_names]

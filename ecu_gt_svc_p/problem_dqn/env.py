@@ -51,7 +51,7 @@ class DQNEnv(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
-            low=0.0, high=1.0, shape=(4 * self.N + 6 + self.M,), dtype=np.float32,
+            low=0.0, high=1.0, shape=(4 * self.N + 6 + 2 * self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -144,6 +144,14 @@ class DQNEnv(gym.Env):
             dtype=np.float32,
         )
 
+        svc_valid_ecus = np.zeros(self.M, dtype=np.float32)
+        for i in range(self._step, self.M):
+            svc_valid_ecus[i] = sum(
+                1 for j in range(self.N)
+                if self.remaining_vms[j] >= self.services[i].requirement
+                and not self._has_conflict(j, i)
+            ) / self.N
+
         return np.concatenate([
             [service_demand_norm],
             np.array([self.ar], dtype=np.float32),
@@ -156,6 +164,7 @@ class DQNEnv(gym.Env):
             conflict_flag,
             valid_flag,
             remaining_svcs,
+            svc_valid_ecus,
         ]).astype(np.float32)
 
     # ── step ─────────────────────────────────────────────────────────────────
