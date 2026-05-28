@@ -106,7 +106,13 @@ class LagrangeEnv(gym.Env):
             self.conflict_sets = [set(cs) for cs in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
-        self.services.sort(key=lambda s: s.requirement, reverse=True)
+        # Sort services descending and remap conflict_set indices to match the new order.
+        sort_idx = sorted(range(self.M), key=lambda i: -self.services[i].requirement)
+        self.services = [self.services[i] for i in sort_idx]
+        inv_perm = [0] * self.M
+        for new_i, old_i in enumerate(sort_idx):
+            inv_perm[old_i] = new_i
+        self.conflict_sets = [{inv_perm[k] for k in cs} for cs in self.conflict_sets]
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self._req_arr = np.array([s.requirement for s in self.services], dtype=np.float32)
@@ -246,8 +252,9 @@ class LagrangeEnv(gym.Env):
         if done:
             terminal_bonus = self.ar if self.episode_violations == 0 else -self.ar
 
+        step_reward = match_gain / max(_active, 1)
         violated = cap_violated or conflict_violated
-        reward = float(match_gain + lagrange_penalty + forced_overflow_penalty + terminal_bonus)
+        reward = float(step_reward + lagrange_penalty + forced_overflow_penalty + terminal_bonus)
         return self._obs(), reward, done, False, {
             "ar":                  self.ar,
             "violated":            violated,

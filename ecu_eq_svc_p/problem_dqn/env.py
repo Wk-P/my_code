@@ -2,10 +2,13 @@
 DQN Environment — RL WITHOUT action masking.
 
 Constraint handling:
-    - Capacity violation → hard (episode terminates immediately with penalty).
-    - Conflict violation → soft (recorded in info, does not terminate episode).
+    - Capacity violation → soft penalty (-2.0), episode continues (remaining_vms may go negative).
+    - Conflict violation → soft penalty (-2.0), episode continues.
     - Multiple services may share an ECU (no uniqueness constraint).
     - Each valid assignment receives its exact utilisation contribution req/cap.
+
+Hard early termination was removed because it fills the replay buffer with 1-step -2.0
+episodes in which all Q-values collapse to the same value, making learning impossible.
 """
 
 import sys
@@ -51,7 +54,7 @@ class DQNEnv(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
-            low=0.0, high=1.0, shape=(4 * self.N + 6 + 2 * self.M,), dtype=np.float32,
+            low=-1.0, high=1.0, shape=(4 * self.N + 6 + 2 * self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -133,7 +136,7 @@ class DQNEnv(gym.Env):
                 np.sum(self.remaining_vms >= svc.requirement) / max(self.N, 1)
             )
 
-        remaining_abs_norm = self.remaining_vms / max_cap
+        remaining_abs_norm = np.clip(self.remaining_vms, -max_cap, max_cap) / max_cap
         initial_cap_pct    = self.initial_vms / max_cap
         remaining_usable_capacity_sum = np.float32(
             np.sum(np.clip(self.remaining_vms, 0.0, None)) / total_cap
@@ -171,38 +174,23 @@ class DQNEnv(gym.Env):
     def step(self, action: int):
         svc = self.services[self._step]
 
-        cap_violated = bool(self.remaining_vms[action] < svc.requirement)
+        cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
+        conflict_violated = self._has_conflict(action, self._step)
 
         if cap_violated:
             self.capacity_violations += 1
             self.episode_has_cap_violation = True
-            # Hard termination on capacity violation (docstring intent)
-            return self._obs(), -2.0, True, False, {
-                "ar":                             self.ar,
-                "step":                           self._step,
-                "services_placed":                self._step,
-                "valid_placed":                   self.valid_placed,
-                "ecus_used":                      sum(1 for j in range(self.N) if self.ecu_placements[j]),
-                "cap_violated":                   True,
-                "conflict_violated":              False,
-                "capacity_violations":            self.capacity_violations,
-                "conflict_violations":            self.conflict_violations,
-                "total_violations":               self.capacity_violations + self.conflict_violations,
-                "violation_rate":                 (self.capacity_violations + self.conflict_violations) / max(self._step, 1),
-                "episode_has_cap_violation":      self.episode_has_cap_violation,
-                "episode_has_conflict_violation": self.episode_has_conflict_violation,
-            }
-
-        conflict_violated = self._has_conflict(action, self._step)
         if conflict_violated:
             self.conflict_violations += 1
             self.episode_has_conflict_violation = True
-        else:
+        if not (cap_violated or conflict_violated):
             self.valid_placed += 1
 
+        cap_penalty      = -2.0 if cap_violated else 0.0
         conflict_penalty = -2.0 if conflict_violated else 0.0
-        ru = 0.0 if conflict_violated else svc.requirement / (self.initial_vms[action] + 1e-8)
+        ru = 0.0 if (cap_violated or conflict_violated) else svc.requirement / (self.initial_vms[action] + 1e-8)
 
+        # Always place; remaining_vms may go negative on capacity violation.
         self.remaining_vms[action] -= svc.requirement
         self.ecu_placements[action].add(self._step)
         if ru > 0:
@@ -216,13 +204,14 @@ class DQNEnv(gym.Env):
         terminal_bonus = 0.0
         if done:
             terminal_bonus = self.ar if total_viol == 0 else -self.ar
-        return self._obs(), float(ru + conflict_penalty + terminal_bonus), done, False, {
+        step_reward = ru / max(_active, 1)
+        return self._obs(), float(step_reward + cap_penalty + conflict_penalty + terminal_bonus), done, False, {
             "ar":                             self.ar,
             "step":                           self._step,
             "services_placed":                self._step,
             "valid_placed":                   self.valid_placed,
             "ecus_used":                      _active,
-            "cap_violated":                   False,
+            "cap_violated":                   cap_violated,
             "conflict_violated":              conflict_violated,
             "capacity_violations":            self.capacity_violations,
             "conflict_violations":            self.conflict_violations,

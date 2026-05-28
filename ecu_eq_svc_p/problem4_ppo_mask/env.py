@@ -9,8 +9,8 @@ Constraints:
     If no valid ECU exists, action_masks() returns all-False.
 
 Reward (potential-based shaping):
-    Per step:  Δar = ar_new - ar_prev  (incremental AR contribution)
-    Terminal:  +ar_final               (completion bonus; episode return = 2 * ar_final)
+    Per step:  ru / n_active            (always ≥ 0; packing yields higher reward than spreading)
+    Terminal:  +ar_final               (completion bonus for zero-violation episodes)
 
 Services are sorted descending by requirement at each episode reset (FFD order),
 so the hardest-to-place service is always presented first.
@@ -216,7 +216,6 @@ class P4Env(gym.Env):
     def step(self, action: int):
         assert 0 <= action < self.N, f"Invalid action {action}"
         svc = self.services[self._step]
-        ar_prev = self.ar  # capture before placement for Δar reward
 
         cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
@@ -250,10 +249,8 @@ class P4Env(gym.Env):
         done = self._step >= self.M
         total_viol = self.capacity_violations + self.conflict_violations
 
-        # Potential-based shaped reward: Δar gives immediate per-step credit.
-        # Adding ar_final as terminal bonus means episode return = 2 * ar_final,
-        # which bootstraps the value function while keeping the signal dense.
-        delta_ar = self.ar - ar_prev
+        # Δar > 0 iff AR improved: rewards packing, penalizes dilution from new ECUs.
+        step_reward = ru / max(_active, 1)
         terminal_bonus = self.ar if (done and total_viol == 0) else 0.0
 
         info = {
@@ -269,7 +266,7 @@ class P4Env(gym.Env):
             "episode_has_cap_violation":      self.episode_has_cap_violation,
             "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
-        return self._obs(), float(delta_ar + terminal_bonus), done, False, info
+        return self._obs(), float(step_reward + terminal_bonus), done, False, info
 
     # ── render ────────────────────────────────────────────────────────────────
     def render(self):

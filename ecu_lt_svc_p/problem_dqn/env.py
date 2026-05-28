@@ -107,7 +107,13 @@ class DQNEnv(gym.Env):
             self.conflict_sets = [set(cs) for cs in _cs]
         else:
             self.conflict_sets = self._init_conflict_sets()
-        self.services.sort(key=lambda s: s.requirement, reverse=True)
+        # Sort services descending and remap conflict_set indices to match the new order.
+        sort_idx = sorted(range(self.M), key=lambda i: -self.services[i].requirement)
+        self.services = [self.services[i] for i in sort_idx]
+        inv_perm = [0] * self.M
+        for new_i, old_i in enumerate(sort_idx):
+            inv_perm[old_i] = new_i
+        self.conflict_sets = [{inv_perm[k] for k in cs} for cs in self.conflict_sets]
         self.remaining_vms   = self.initial_vms.copy()
         self.ecu_placements  = [set() for _ in range(self.N)]
         self.ecu_allowed     = [set(range(self.M)) for _ in range(self.N)]
@@ -223,7 +229,8 @@ class DQNEnv(gym.Env):
         terminal_bonus = 0.0
         if done:
             terminal_bonus = self.ar if total_viol == 0 else -self.ar
-        return self._obs(), float(ru + cap_penalty + conflict_penalty + terminal_bonus), done, False, {
+        step_reward = ru / max(_active, 1)
+        return self._obs(), float(step_reward + cap_penalty + conflict_penalty + terminal_bonus), done, False, {
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,

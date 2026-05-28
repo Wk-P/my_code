@@ -8,7 +8,7 @@ Design:
     - Episode always runs M steps; remaining_vms can go negative.
 
 Reward (potential-based shaping, same as P4):
-    Δar   = ar_new - ar_prev          (dense utilisation signal)
+    ru / n_active                      (dense utilisation signal; always ≥ 0)
     - cap_penalty                      (-2.0 if capacity violated, else 0)
     - (λ + base_penalty) * c_t        (Lagrangian conflict penalty)
     + ar_final  (terminal, no-violation episodes only)
@@ -208,7 +208,6 @@ class LagrangeEnv(gym.Env):
     # ── step ──────────────────────────────────────────────────────────────────
     def step(self, action: int):
         svc = self.services[self._step]
-        ar_prev = self.ar  # capture before placement for Δar reward
 
         cap_violated      = bool(self.remaining_vms[action] < svc.requirement)
         conflict_violated = self._has_conflict(action, self._step)
@@ -241,15 +240,15 @@ class LagrangeEnv(gym.Env):
         done = self._step >= self.M
 
         # Reward:
-        #   Δar            — potential-based dense utilisation signal
+        #   step_reward       — Δar > 0 iff AR improved (packing rewarded, spreading penalized)
         #   cap_penalty    — fixed -2.0 for capacity overflow (explicit, consistent gradient)
         #   Lagrangian     — adaptive conflict penalty via dual ascent
         #   terminal_bonus — +ar_final for clean episodes; 0 otherwise (avoid -ar instability)
-        delta_ar       = self.ar - ar_prev
+        step_reward = ru / max(_active, 1)
         cap_penalty    = -2.0 if cap_violated else 0.0
         base_penalty   = 0.2
         terminal_bonus = self.ar if (done and self.episode_violations == 0) else 0.0
-        reward = float(delta_ar + cap_penalty
+        reward = float(step_reward + cap_penalty
                        - (self.lambda_val + base_penalty) * c_t
                        + terminal_bonus)
 

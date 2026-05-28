@@ -238,7 +238,6 @@ class P6Env(gym.Env):
                 self.conflict_violations += 1
 
         repair_penalty = -0.1 if was_repaired else 0.0
-        ar_prev = self.ar
         ru = svc.requirement / (self.initial_vms[action] + 1e-8)
         self.remaining_vms[action] -= svc.requirement
         _was_empty = not self.ecu_placements[action]
@@ -258,8 +257,8 @@ class P6Env(gym.Env):
             repair_rate = self.repairs / max(self.M, 1)
             terminal_bonus = self.ar * max(0.0, 1.0 - repair_rate)
 
-        delta_ar = self.ar - ar_prev
-        return self._obs(), float(delta_ar + repair_penalty + terminal_bonus), done, False, {
+        step_reward = ru / max(_active, 1)
+        return self._obs(), float(step_reward + repair_penalty + terminal_bonus), done, False, {
             "episode_has_cap_violation":      self.episode_has_cap_violation,
             "episode_has_conflict_violation": self.episode_has_conflict_violation,
             "ar":                  self.ar,

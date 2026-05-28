@@ -68,7 +68,12 @@ if [[ "${EXP_GROUPS[*]}" == "all" ]]; then
 fi
 
 # build --group argument for run_experiment.py
-GROUP_ARG="${EXP_GROUPS[*]}"   # e.g. "lt eq" or "lt gt eq"
+# run_experiment.py accepts only a single group value; use "all" when all three are selected
+if [[ "${EXP_GROUPS[*]}" == "lt gt eq" || "${EXP_GROUPS[*]}" == "eq lt gt" || "${EXP_GROUPS[*]}" == "eq gt lt" ]]; then
+    GROUP_ARG="all"
+else
+    GROUP_ARG="${EXP_GROUPS[0]}"   # single group
+fi
 
 # ── sample seeds from [0, 50] ─────────────────────────────────────────────────
 SEEDS=($($PYTHON -c "
@@ -88,7 +93,7 @@ echo ""
 
 # ── launch via run_experiment.py ──────────────────────────────────────────────
 nohup $PYTHON "$SCRIPT_DIR/run_experiment.py" \
-    --group ${EXP_GROUPS[@]} \
+    --group "$GROUP_ARG" \
     --seed "${SEEDS[@]}" \
     --episodes "$EPISODES" \
     --name ecu_exp \

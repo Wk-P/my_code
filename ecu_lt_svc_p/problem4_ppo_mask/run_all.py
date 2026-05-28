@@ -154,6 +154,7 @@ def train_maskppo(ecus, services, device: str):
         gamma         = C.PPO_GAMMA,
         gae_lambda    = C.PPO_GAE_LAMBDA,
         clip_range    = C.PPO_CLIP_RANGE,
+        ent_coef      = C.PPO_ENT_COEF,
         policy_kwargs = dict(net_arch=C.PPO_NET_ARCH),
         device        = device,
         verbose       = 0,
