@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P5 Lagrangian PPO [LT]</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[
+    {left:'$$',right:'$$',display:true},
+    {left:'$',right:'$',display:false}
+  ]})"></script>
+<style>
+  :root{--accent:#4f8ef7;--bg:#0f1117;--card:#1a1d27;--border:#2a2d3a;--text:#e2e8f0;--muted:#8892a4;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+        line-height:1.7;padding:2rem 1rem;max-width:860px;margin:0 auto}
+  h1{font-size:1.6rem;color:var(--accent);border-bottom:2px solid var(--border);
+      padding-bottom:.6rem;margin-bottom:1.5rem}
+  h2{font-size:1.15rem;color:#a0c4ff;margin:1.8rem 0 .7rem;border-left:3px solid var(--accent);
+      padding-left:.7rem}
+  h3{font-size:1rem;color:#7dd3fc;margin:1.2rem 0 .4rem}
+  p{margin:.5rem 0;color:var(--text)}
+  .badge{display:inline-block;padding:.15rem .55rem;border-radius:4px;font-size:.8rem;
+          font-weight:600;margin:.1rem .2rem}
+  .eq{background:#1e3a5f;color:#60a5fa}
+  .gt{background:#1a3a1a;color:#4ade80}
+  .lt{background:#3a1a3a;color:#e879f9}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:8px;
+         padding:1.2rem 1.4rem;margin:1rem 0}
+  .math-block{background:#12151f;border-left:3px solid var(--accent);
+               padding:.8rem 1rem;margin:.8rem 0;border-radius:0 6px 6px 0;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin:.8rem 0;font-size:.88rem}
+  th{background:#1e2235;color:var(--accent);padding:.5rem .8rem;text-align:left;
+      border-bottom:2px solid var(--border)}
+  td{padding:.45rem .8rem;border-bottom:1px solid var(--border);color:var(--text)}
+  code{font-family:'Consolas',monospace;background:#1e2235;padding:.1rem .35rem;
+        border-radius:3px;font-size:.85em;color:#e2b96a}
+  .note{background:#1a2035;border:1px solid #2a3a5a;border-radius:6px;
+         padding:.7rem 1rem;margin:.8rem 0;font-size:.9rem;color:var(--muted)}
+  .algo-box{background:#0d1520;border:1px solid #1e3a5f;border-radius:8px;
+             padding:1rem 1.2rem;margin:.8rem 0}
+  .algo-box .step{margin:.3rem 0;padding-left:1.2rem;position:relative}
+  .algo-box .step::before{content:counter(step);counter-increment:step;
+    position:absolute;left:0;color:var(--accent);font-weight:700}
+  .obs-row{display:grid;grid-template-columns:auto 1fr auto;gap:.4rem .8rem;
+            align-items:center;padding:.3rem 0;border-bottom:1px solid var(--border)}
+  .obs-idx{color:var(--accent);font-family:monospace;font-size:.85rem}
+  .obs-dim{color:#64748b;font-size:.82rem}
+  footer{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);
+          font-size:.8rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+
+<h1>P5 LagPPO — 拉格朗日约束</h1>
+<p>
+  <span class="badge lt">LT — Less (N < M)</span>
+  <span class="badge" style="background:#1e2a1e;color:#86efac">Lagrangian PPO</span>
+</p>
+<p style="color:var(--muted);margin-top:.5rem">ECU 数量少于服务数量，每个 ECU 须承载多个服务，容量与冲突约束更紧。</p>
+
+<h2>问题定义</h2>
+<div class="card">
+  <p><strong>决策变量：</strong>分配矩阵 $x_{ij} \in \{0,1\}$，其中 $x_{ij}=1$ 表示服务 $i$ 分配到 ECU $j$。</p>
+  <p><strong>规模：</strong>$N$ 个 ECU，$M$ 个服务，N < M（N/M < 1）</p>
+  <div class="math-block">$$
+    \text{AR} = \frac{\sum_{j=1}^{N} \sum_{i=1}^{M} x_{ij} \cdot \frac{d_i}{C_j}}
+    {|\{j :\exists\, i,\, x_{ij}=1\}|}
+  $$</div>
+  <p style="color:var(--muted);font-size:.9rem">AR = 平均资源利用率，目标为最大化 AR，同时满足容量约束和冲突约束。</p>
+</div>
+
+<h2>约束条件</h2>
+<div class="card">
+  <h3>容量约束</h3>
+  <div class="math-block">$$\sum_{i=1}^{M} x_{ij} \cdot d_i \leq C_j \quad \forall j \in [N]$$</div>
+  <h3>冲突约束</h3>
+  <div class="math-block">$$\forall \mathcal{F}_k \in \mathcal{F},\ \forall j :\quad
+    \sum_{i \in \mathcal{F}_k} x_{ij} \leq 1$$</div>
+  <p style="color:var(--muted);font-size:.9rem">
+    $\mathcal{F} = \{\mathcal{F}_1, \ldots, \mathcal{F}_K\}$ 为冲突集族，同一冲突集内的服务不可共驻同一 ECU。
+  </p>
+</div>
+
+<h2>马尔可夫决策过程（MDP）</h2>
+<div class="card">
+  <table>
+    <tr><th>元素</th><th>定义</th></tr>
+    <tr><td><strong>状态</strong> $s_t$</td><td>观测向量，见下方观测空间</td></tr>
+    <tr><td><strong>动作</strong> $a_t$</td><td>选择 ECU 索引 $a_t \in \{0,\ldots,N-1\}$</td></tr>
+    <tr><td><strong>转移</strong></td><td>确定性：将服务 $t$ 分配到 ECU $a_t$，更新剩余容量</td></tr>
+    <tr><td><strong>回合长度</strong></td><td>$T = M$ 步（每步放置一个服务）</td></tr>
+    <tr><td><strong>折扣因子</strong></td><td>$\gamma = 0.99$</td></tr>
+  </table>
+</div>
+
+<h2>观测空间</h2>
+<div class="card">
+  <p>状态向量 $s_t \in \mathbb{R}^{dim}$，按顺序拼接：</p>
+  <table>
+    <tr><th>维度</th><th>含义</th><th>公式</th></tr>
+    <tr><td>[0]</td><td>当前服务需求（归一化）</td><td>$d_t / C_{\max}$</td></tr>
+    <tr><td>[1]</td><td>当前累计 AR</td><td>$AR_t$</td></tr>
+    <tr><td>[2]</td><td>剩余总容量（归一化）</td><td>$\sum_j \text{rem}_j^t / \sum_j C_j$</td></tr>
+    <tr><td>[3]</td><td>剩余服务总需求（归一化）</td><td>$\sum_{i \geq t} d_i / \sum_j C_j$</td></tr>
+    <tr><td>[4]</td><td>可用 ECU 比例</td><td>$|\{j : \text{rem}_j^t \geq d_t\}| / N$</td></tr>
+    <tr><td>[5]</td><td>剩余服务比例</td><td>$(M - t) / M$</td></tr>
+    <tr><td>[6:6+N]</td><td>初始容量比例（每 ECU）</td><td>$C_j / C_{\max}$</td></tr>
+    <tr><td>[6+N:6+2N]</td><td>剩余容量（每 ECU，可为负）</td><td>$\text{clip}(\text{rem}_j^t, -C_{\max}, C_{\max}) / C_{\max}$</td></tr>
+    <tr><td>[6+2N:6+3N]</td><td>冲突标志（每 ECU）</td><td>$\mathbf{1}[\text{conflict}(j, t)]$</td></tr>
+    <tr><td>[6+3N:6+4N]</td><td>可用服务比例（每 ECU）</td><td>$|\text{allowed}_j| / M$</td></tr>
+    <tr><td>[6+4N:6+5N]</td><td>合法动作标志（容量+冲突）</td><td>$\mathbf{1}[\text{rem}_j^t \geq d_t \land j \notin \text{conflict}(t)]$</td></tr>
+    <tr><td>中间 M 维</td><td>合法 ECU 数（每未来服务）</td><td>$\text{valid\_ecus}_i / N$</td></tr>
+    <tr><td>后 M 维</td><td>剩余服务需求列表</td><td>$d_i / C_{\max}$ for $i \geq t$</td></tr>
+  </table>
+</div>
+
+<h2>奖励函数</h2>
+<div class="card">
+  <h3>步奖励（Step Reward）</h3>
+  <div class="math-block">$$
+    r_t = \underbrace{\frac{ru_t}{K^t}}_{\text{步奖励}} + \text{penalties}_t + b_T \cdot \mathbf{1}[t = M]
+  $$</div>
+  <p>其中：</p>
+  <div class="math-block">$$
+    ru_t = \frac{d_t}{C_{a_t}},\quad
+    K^t = |\{j : \text{ECU}\,j\,\text{已被使用}\}|
+  $$</div>
+
+  <h3>步奖励的几何意义</h3>
+  <div class="math-block">$$
+    \frac{ru_t}{K^t} = \begin{cases}
+      \Delta AR_t & \text{若放在已有 ECU（}K^t = K^{t-1}\text{）} \\
+      \dfrac{ru_t}{K^{t-1}+1} > 0 & \text{若启用新 ECU（}K^t = K^{t-1}+1\text{）}
+    \end{cases}
+  $$</div>
+  <p class="note">
+    放在已有 ECU 时 $ru_t/K^t = \Delta AR_t > 0$；启用新 ECU 时保持正值，不惩罚必要扩张，
+    但激励在满足约束前提下尽量打包（packing）——因为相同 $ru_t$ 下，
+    $K^t$ 更小则奖励更大。
+  </p>
+
+  <h3>终止奖励（Terminal Bonus）</h3>
+
+  <div class="math-block">$$
+    r_t = \frac{ru_t}{K^t} - \kappa_{\text{cap}} \cdot \mathbf{1}[\text{cap\_viol}_t]
+          - (\lambda + \beta) \cdot c_t + b_T \cdot \mathbf{1}[t=M]
+  $$</div>
+  <p>其中 $c_t = \mathbf{1}[\text{conf\_viol}_t]$，$\kappa_{\text{cap}} = 2.0$，$\beta = 0.2$（基础冲突惩罚）。</p>
+  <div class="math-block">$$
+    b_T = \begin{cases} AR_T & \text{若无违规} \\ -AR_T & \text{若有违规} \end{cases}
+  $$</div>
+</div>
+
+<h2>拉格朗日约束松弛</h2>
+<div class="card">
+  <h3>原始问题</h3>
+  <div class="math-block">$$
+    \max_\theta\; J(\theta) \quad \text{s.t.}\quad \bar{c}(\theta) \leq 0
+  $$</div>
+  <p>其中 $\bar{c}(\theta) = \mathbb{E}[c_t]$ 为期望冲突违规率。</p>
+
+  <h3>拉格朗日松弛</h3>
+  <div class="math-block">$$
+    \max_\theta \min_\lambda\; \mathcal{L}(\theta, \lambda) = J(\theta) - \lambda \cdot \bar{c}(\theta)
+  $$</div>
+
+  <h3>对偶上升更新（Dual Ascent）</h3>
+  <div class="math-block">$$
+    \lambda_{k+1} = \max\Big(0,\; \lambda_k + \alpha \cdot \hat{c}_k\Big)
+  $$</div>
+  <p>其中 $\hat{c}_k$ 为第 $k$ 个 rollout 内的冲突违规率估计，$\alpha$ 为对偶学习率。$\lambda$ 随冲突率上升而增大，自适应施加更重的约束压力。</p>
+
+  <h3>容量约束处理（LT 特有）</h3>
+  <p>LT: 动作掩码保证容量合法（capacity mask），仅在极端情况下回退并施加 $-2.0$ 惩罚。</p>
+</div>
+
+<h2>算法流程</h2>
+<div class="algo-box">
+  <div style="counter-reset:step">
+    <div class="step"> 初始化策略 $\theta$，乘子 $\lambda = 0$</div>
+    <div class="step"> 用策略 $\pi_\theta$ 采集 rollout，计算 $\hat{c}_k$</div>
+    <div class="step"> PPO 更新 $\theta$（固定 $\lambda$）</div>
+    <div class="step"> 对偶更新：$\lambda \leftarrow \max(0, \lambda + \alpha \hat{c}_k)$</div>
+    <div class="step"> 重复 2–4 直至收敛</div>
+  </div>
+</div>
+
+<footer>ECU Placement RL — Mathematical Reference</footer>
+</body></html>

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[GT] DQN Code Walkthrough — ECU LT Service Placement</title>
+<style>
+  :root {
+    --primary: #7c3aed; --accent: #a78bfa; --bg: #0f0f1a; --card: #1a1a2e;
+    --border: #2d2d4e; --text: #e2e8f0; --muted: #94a3b8;
+    --green: #4ade80; --yellow: #facc15; --red: #f87171; --blue: #60a5fa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.7; padding: 0 0 60px; }
+
+  header { background: linear-gradient(135deg, #1a0a3e 0%, #0f0f1a 100%); border-bottom: 2px solid var(--primary); padding: 40px 48px 32px; }
+  header h1 { font-size: 2rem; color: var(--accent); letter-spacing: 0.5px; }
+  header p { color: var(--muted); margin-top: 8px; font-size: 0.95rem; }
+  .badge { display: inline-block; background: var(--primary); color: #fff; font-size: 0.75rem; padding: 2px 10px; border-radius: 12px; margin-left: 10px; vertical-align: middle; }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
+
+  h2 { font-size: 1.45rem; color: var(--accent); margin: 48px 0 18px; padding-left: 14px; border-left: 4px solid var(--primary); }
+  h3 { font-size: 1.1rem; color: var(--blue); margin: 28px 0 12px; }
+
+  .section-num { display: inline-block; background: var(--primary); color: #fff; border-radius: 50%; width: 28px; height: 28px; text-align: center; line-height: 28px; font-size: 0.85rem; font-weight: 700; margin-right: 10px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin: 18px 0; }
+  .card.green  { border-left: 4px solid var(--green); }
+  .card.yellow { border-left: 4px solid var(--yellow); }
+  .card.red    { border-left: 4px solid var(--red); }
+  .card.blue   { border-left: 4px solid var(--blue); }
+  .card.purple { border-left: 4px solid var(--primary); }
+
+  .card .label { font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+
+  pre { background: #0a0a18; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; overflow-x: auto; font-size: 0.88rem; line-height: 1.65; font-family: 'Fira Code', 'Cascadia Code', monospace; margin: 14px 0; }
+  code { font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.88em; }
+  p code, li code { background: #0a0a18; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--accent); }
+
+  .kw  { color: #f472b6; }          /* keywords: def, class, if, return … */
+  .fn  { color: var(--blue); }      /* function names */
+  .cm  { color: var(--muted); font-style: italic; }   /* comments */
+  .nm  { color: var(--green); }     /* numbers / names */
+  .st  { color: var(--yellow); }    /* strings */
+  .op  { color: #c084fc; }          /* operators / punctuation */
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+  th { background: #14142b; color: var(--accent); padding: 10px 14px; text-align: left; font-size: 0.85rem; }
+  td { padding: 9px 14px; border-top: 1px solid var(--border); font-size: 0.9rem; vertical-align: top; }
+  tr:hover td { background: #1e1e38; }
+
+  .obs-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 0.85rem; }
+  .obs-grid > div { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .obs-grid > div:nth-child(3n+1) { background: #14142b; color: var(--muted); font-family: monospace; white-space: nowrap; }
+  .obs-grid > div:nth-child(3n+2) { background: var(--card); color: var(--green); }
+  .obs-grid > div:nth-child(3n+3) { background: var(--card); color: var(--text); }
+  .obs-header { font-weight: 700 !important; color: var(--accent) !important; background: #0a0a18 !important; }
+
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .compare-card { background: #0a0a18; border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .compare-card h4 { font-size: 0.9rem; color: var(--accent); margin-bottom: 10px; }
+
+  .eps-bar { display: flex; height: 20px; border-radius: 6px; overflow: hidden; margin: 12px 0; }
+  .eps-explore { background: linear-gradient(90deg, #7c3aed, #a78bfa); flex: 0.5; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #fff; font-weight: 700; }
+  .eps-exploit { background: #1a1a2e; border: 1px solid var(--border); flex: 0.5; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--muted); }
+
+  footer { margin-top: 60px; padding: 24px 48px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
+  footer span { color: var(--accent); font-family: monospace; }
+
+  ul, ol { padding-left: 22px; }
+  li { margin: 6px 0; }
+  p { margin: 10px 0; }
+
+  .highlight-box { background: linear-gradient(135deg, #1e0a3e, #0f0f1a); border: 1px solid var(--primary); border-radius: 10px; padding: 18px 22px; margin: 18px 0; }
+  .highlight-box strong { color: var(--accent); }
+</style>
+</head>
+<body>
+<div style="position:sticky;top:0;z-index:100;background:#1a3a1a;border-bottom:2px solid #4ade80;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#4ade80;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">GT</span><span style="color:#4ade80;font-size:.82rem;font-weight:600">N > M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数多于服务数，容量约束宽松</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← 返回列表</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/dqn" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/dqn" style="color:#4ade80;font-size:.75rem;text-decoration:none;font-weight:700">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/dqn" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">LT</a></div>
+
+
+<header>
+  <h1>DQN 代码讲解 <span class="badge">Deep Q-Network</span></h1>
+  <p>ECU LT 场景 · 无动作屏蔽 · 违规惩罚学习 &nbsp;|&nbsp; High School Level · Chinese + English Bilingual</p>
+  <p style="margin-top:10px; color: var(--muted); font-size:0.82rem;">
+    Files: <code>ecu_lt_svc_p/problem_dqn/config.py</code> &nbsp;·&nbsp; <code>ecu_lt_svc_p/problem_dqn/env.py</code> &nbsp;·&nbsp; <code>run_all.py</code> (highlights)
+  </p>
+</header>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 1 -->
+<h2><span class="section-num">1</span> 什么是 DQN？ What is DQN?</h2>
+
+<div class="card blue">
+  <div class="label">核心思想 Core Concept</div>
+  <p>DQN（Deep Q-Network）是一种强化学习算法。智能体（Agent）在每一步选择一个动作（action），环境给它一个奖励（reward），智能体的目标是最大化长期总奖励。</p>
+  <p style="margin-top:10px; color:var(--muted);">DQN is a reinforcement learning algorithm. At each step the agent picks an action, the environment gives a reward, and the agent's goal is to maximise total long-term reward.</p>
+</div>
+
+<p>在这个项目里：</p>
+<ul>
+  <li><strong>动作 Action</strong>：选择把当前服务放到哪个 ECU（编号 0 到 N-1）</li>
+  <li><strong>状态 State / Observation</strong>：描述当前 ECU 剩余容量、当前服务需求等信息的向量</li>
+  <li><strong>奖励 Reward</strong>：合法放置得正分，违规得负分</li>
+  <li><strong>与 PPO/P4 的最大区别</strong>：DQN <strong>没有动作屏蔽</strong>（Action Masking），违规动作仍然被执行，靠惩罚分数让 Q 网络自己学会避开非法动作</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 2 -->
+<h2><span class="section-num">2</span> config.py — 超参数配置 Hyperparameters</h2>
+
+<h3>场景加载 Scenario Loading</h3>
+
+<pre><span class="cm"># 读取与 ILP 相同的 YAML 配置文件</span>
+<span class="nm">YAML_CONFIG</span>  = <span class="nm">ROOT</span> / <span class="st">".."</span> / <span class="st">"problem2_ilp"</span> / <span class="st">"config"</span> / <span class="st">"config_ecu_lt_svc.yaml"</span>
+<span class="nm">SCENARIO_IDX</span> = <span class="nm">0</span>   <span class="cm"># 0-indexed: 0 = Scenario 1</span>
+
+<span class="kw">with</span> <span class="fn">open</span>(<span class="nm">YAML_CONFIG</span>) <span class="kw">as</span> f:
+    cfg = yaml.<span class="fn">safe_load</span>(f)
+    _all = cfg[<span class="st">"scenarios"</span>]
+    N = <span class="fn">len</span>(_all[<span class="nm">0</span>][<span class="st">"ECUs"</span>])   <span class="cm"># 有多少个 ECU</span>
+    M = <span class="fn">len</span>(_all[<span class="nm">0</span>][<span class="st">"SVCs"</span>])   <span class="cm"># 有多少个服务</span>
+
+    SCENARIOS = [(
+        [ecu[<span class="st">"capacity"</span>] <span class="kw">for</span> ecu <span class="kw">in</span> sc[<span class="st">"ECUs"</span>]],
+        [svc[<span class="st">"requirement"</span>] <span class="kw">for</span> svc <span class="kw">in</span> sc[<span class="st">"SVCs"</span>]],
+        sc.<span class="fn">get</span>(<span class="st">"conflict_sets"</span>, []),
+    ) <span class="kw">for</span> sc <span class="kw">in</span> _all]</pre>
+
+<div class="card green">
+  <div class="label">解释 Explanation</div>
+  <p>YAML 文件里保存了多种"场景"，每个场景定义了 ECU 容量列表和服务需求列表。DQN 读取的 YAML 文件与 ILP（整数线性规划）完全相同，保证比较公平。</p>
+  <p style="color:var(--muted); margin-top:8px;">The YAML file stores multiple "scenarios", each defining ECU capacities and service requirements. DQN uses the same YAML as ILP, ensuring a fair comparison.</p>
+</div>
+
+<h3>训练/测试划分 Train / Test Split (80/20)</h3>
+
+<pre><span class="nm">_n_train</span> = <span class="fn">int</span>(<span class="nm">0.8</span> * <span class="fn">len</span>(FEASIBLE_SCENARIOS))
+<span class="nm">TRAIN_SCENARIOS</span> = [FEASIBLE_SCENARIOS[i] <span class="kw">for</span> i <span class="kw">in</span> _idxs[:_n_train]]
+<span class="nm">TEST_SCENARIOS</span>  = [FEASIBLE_SCENARIOS[i] <span class="kw">for</span> i <span class="kw">in</span> _idxs[_n_train:]]</pre>
+
+<div class="card blue">
+  <div class="label">为什么要划分？ Why split?</div>
+  <p>就像考试不能提前看到试题，测试集用来评估智能体在<strong>没见过</strong>的场景中的表现，防止"背答案"（过拟合 Overfitting）。</p>
+  <p style="color:var(--muted); margin-top:8px;">Like an exam you haven't seen before, the test set measures generalisation to unseen scenarios, preventing overfitting.</p>
+</div>
+
+<h3>DQN 超参数详解 DQN Hyperparameters</h3>
+
+<pre><span class="cm"># ── DQN hyperparameters ──────────────────────────────────────────────</span>
+<span class="nm">DQN_LR</span>                    = <span class="nm">1e-3</span>
+<span class="nm">DQN_BUFFER_SIZE</span>           = <span class="nm">100_000</span>
+<span class="nm">DQN_LEARNING_STARTS</span>       = <span class="nm">2_000</span>
+<span class="nm">DQN_BATCH_SIZE</span>            = <span class="nm">64</span>
+<span class="nm">DQN_TAU</span>                   = <span class="nm">1.0</span>
+<span class="nm">DQN_GAMMA</span>                 = <span class="nm">0.99</span>
+<span class="nm">DQN_TRAIN_FREQ</span>            = <span class="nm">4</span>
+<span class="nm">DQN_GRADIENT_STEPS</span>        = <span class="nm">1</span>
+<span class="nm">DQN_TARGET_UPDATE</span>         = <span class="nm">500</span>
+<span class="nm">DQN_EXPLORATION_FRACTION</span>  = <span class="nm">0.5</span>
+<span class="nm">DQN_EXPLORATION_FINAL_EPS</span> = <span class="nm">0.0</span>
+<span class="nm">DQN_NET_ARCH</span>              = [<span class="nm">128</span>, <span class="nm">128</span>]</pre>
+
+<table>
+  <tr><th>参数</th><th>值</th><th>含义（中）</th><th>Meaning (EN)</th></tr>
+  <tr>
+    <td><code>DQN_LR</code></td>
+    <td><code>1e-3</code></td>
+    <td>学习率：神经网络每次更新的步伐大小。太大会震荡，太小会很慢。</td>
+    <td>Learning rate: step size for each network update. Too high = unstable; too low = slow.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_BUFFER_SIZE</code></td>
+    <td><code>100,000</code></td>
+    <td>经验回放缓冲区容量：最多存储 10 万条 (状态, 动作, 奖励, 下一状态) 记录。</td>
+    <td>Replay buffer capacity: stores up to 100 K transitions (s, a, r, s') for random sampling.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_LEARNING_STARTS</code></td>
+    <td><code>2,000</code></td>
+    <td>热身步数：前 2000 步完全随机探索，填充缓冲区，之后才开始训练。</td>
+    <td>Warm-up: first 2 000 steps are random, filling the buffer before training begins.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_BATCH_SIZE</code></td>
+    <td><code>64</code></td>
+    <td>每次从缓冲区随机抽取 64 条经验来更新网络。</td>
+    <td>Mini-batch size: 64 transitions sampled randomly from the buffer per update.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_TAU</code></td>
+    <td><code>1.0</code></td>
+    <td>目标网络更新方式：τ=1.0 是"硬复制"（完全覆盖），τ&lt;1 是"软更新"（慢慢混合）。</td>
+    <td>τ=1.0 = hard copy (full overwrite of target network); τ&lt;1 would be soft/polyak update.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_GAMMA</code></td>
+    <td><code>0.99</code></td>
+    <td>折扣因子：未来奖励的权重。0.99 表示很重视未来，0 表示只看眼前。</td>
+    <td>Discount factor: weight of future rewards. 0.99 = strongly future-oriented.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_TRAIN_FREQ</code></td>
+    <td><code>4</code></td>
+    <td>每走 4 步环境才更新一次网络，降低计算量。</td>
+    <td>Network update frequency: update once every 4 environment steps.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_TARGET_UPDATE</code></td>
+    <td><code>500</code></td>
+    <td>每 500 步把在线网络的权重复制到目标网络，让训练目标更稳定。</td>
+    <td>Sync target network every 500 steps to stabilise training targets.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_EXPLORATION_FRACTION</code></td>
+    <td><code>0.5</code></td>
+    <td>前 50% 的训练时间用于 ε-贪心探索（ε 从 1 逐渐降到 0）。</td>
+    <td>First 50% of training decays ε from 1.0 → 0.0 (exploration → exploitation).</td>
+  </tr>
+  <tr>
+    <td><code>DQN_EXPLORATION_FINAL_EPS</code></td>
+    <td><code>0.0</code></td>
+    <td>训练结束时 ε=0，完全贪心（总选 Q 值最高的动作）。</td>
+    <td>Final epsilon = 0: fully greedy at end of training.</td>
+  </tr>
+  <tr>
+    <td><code>DQN_NET_ARCH</code></td>
+    <td><code>[128, 128]</code></td>
+    <td>神经网络结构：两层隐藏层，各 128 个神经元的 MLP（多层感知机）。</td>
+    <td>Network architecture: 2-hidden-layer MLP, each with 128 units.</td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 3 -->
+<h2><span class="section-num">3</span> env.py — 文档说明 Docstring &amp; Design Philosophy</h2>
+
+<pre><span class="st">"""
+DQN Environment — heavy penalty for violations + terminal bonus.
+
+DQN (SB3) does not support action masking natively.  Constraint enforcement
+is achieved via strong reward penalties.  The valid-action flag in the
+observation lets the Q-network learn to avoid invalid actions.
+
+Constraints:
+    - Capacity violation → heavy penalty (-2.0), placement still proceeds
+      (remaining_vms may go negative; visible in observation).
+    - Conflict violation → heavy penalty (-2.0), placement still proceeds.
+    - A well-trained agent should achieve zero violations on feasible scenarios.
+
+Terminal bonus:
+    +AR if zero violations, -AR if any violations.
+"""</span></pre>
+
+<div class="card red">
+  <div class="label">关键设计决定 Key Design Decision</div>
+  <p><strong>无动作屏蔽（No Action Masking）</strong>：DQN 原版不支持动作屏蔽，所以即使选了违规的 ECU，放置仍然发生。环境靠 -2.0 的"痛感"让 Q 网络学会避开坏动作——就像学走路时摔跤了才知道不能那样走。</p>
+  <p style="color:var(--muted); margin-top:8px;">DQN does not support action masking. Violations still execute. The -2.0 penalty is the agent's "pain signal" — it must discover which actions are bad through trial and error.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 4 -->
+<h2><span class="section-num">4</span> DQNEnv.__init__() — 初始化</h2>
+
+<pre><span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, ecus: list[ECU], services: list[SVC], scenarios=None):
+    <span class="fn">super</span>().__init__()
+    <span class="kw">self</span>._scenarios = scenarios   <span class="cm"># 可选：训练场景列表</span>
+    <span class="kw">self</span>.ecus     = ecus           <span class="cm"># N 个 ECU 对象</span>
+    <span class="kw">self</span>.services = services       <span class="cm"># M 个 SVC 对象</span>
+    <span class="kw">self</span>.N = <span class="fn">len</span>(ecus)
+    <span class="kw">self</span>.M = <span class="fn">len</span>(services)
+
+    <span class="cm"># 动作空间：从 0 到 N-1 选一个 ECU</span>
+    <span class="kw">self</span>.action_space = gym.spaces.<span class="fn">Discrete</span>(<span class="kw">self</span>.N)
+
+    <span class="cm"># 观测空间：形状 = 5N + 6 + M 的浮点向量，范围 [-1, 1]</span>
+    <span class="kw">self</span>.observation_space = gym.spaces.<span class="fn">Box</span>(
+        low=<span class="nm">-1.0</span>, high=<span class="nm">1.0</span>, shape=(<span class="nm">5</span> * <span class="kw">self</span>.N + <span class="nm">6</span> + <span class="kw">self</span>.M,), dtype=np.float32,
+    )</pre>
+
+<div class="card blue">
+  <div class="label">动作空间 vs 观测空间 Action Space vs Observation Space</div>
+  <ul>
+    <li><code>Discrete(N)</code>：智能体每步只能选 0~N-1 中的一个整数（选哪个 ECU）</li>
+    <li><code>Box(shape=5N+6+M)</code>：观测向量有 <strong>5N+6+M</strong> 个浮点数，描述当前状态</li>
+    <li>例：N=10, M=15 → 观测维度 = 5×10+6+15 = <strong>71</strong></li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 5 -->
+<h2><span class="section-num">5</span> action_masks() — 没有屏蔽！</h2>
+
+<div class="card yellow">
+  <div class="label">注意！Important!</div>
+  <p>DQNEnv <strong>没有实现</strong> <code>action_masks()</code> 方法（或如果实现则返回全 True）。这与 PPO/P4 的版本不同，P4 会直接禁止 Q 网络选择无效动作。</p>
+  <p style="color:var(--muted); margin-top:8px;">DQNEnv does NOT implement action masking. Every action is always "allowed" from the algorithm's perspective. The Q-network must learn to avoid bad actions purely through reward signals.</p>
+</div>
+
+<p>观测向量中包含 <code>valid_flag</code>（每个 ECU 是否有足够容量），作为"提示"。但这只是信息，不是强制约束：</p>
+<pre><span class="cm"># valid_flag in obs: 1.0 = enough capacity, 0.0 = not enough</span>
+<span class="nm">valid_flag</span> = (<span class="kw">self</span>.remaining_vms >= svc.requirement).<span class="fn">astype</span>(np.float32)
+<span class="cm"># 注意：仅检查容量（capacity），不检查冲突（conflict）！</span></pre>
+
+<div class="card purple">
+  <div class="label">设计含义 Design Implication</div>
+  <p><code>valid_flag</code> 的 1/0 仅代表容量是否足够，<strong>不</strong>包含冲突约束。这意味着即使 <code>valid_flag=1</code>，放置到该 ECU 仍可能引发冲突惩罚。Q 网络需要同时学习容量和冲突两类约束。</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 6 -->
+<h2><span class="section-num">6</span> _obs() — 观测向量构造 Observation Vector</h2>
+
+<pre><span class="kw">def</span> <span class="fn">_obs</span>(<span class="kw">self</span>) -> np.ndarray:
+    max_cap   = <span class="fn">float</span>(np.<span class="fn">max</span>(<span class="kw">self</span>.initial_vms) + <span class="nm">1e-8</span>)   <span class="cm"># 防止除以零</span>
+    total_cap = <span class="fn">float</span>(np.<span class="fn">sum</span>(<span class="kw">self</span>.initial_vms) + <span class="nm">1e-8</span>)
+
+    <span class="cm"># 当前待放服务的需求（归一化）</span>
+    svc = <span class="kw">self</span>.services[<span class="kw">self</span>._step]
+    service_demand_norm = np.<span class="fn">float32</span>(svc.requirement / max_cap)
+
+    <span class="cm"># 冲突标志：对每个 ECU，1=放当前服务到这里会违反冲突约束</span>
+    conflict_flag = np.<span class="fn">array</span>([<span class="fn">float</span>(<span class="kw">self</span>.<span class="fn">_has_conflict</span>(j, <span class="kw">self</span>._step))
+                               <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(<span class="kw">self</span>.N)], dtype=np.float32)
+
+    <span class="cm"># 容量合法标志：1=该 ECU 有足够剩余容量</span>
+    valid_flag = (<span class="kw">self</span>.remaining_vms >= svc.requirement).<span class="fn">astype</span>(np.float32)
+
+    <span class="kw">return</span> np.<span class="fn">concatenate</span>([
+        [service_demand_norm],          <span class="cm"># [0]       当前服务需求</span>
+        [<span class="kw">self</span>.ar],                      <span class="cm"># [1]       当前 AR</span>
+        [remaining_usable_capacity_sum],<span class="cm"># [2]       剩余可用总容量</span>
+        [remaining_service_demand_sum], <span class="cm"># [3]       剩余服务总需求</span>
+        [remaining_usable_ecu_count],   <span class="cm"># [4]       有足够容量的 ECU 比例</span>
+        [remaining_services_count],     <span class="cm"># [5]       剩余服务数量比例</span>
+        initial_cap_pct,                <span class="cm"># [6:6+N]   各 ECU 初始容量比例</span>
+        remaining_abs_norm,             <span class="cm"># [6+N:6+2N]  剩余容量（可能为负！）</span>
+        conflict_flag,                  <span class="cm"># [6+2N:6+3N] 冲突标志</span>
+        ecu_allowed_frac,               <span class="cm"># [6+3N:6+4N] ECU 可接受服务比例</span>
+        valid_flag,                     <span class="cm"># [6+4N:6+5N] 容量合法标志</span>
+        remaining_svcs,                 <span class="cm"># [6+5N:6+5N+M] 剩余服务需求列表</span>
+    ]).<span class="fn">astype</span>(np.float32)</pre>
+
+<div class="obs-grid">
+  <div class="obs-header">索引 Index</div><div class="obs-header">字段名 Field</div><div class="obs-header">含义 Meaning</div>
+  <div>[0]</div><div>service_demand_norm</div><div>当前服务需求 / 最大ECU容量（归一化）Current service demand normalised</div>
+  <div>[1]</div><div>ar</div><div>当前累计平均利用率 Current average resource utilisation</div>
+  <div>[2]</div><div>remaining_usable_capacity_sum</div><div>所有 ECU 剩余可用容量之和（≥0） Sum of usable remaining capacity</div>
+  <div>[3]</div><div>remaining_service_demand_sum</div><div>剩余待放服务总需求 Sum of remaining service demands</div>
+  <div>[4]</div><div>remaining_usable_ecu_count</div><div>有足够容量的 ECU 占比 Fraction of ECUs with enough capacity</div>
+  <div>[5]</div><div>remaining_services_count</div><div>剩余服务数量比例 Fraction of services not yet placed</div>
+  <div>[6 : 6+N]</div><div>initial_cap_pct</div><div>各 ECU 初始容量（固定，不变）Per-ECU initial capacity fraction</div>
+  <div>[6+N : 6+2N]</div><div>remaining_abs_norm</div><div>各 ECU 剩余容量（<span style="color:var(--red)">可能为负</span>！）Per-ECU remaining capacity, may be negative</div>
+  <div>[6+2N : 6+3N]</div><div>conflict_flag</div><div>1 = 放当前服务到此 ECU 违反冲突约束 1 = conflict violation if placed here</div>
+  <div>[6+3N : 6+4N]</div><div>ecu_allowed_frac</div><div>每个 ECU 还能合法接受的服务比例 Fraction of services still conflict-free per ECU</div>
+  <div>[6+4N : 6+5N]</div><div>valid_flag</div><div>1 = 容量足够（不含冲突检查）1 = capacity sufficient (no conflict check)</div>
+  <div>[6+5N : 6+5N+M]</div><div>remaining_svcs</div><div>剩余服务的需求列表（按降序排列）Remaining service demands, descending</div>
+</div>
+
+<div class="card yellow" style="margin-top:16px;">
+  <div class="label">重要细节 Important Detail</div>
+  <p><code>remaining_abs_norm</code>（索引 <code>[6+N:6+2N]</code>）在容量违规后可能为<strong>负数</strong>！这正是 DQN 无动作屏蔽的后果——ECU "超载"的信号仍然被保留在观测中，让网络看到"你之前犯了超载"。</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 7 -->
+<h2><span class="section-num">7</span> step() — 奖励计算 Reward Calculation</h2>
+
+<pre><span class="kw">def</span> <span class="fn">step</span>(<span class="kw">self</span>, action: <span class="fn">int</span>):
+    svc = <span class="kw">self</span>.services[<span class="kw">self</span>._step]   <span class="cm"># 当前要放的服务</span>
+
+    <span class="cm"># ① 检测违规</span>
+    cap_violated      = <span class="fn">bool</span>(<span class="kw">self</span>.remaining_vms[action] < svc.requirement)
+    conflict_violated = <span class="kw">self</span>.<span class="fn">_has_conflict</span>(action, <span class="kw">self</span>._step)
+
+    <span class="cm"># ② 计算惩罚（可叠加！同时违规 = -4.0）</span>
+    cap_penalty      = <span class="nm">-2.0</span> <span class="kw">if</span> cap_violated      <span class="kw">else</span> <span class="nm">0.0</span>
+    conflict_penalty = <span class="nm">-2.0</span> <span class="kw">if</span> conflict_violated <span class="kw">else</span> <span class="nm">0.0</span>
+
+    <span class="cm"># ③ 利用率奖励：违规时 ru=0（不给正奖励）</span>
+    ru = <span class="nm">0.0</span> <span class="kw">if</span> (cap_violated <span class="kw">or</span> conflict_violated) <span class="kw">else</span> \
+         svc.requirement / (<span class="kw">self</span>.initial_vms[action] + <span class="nm">1e-8</span>)
+
+    <span class="cm"># ④ 无论违规与否，都执行放置（remaining_vms 可能变负！）</span>
+    <span class="kw">self</span>.remaining_vms[action] -= svc.requirement
+    <span class="kw">self</span>.ecu_placements[action].<span class="fn">add</span>(<span class="kw">self</span>._step)
+    <span class="kw">self</span>.<span class="fn">_update_ecu_allowed</span>(action, <span class="kw">self</span>._step)
+
+    <span class="cm"># ⑤ 终局奖励（最后一步才触发）</span>
+    done = <span class="kw">self</span>._step >= <span class="kw">self</span>.M
+    terminal_bonus = <span class="nm">0.0</span>
+    <span class="kw">if</span> done:
+        terminal_bonus = <span class="kw">self</span>.ar <span class="kw">if</span> total_viol == <span class="nm">0</span> <span class="kw">else</span> <span class="nm">-</span><span class="kw">self</span>.ar
+
+    <span class="kw">return</span> <span class="kw">self</span>.<span class="fn">_obs</span>(), <span class="fn">float</span>(ru + cap_penalty + conflict_penalty + terminal_bonus), ...</pre>
+
+<div class="compare-grid">
+  <div class="compare-card">
+    <h4 style="color:var(--green)">合法放置 Valid Placement</h4>
+    <ul style="font-size:0.88rem;">
+      <li>cap_penalty = 0</li>
+      <li>conflict_penalty = 0</li>
+      <li>ru = req / cap_initial（正数）</li>
+      <li>remaining_vms 正常减少</li>
+      <li>Total step reward = <strong style="color:var(--green)">+ru</strong></li>
+    </ul>
+  </div>
+  <div class="compare-card">
+    <h4 style="color:var(--red)">双重违规 Both Violated</h4>
+    <ul style="font-size:0.88rem;">
+      <li>cap_penalty = -2.0</li>
+      <li>conflict_penalty = -2.0</li>
+      <li>ru = 0.0</li>
+      <li>remaining_vms <span style="color:var(--red)">变负！</span></li>
+      <li>Total step reward = <strong style="color:var(--red)">-4.0</strong></li>
+    </ul>
+  </div>
+</div>
+
+<div class="card red">
+  <div class="label">与 P4/PPO 的关键区别 Key Difference from P4</div>
+  <p>P4（PPO 版）使用动作屏蔽，违规动作根本不会被选到。DQN 版本即使违规也强制执行，<code>remaining_vms</code> 可以变成负数。这在观测向量中是可见的，让 Q 网络能"感受"到超载的后果。</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 8 -->
+<h2><span class="section-num">8</span> 终局奖励 Terminal Bonus</h2>
+
+<pre><span class="kw">if</span> done:
+    <span class="cm"># 零违规 → 额外奖励 +AR（鼓励整集无违规）</span>
+    <span class="cm"># 有违规 → 额外惩罚 -AR（惩罚整集失败）</span>
+    terminal_bonus = <span class="kw">self</span>.ar <span class="kw">if</span> total_viol == <span class="nm">0</span> <span class="kw">else</span> <span class="nm">-</span><span class="kw">self</span>.ar</pre>
+
+<div class="card purple">
+  <div class="label">为什么需要终局奖励？ Why Terminal Bonus?</div>
+  <p>DQN 的 Q 值是未来折扣奖励之和的估计。如果只有每步的小奖励，网络难以理解"整集都正确才算真正成功"。终局奖励 <code>+AR</code> 相当于给无违规的整集打一个"全集满分奖"，<code>-AR</code> 是"全集扣分"。</p>
+  <p style="color:var(--muted); margin-top:8px;">Terminal bonus acts as an episode-level signal. +AR rewards zero-violation episodes heavily; -AR punishes any violation. This is harsher than P4 (which gave +0.1×AR even with violations).</p>
+</div>
+
+<table>
+  <tr><th>情况</th><th>终局奖励</th><th>含义</th></tr>
+  <tr><td>整集零违规 Zero violations</td><td><span style="color:var(--green)">+AR</span></td><td>奖励：整集成功，获得等于当前 AR 的额外分</td></tr>
+  <tr><td>有任何违规 Any violation</td><td><span style="color:var(--red)">-AR</span></td><td>惩罚：整集失败，扣除等于当前 AR 的分数</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 9 -->
+<h2><span class="section-num">9</span> 冲突约束处理 Conflict Constraint Logic</h2>
+
+<pre><span class="kw">def</span> <span class="fn">_init_conflict_sets</span>(<span class="kw">self</span>, K: <span class="fn">int</span> = <span class="nm">10</span>) -> list[set]:
+    <span class="cm"># 随机生成 K 个冲突集，每个集包含 2~M 个服务</span>
+    <span class="cm"># 同一冲突集内的服务不能放在同一 ECU 上</span>
+    sets = []
+    <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(K):
+        j = random.<span class="fn">randint</span>(<span class="nm">2</span>, <span class="kw">self</span>.M)
+        sets.<span class="fn">append</span>(<span class="fn">set</span>(random.<span class="fn">sample</span>(<span class="fn">range</span>(<span class="kw">self</span>.M), j)))
+    <span class="kw">return</span> sets
+
+<span class="kw">def</span> <span class="fn">_has_conflict</span>(<span class="kw">self</span>, ecu_idx: <span class="fn">int</span>, svc_idx: <span class="fn">int</span>) -> <span class="fn">bool</span>:
+    <span class="cm"># 返回 True 表示：把 svc_idx 放到 ecu_idx 会违反冲突约束</span>
+    <span class="kw">return</span> svc_idx <span class="kw">not in</span> <span class="kw">self</span>.ecu_allowed[ecu_idx]
+
+<span class="kw">def</span> <span class="fn">_update_ecu_allowed</span>(<span class="kw">self</span>, ecu_idx: <span class="fn">int</span>, svc_idx: <span class="fn">int</span>) -> <span class="kw">None</span>:
+    <span class="cm"># 放置 svc_idx 后，从 ecu_allowed 中移除与它冲突的其他服务</span>
+    <span class="kw">for</span> subset <span class="kw">in</span> <span class="kw">self</span>.conflict_sets:
+        <span class="kw">if</span> svc_idx <span class="kw">in</span> subset:
+            <span class="kw">self</span>.ecu_allowed[ecu_idx] -= (subset - {svc_idx})</pre>
+
+<div class="card green">
+  <div class="label">举例 Example</div>
+  <p>冲突集 = {SVC0, SVC2, SVC5}。如果把 SVC0 放到 ECU3，则 ECU3 的 <code>ecu_allowed</code> 里会删除 SVC2 和 SVC5。之后试图把 SVC2 放到 ECU3 时，<code>_has_conflict</code> 返回 True，触发 -2.0 惩罚。</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 10 -->
+<h2><span class="section-num">10</span> 为什么 LT 场景 DQN 还有违规？ Why DQN Still Violates in LT?</h2>
+
+<div class="highlight-box">
+  <p><strong>LT 场景</strong>（Large-scale Tight）：15 个服务，10 个 ECU，约束很紧。</p>
+  <p>-2.0 的惩罚在很多情况下不足以阻止 Q 网络犯错，原因如下：</p>
+  <ol style="margin-top:10px;">
+    <li><strong>冲突约束复杂</strong>：冲突关系随着放置历史动态变化，Q 网络很难从 0 开始学会所有冲突模式</li>
+    <li><strong>无动作屏蔽</strong>：Q 网络没有外力阻止它选非法动作，必须完全靠负奖励自我约束</li>
+    <li><strong>探索阶段产生大量违规</strong>：ε-贪心在前 50% 训练随机探索，产生大量违规样本存入缓冲区</li>
+    <li><strong>稀疏信号</strong>：终局奖励只在最后一步给出，前期奖励信号弱，网络难以将某步违规与整集失败关联</li>
+  </ol>
+</div>
+
+<div class="card red">
+  <div class="label">实验结果 Experimental Results (LT Scenario)</div>
+  <table style="margin:0;">
+    <tr><th>算法</th><th>AR（利用率）</th><th>违规率 ViolRate</th></tr>
+    <tr><td>DQN</td><td>0.667</td><td><span style="color:var(--red)">68.1%</span></td></tr>
+    <tr><td>DDQN</td><td>0.659</td><td><span style="color:var(--yellow)">64.4%</span></td></tr>
+  </table>
+  <p style="margin-top:10px; color:var(--muted); font-size:0.85rem;">LT 场景下两者违规率都很高。PPO+ActionMask 方案（P4）违规率接近 0%，因为有硬约束屏蔽。</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 11 -->
+<h2><span class="section-num">11</span> run_all.py — DQN 模型构建 Model Construction</h2>
+
+<h3>经验回放 Experience Replay</h3>
+
+<div class="card blue">
+  <div class="label">什么是经验回放？ What is Experience Replay?</div>
+  <p>每一步，智能体把 <code>(状态, 动作, 奖励, 下一状态)</code> 这个四元组存入一个"回放缓冲区"（Replay Buffer）。训练时随机从缓冲区抽取 64 条记录来更新网络，而不是用最新的连续几步。</p>
+  <p style="color:var(--muted); margin-top:8px;"><strong>Why?</strong> Consecutive steps are highly correlated. Random sampling breaks this correlation, making training more stable — like shuffling your homework problems before reviewing.</p>
+</div>
+
+<pre><span class="kw">from</span> stable_baselines3 <span class="kw">import</span> DQN
+
+model = <span class="fn">DQN</span>(
+    policy=<span class="st">"MlpPolicy"</span>,     <span class="cm"># 使用全连接神经网络（MLP）作为 Q 网络</span>
+    env=env,
+    learning_rate=C.DQN_LR,           <span class="cm"># 1e-3</span>
+    buffer_size=C.DQN_BUFFER_SIZE,     <span class="cm"># 100,000 条经验</span>
+    learning_starts=C.DQN_LEARNING_STARTS, <span class="cm"># 先随机探索 2000 步</span>
+    batch_size=C.DQN_BATCH_SIZE,       <span class="cm"># 每次抽 64 条</span>
+    tau=C.DQN_TAU,                     <span class="cm"># 1.0 = 硬复制目标网络</span>
+    gamma=C.DQN_GAMMA,                 <span class="cm"># 0.99 折扣</span>
+    train_freq=C.DQN_TRAIN_FREQ,       <span class="cm"># 每 4 步更新一次</span>
+    target_update_interval=C.DQN_TARGET_UPDATE, <span class="cm"># 每 500 步同步目标网络</span>
+    exploration_fraction=C.DQN_EXPLORATION_FRACTION, <span class="cm"># 前 50% 探索</span>
+    exploration_final_eps=C.DQN_EXPLORATION_FINAL_EPS, <span class="cm"># 最终 ε=0</span>
+    policy_kwargs=<span class="fn">dict</span>(net_arch=C.DQN_NET_ARCH), <span class="cm"># [128, 128]</span>
+    verbose=<span class="nm">1</span>,
+)</pre>
+
+<h3>ε-贪心探索 ε-Greedy Exploration</h3>
+
+<p>DQN 使用 <strong>ε-贪心（epsilon-greedy）</strong> 策略来平衡探索（Exploration）与利用（Exploitation）：</p>
+
+<div class="eps-bar">
+  <div class="eps-explore">探索 Explore (ε→1.0～0.0)　前 50% 步数</div>
+  <div class="eps-exploit">利用 Exploit (ε=0.0)　后 50%</div>
+</div>
+
+<table>
+  <tr><th>阶段</th><th>ε 值</th><th>行为</th></tr>
+  <tr><td>训练开始 Start</td><td>ε = 1.0</td><td>完全随机选动作，大量探索环境</td></tr>
+  <tr><td>前 50% 训练</td><td>ε 线性下降 1.0 → 0.0</td><td>逐渐减少随机，增加依靠 Q 值决策</td></tr>
+  <tr><td>后 50% 训练</td><td>ε = 0.0</td><td>完全贪心：总选 Q 值最高的动作</td></tr>
+</table>
+
+<pre><span class="cm"># 每步决策：</span>
+<span class="kw">if</span> random() < epsilon:
+    action = env.action_space.<span class="fn">sample</span>()   <span class="cm"># 随机探索</span>
+<span class="kw">else</span>:
+    action = <span class="fn">argmax</span>(Q(state))             <span class="cm"># 贪心利用</span></pre>
+
+<h3>双网络结构 Dual Network Structure</h3>
+
+<div class="compare-grid">
+  <div class="compare-card">
+    <h4>在线网络 Online Network</h4>
+    <ul style="font-size:0.85rem;">
+      <li>每 4 步更新一次</li>
+      <li>用于选择动作</li>
+      <li>权重快速变化</li>
+    </ul>
+  </div>
+  <div class="compare-card">
+    <h4>目标网络 Target Network</h4>
+    <ul style="font-size:0.85rem;">
+      <li>每 500 步从在线网络复制一次</li>
+      <li>用于计算 TD 目标值</li>
+      <li>权重缓慢更新，提供稳定训练目标</li>
+    </ul>
+  </div>
+</div>
+
+<pre><span class="cm"># DQN 的 Q 值更新公式（Bellman equation）：</span>
+<span class="cm"># target = r + γ × max_a Q_target(s', a)</span>
+<span class="cm"># loss = (Q_online(s, a) - target)²</span>
+<span class="cm">#</span>
+<span class="cm"># 注意：目标网络的 max_a 同时做了"选择"和"评估"两件事</span>
+<span class="cm"># 这会导致 Q 值高估（Overestimation Bias）→ DDQN 解决了这个问题</span></pre>
+
+<!-- ═══════════════════════════════════════════════════════════════ SECTION 12 -->
+<h2><span class="section-num">12</span> reset() — 重置环境 Environment Reset</h2>
+
+<pre><span class="kw">def</span> <span class="fn">reset</span>(<span class="kw">self</span>, seed=<span class="kw">None</span>, options=<span class="kw">None</span>):
+    <span class="fn">super</span>().<span class="fn">reset</span>(seed=seed)
+    <span class="kw">if</span> <span class="kw">self</span>._scenarios <span class="kw">is not None</span>:
+        <span class="cm"># 随机抽取一个训练场景</span>
+        caps, reqs, _cs = random.<span class="fn">choice</span>(<span class="kw">self</span>._scenarios)
+        <span class="kw">self</span>.ecus     = [<span class="fn">ECU</span>(f<span class="st">"ECU{i}"</span>, cap) <span class="kw">for</span> i, cap <span class="kw">in</span> <span class="fn">enumerate</span>(caps)]
+        <span class="kw">self</span>.services = [<span class="fn">SVC</span>(f<span class="st">"SVC{i}"</span>, req) <span class="kw">for</span> i, req <span class="kw">in</span> <span class="fn">enumerate</span>(reqs)]
+
+    <span class="cm"># 服务按需求从大到小排序（先放大服务，类似 First Fit Decreasing）</span>
+    <span class="kw">self</span>.services = <span class="fn">sorted</span>(<span class="kw">self</span>.services, key=<span class="kw">lambda</span> s: s.requirement, reverse=<span class="kw">True</span>)
+
+    <span class="kw">self</span>.remaining_vms   = <span class="kw">self</span>.initial_vms.<span class="fn">copy</span>()   <span class="cm"># 重置剩余容量</span>
+    <span class="kw">self</span>.ecu_placements  = [<span class="fn">set</span>() <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="kw">self</span>.N)]  <span class="cm"># 清空放置记录</span>
+    <span class="kw">self</span>.ecu_allowed     = [<span class="fn">set</span>(<span class="fn">range</span>(<span class="kw">self</span>.M)) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="kw">self</span>.N)]  <span class="cm"># 所有服务初始都允许</span>
+    <span class="kw">self</span>.ar              = <span class="nm">0.0</span>
+    <span class="kw">self</span>._step           = <span class="nm">0</span>
+    <span class="kw">self</span>.capacity_violations  = <span class="nm">0</span>
+    <span class="kw">self</span>.conflict_violations  = <span class="nm">0</span>
+    <span class="kw">return self</span>.<span class="fn">_obs</span>(), {}</pre>
+
+<div class="card green">
+  <div class="label">排序的意义 Why Sort Services?</div>
+  <p>将服务按需求从大到小排序后，智能体先处理"难放"的大服务，确保大服务有机会找到足够容量的 ECU。这类似于"First Fit Decreasing"装箱启发式算法，减少大服务最后无处可放的情况。</p>
+</div>
+
+</main>
+
+<footer>
+  <p>Source files:&nbsp;
+    <span>ecu_lt_svc_p/problem_dqn/env.py</span> &nbsp;·&nbsp;
+    <span>ecu_lt_svc_p/problem_dqn/config.py</span> &nbsp;·&nbsp;
+    <span>ecu_lt_svc_p/run_all.py</span>
+  </p>
+  <p style="margin-top:6px;">Generated walkthrough — DQN (Deep Q-Network) for ECU LT Service Placement</p>
+</footer>
+
+</body>
+</html>
