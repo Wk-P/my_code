@@ -187,9 +187,7 @@ footer {
   <p class="en" style="margin-top:10px;">
     <strong>Reinforcement Learning</strong> has two key players: the <strong>environment</strong> (the world) and the <strong>agent</strong> (the learner). Gymnasium defines a standard interface. The agent calls step() repeatedly to take actions and receive rewards, learning to maximize total reward over time.
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 把环境想象成一个棋盘游戏。reset() 是"重新摆棋"，step(action) 是"走一步"，然后裁判（环境）告诉你得了多少分、游戏是否结束。AI（智能体）通过不断练习学会下好棋。
-  </div>
+  
   
   <p class="en">
     <strong>P3Env specific task:</strong> each episode sequentially places M services onto N ECUs, one per step. The goal is to maximize final AR.
@@ -242,13 +240,12 @@ Terminal bonus: always +AR (unconstrained upper bound).
     The module docstring is the most important design decision: <strong>P3 records violations but never penalizes them</strong>. This makes P3 an unconstrained upper bound — useful as a theoretical ceiling to compare against constrained methods (P4, P5, etc.).
   </p>
   <div class="highlight-box">
-    <strong>核心设计 / Core design:</strong>
+    <strong>Core design:</strong>
     P3 = log violations (knows they happened) but no penalty (does not learn to avoid them).
     P3 = records violations (knows they happened) but never deducts reward (never learns to avoid them).
   </div>
   <p class="cn" style="margin-top:10px;">
-    观测向量的形状是 <code>5N + 6 + M</code>，例如 N=7, M=10 时，形状为 5×7+6+10=<strong>51</strong>。
-    5 组 N 维的 ECU 特征 + 6 个全局标量 + M 个服务需求。
+    Observation vector shape is <code>5N + 6 + M</code>; e.g. N=7, M=10 → shape = 5×7+6+10=<strong>51</strong>.
   </p>
   <p class="en">
     Observation shape: <code>5N + 6 + M</code>. For N=7, M=10 that's 51 numbers. Five groups of per-ECU features (N each) + 6 global scalars + M service demands.
@@ -283,8 +280,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <li><code>scenarios</code></li>
     <li><code>action_space = Discrete(N)</code></li>
     <li>
-      <code>observation_space = Box(-1, 1, shape=(5N+6+M,))</code> — 观测向量，
-      大小为 <code>5N+6+M</code>，每个值在 [-1, 1] 之间（归一化）
+      <code>observation_space = Box(-1, 1, shape=(5N+6+M,))</code> — observation vector,
     </li>
     <li><code>initial_vms</code></li>
     <li><code>self.reset()</code></li>
@@ -292,11 +288,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
   <p class="en" style="margin-top:10px;">
     Key design choices: action space is discrete (choose 1 of N ECUs); observation space is a fixed-size float array. <code>initial_vms</code> is stored separately from <code>remaining_vms</code> so we always have the original capacities for normalization even after services are placed.
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong>
-    <code>action_space = Discrete(N)</code> 就是遥控器上有 N 个按钮，每次只按一个。
-    <code>observation_space</code> 是环境给 AI 看的"仪表盘"——一组数字告诉它当前状态。
-  </div>
+  
 
   <h4 style="margin-top:16px; color:var(--accent);">Observation Vector Breakdown</h4>
   <table class="obs-table">
@@ -411,10 +403,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
   <p class="en">
     After placing service svc_idx on ECU ecu_idx, we remove all conflicting peers from that ECU's allowed set. <code>subset - {svc_idx}</code> is set-difference: removes the placed service from the exclusion list (we exclude its peers, not itself).
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 小明（svc_idx）住进了宿舍 j。小明和小红、小华是"冲突组"（不能同住）。
-    于是从宿舍 j 的"可住人列表"中删去小红和小华。以后再给宿舍 j 分配时，小红和小华就不能进来了。
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -478,9 +467,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <li><code>ar, _total_ru, _step</code></li>
     <li><code>capacity_violations, conflict_violations</code></li>
   </ul>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> reset() 就是"开始新的一局"——清空棋盘（ecu_placements=[]），重置分数（ar=0），重新洗牌（服务重新排序），准备好记分板（违规计数=0）。
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -505,21 +492,19 @@ Terminal bonus: always +AR (unconstrained upper bound).
   
   <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
     <li><code>remaining_vms &gt;= svc.requirement</code></li>
-    <li>如果所有 ECU 都满了（mask 全 False）：选剩余容量最多的 ECU 作为"强制溢出"后备</li>
-    <li>即使强制溢出，也不报错，只是 remaining_vms 会变成负数</li>
+    
+    
   </ul>
   <p class="en">
     <span class="tag tag-red">P3 key distinction: only capacity is checked, conflicts are ignored entirely.</span>
     If all ECUs are full, a "forced overflow" fallback picks the ECU with the most remaining capacity. remaining_vms can go negative — that's intentional in P3.
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 就像强行把第 10 位学生塞进一间只有 9 张床的宿舍——记录了"超员"，但不扣任何分，继续往下分配。
-  </div>
+  
 
   <div class="highlight-box" style="margin-top:12px;">
-    <strong>P3 vs P4 动作掩码核心区别：</strong><br>
-    P3: <code>mask = (remaining_vms &gt;= svc.requirement)</code> — 只看容量<br>
-    P4: <code>mask = [(remaining_vms[j] &gt;= svc.requirement) AND (not _has_conflict(j, svc_idx)) for j in range(N)]</code> — 容量 AND 无冲突
+    <strong>P3 vs P4 — core action-mask difference:</strong><br>
+    P3: <code>mask = (remaining_vms &gt;= svc.requirement)</code> — capacity only<br>
+    P4: <code>mask = [(remaining_vms[j] &gt;= svc.requirement) AND (not _has_conflict(j, svc_idx)) for j in range(N)]</code> — capacity AND no conflict
   </div>
 </div>
 
@@ -607,9 +592,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
     The <code>conflict_flag</code> array is computed and included in the observation (so the AI can see conflicts), but it is NOT used in the action mask. P3 gives the AI information about conflicts without enforcing them.
   </p>
 
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 观测向量就像一份"仪表盘报告"交给 AI——告诉它每间宿舍还剩多少床位、现在要分配哪位学生、哪些宿舍住了"仇人"（冲突标志）、还有多少学生待分配……但 P3 只在门上贴了"快满了"的警告牌（容量掩码），没有贴"禁止入内"（冲突掩码）。
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -674,7 +657,7 @@ self._total_ru += ru  <span class="cm"># always add — unconstrained baseline</
     <code>ru = req / initial_cap</code> — always positive, always added to the total, regardless of violations. Even if remaining_vms goes negative (capacity exceeded), ru is still counted as if the placement was valid.
   </p>
 
-  <p class="cn" style="margin-top:14px;"><span class="tag tag-green">关键3：terminal_bonus 总是 +AR</span></p>
+  <p style="margin-top:14px;"><span class="tag tag-green">Key 3: terminal_bonus is always +AR</span></p>
   <pre style="font-size:0.85rem; margin:8px 0;">terminal_bonus = self.ar if done else 0.0  <span class="cm"># always +AR</span>
 reward = float(ru + terminal_bonus)</pre>
   
@@ -688,11 +671,7 @@ reward = float(ru + terminal_bonus)</pre>
     When remaining_vms goes negative, more VMs are "used" than the ECU has, making per-ECU utilization &gt; 1.0. AR = total_util / active_ECUs can therefore exceed 1.0 in P3. This is intentional — P3 represents the unconstrained ceiling.
   </p>
 
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> P3 就像一个"无限超员模式"的宿舍分配——可以把 100 人塞进 10 张床的宿舍里，
-    "利用率"计算时会显示 1000%，虽然现实中不可能，但作为理论上限很有参考价值。
-    P3 的目标是告诉我们：<em>如果没有任何约束，最高能达到多少 AR？</em>
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -725,7 +704,6 @@ reward <span class="op">=</span> ru <span class="op">+</span> terminal_bonus
     <p style="color:var(--red); font-size:0.85rem; margin-top:12px;">
       Result: AR can exceed 1.0 (remaining_vms goes negative). AI never learns to respect constraints.
       <br><br>
-      结果：AR 可超过 1.0（remaining_vms 变负数）。AI 永远不会学习遵守约束。
     </p>
   </div>
 
@@ -752,7 +730,6 @@ reward <span class="op">=</span> ru <span class="op">+</span> violation_penalty 
     <p style="color:var(--green); font-size:0.85rem; margin-top:12px;">
       Result: AI learns to avoid violations. AR ≤ 1.0 always. Forced-overflow (only when no valid ECU exists) still incurs -2.0.
       <br><br>
-      结果：AI 学会避免违规。AR 始终 ≤ 1.0。只有在所有 ECU 都满时才有强制溢出（-2.0 惩罚）。
     </p>
   </div>
 </div>

@@ -313,7 +313,7 @@ footer code { color: var(--accent); font-size: 0.82rem; }
 </style>
 </head>
 <body>
-<div style="position:sticky;top:0;z-index:100;background:#1a3a1a;border-bottom:2px solid #4ade80;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#4ade80;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">GT</span><span style="color:#4ade80;font-size:.82rem;font-weight:600">N > M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数多于服务数，容量约束宽松</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p5_lagppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p5_lagppo" style="color:#4ade80;font-size:.75rem;text-decoration:none;font-weight:700">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p5_lagppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">LT</a></div>
+<div style="position:sticky;top:0;z-index:100;background:#1a3a1a;border-bottom:2px solid #4ade80;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#4ade80;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">GT</span><span style="color:#4ade80;font-size:.82rem;font-weight:600">N > M</span><span style="color:#94a3b8;font-size:.78rem">N &gt; M: capacity constraints loose</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p5_lagppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p5_lagppo" style="color:#4ade80;font-size:.75rem;text-decoration:none;font-weight:700">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p5_lagppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">LT</a></div>
 
 
 <div class="container">
@@ -322,7 +322,7 @@ footer code { color: var(--accent); font-size: 0.82rem; }
   <h1>P5 — Lagrangian PPO</h1>
   <p class="subtitle">
     Hard Capacity Masking + Soft Lagrangian Conflict Penalty (λ)<br>
-    硬容量掩码 + 软拉格朗日冲突惩罚 · Adaptive Dual Ascent
+    Hard Capacity Mask + Soft Lagrangian Conflict Penalty · Adaptive Dual Ascent
   </p>
   <<span class="badge">>Code Walkthrough · High School Level</<span>
   <span class="badge badge-green">λ Dual Ascent</span>
@@ -332,16 +332,16 @@ footer code { color: var(--accent); font-size: 0.82rem; }
 <div class="toc">
   <h3>NoneTable of Contents</h3>
   <ol>
-    <li><a href="#s0">P4 vs P5 对比 · Comparison Card</a></li>
-    <li><a href="#s1">P5 类声明与核心思想 · Class Declaration &amp; Core Idea</a></li>
-    <li><a href="#s2">__init__ — 额外的 λ 参数 · Extra Lambda Parameters</a></li>
-    <li><a href="#s3">set_lambda() — 外部回调更新 λ</a></li>
-    <li><a href="#s4">冲突辅助方法 (与 P4 相同) · Conflict Helpers</a></li>
-    <li><a href="#s5">reset() — 重置与 λ 保留 · Reset</a></li>
-    <li><a href="#s6">action_masks() — 只检查容量！· Capacity-Only Masking</a></li>
-    <li><a href="#s7">_obs() — 包含 λ_norm 的观测向量 · Observation with λ</a></li>
-    <li><a href="#s8">step() — 拉格朗日奖励计算 · Lagrangian Reward</a></li>
-    <li><a href="#s9">双重上升机制 · Dual Ascent Explained</a></li>
+    <li><a href="#s0">Comparison Card</a></li>
+    <li><a href="#s1">Class Declaration &amp; Core Idea</a></li>
+    <li><a href="#s2">Extra Lambda Parameters</a></li>
+    <li><a href="#s3">set_lambda() —</a></li>
+    <li><a href="#s4">Conflict Helpers</a></li>
+    <li><a href="#s5">Reset</a></li>
+    <li><a href="#s6">Capacity-Only Masking</a></li>
+    <li><a href="#s7">Observation with λ</a></li>
+    <li><a href="#s8">Lagrangian Reward</a></li>
+    <li><a href="#s9">Dual Ascent Explained</a></li>
   </ol>
 </div>
 
@@ -352,26 +352,26 @@ footer code { color: var(--accent); font-size: 0.82rem; }
 <div class="compare-grid">
   <div class="compare-card p4">
     <h3>P4 — Maskable PPO</h3>
-    <p><strong>容量约束</strong>：硬掩码 (Hard Mask)</p>
-    <p><strong>冲突约束</strong>：硬掩码 (Hard Mask)</p>
+    <p><strong>Capacity Constraint</strong>: Hard Mask</p>
+    <p><strong>Conflict Constraint</strong>: Hard Mask</p>
     
     
-    <p><strong>观测维度</strong>：5N + 6 + M</p>
-    <p><strong>奖励设计</strong>：冲突 → ru=0, penalty=-2.0</p>
-    <p><strong>terminal_bonus (无违约)</strong>：+ar</p>
-    <p><strong>terminal_bonus (有违约)</strong>：+0.1 × ar</p>
+    <p><strong>Observation Dim</strong>: 5N + 6 + M</p>
+    <p><strong>Reward Design</strong>: conflict → ru=0, penalty=-2.0</p>
+    <p><strong>terminal_bonus (no violation)</strong>: +ar</p>
+    <p><strong>terminal_bonus (violation)</strong>: +0.1 × ar</p>
     
   </div>
   <div class="compare-card p5">
     <h3>P5 — Lagrangian PPO</h3>
-    <p><strong>容量约束</strong>：硬掩码 (Hard Mask)</p>
+    <p><strong>Capacity Constraint</strong>: Hard Mask</p>
     
     
     
-    <p><strong>观测维度</strong>：4N + 7 + M（去掉 ecu_allowed_frac，加 λ_norm）</p>
-    <p><strong>奖励设计</strong>：冲突 → match_gain 仍计，但 lagrange_penalty=-(λ+0.2)</p>
-    <p><strong>terminal_bonus (无违约)</strong>：+ar</p>
-    <p><strong>terminal_bonus (有违约)</strong>：-ar (更严厉！)</p>
+    <p><strong>Observation Dim</strong>: 4N + 7 + M (drop ecu_allowed_frac, add λ_norm)</p>
+    <p><strong>Reward Design</strong>: conflict → match_gain still counted, but lagrange_penalty=-(λ+0.2)</p>
+    <p><strong>terminal_bonus (no violation)</strong>: +ar</p>
+    <p><strong>terminal_bonus (violation)</strong>: -ar (stricter!)</p>
     
   </div>
 </div>
@@ -384,30 +384,30 @@ footer code { color: var(--accent); font-size: 0.82rem; }
   </tr>
   <tr>
     <td><strong>Capacity</strong></td>
-    <td><span class="tag tag-hard">HARD</span> 动作掩码，永远不选超容量 ECU</td>
-    <td><span class="tag tag-hard">HARD</span> 动作掩码，永远不选超容量 ECU</td>
+    <td><span class="tag tag-hard">HARD</span> action mask; never selects over-capacity ECU</td>
+    <td><span class="tag tag-hard">HARD</span> action mask; never selects over-capacity ECU</td>
   </tr>
   <tr>
     <td><strong>Conflict</strong></td>
-    <td><span class="tag tag-hard">HARD</span> 动作掩码，永远不选冲突 ECU</td>
-    <td><span class="tag tag-soft">SOFT λ</span> 软惩罚，允许冲突但代价递增</td>
+    <td><span class="tag tag-hard">HARD</span> action mask; never selects conflicting ECU</td>
+    <td><span class="tag tag-soft">SOFT λ</span> soft penalty; conflicts allowed but cost increases</td>
   </tr>
   <tr>
-    <td><strong>参数更新</strong></td>
-    <td>无额外参数</td>
+    <td><strong>Parameter Update</strong></td>
+    <td>No extra parameters</td>
     <td>λ</td>
   </tr>
   <tr>
-    <td><strong>智能体探索空间</strong></td>
+    <td><strong>Agent Exploration Space</strong></td>
     <td>）</td>
     <td>）</td>
   </tr>
 </table>
 
 <div class="callout callout-purple">
-  <strong>核心区别 · Core Difference:</strong><br>
-  P4 用"护栏"（硬掩码）——智能体完全看不到冲突选项，就像考试只能选正确答案。<br>
-  P5 用"罚款"（软惩罚）——智能体可以选冲突，但会被扣分，且随着 λ 增大，罚款越来越重，最终迫使智能体自发避免冲突。<br><br>
+  <strong>Core Difference:</strong><br>
+<br>
+<br><br>
   P4 uses "guardrails" (hard masking) — the agent never sees conflicting options. P5 uses "fines" (soft penalty) — the agent can choose conflicts but gets penalized, with the penalty growing via λ until the agent learns to avoid them voluntarily.
 </div>
 </div>
@@ -470,8 +470,8 @@ Constraints:
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><strong>obs shape = 4N+7+M</strong>：P5 没有 ecu_allowed_frac 维度（P4 有），但多一个 <code>λ_norm</code>。P4 是 5N+6+M，P5 移除了 ecu_allowed_frac → 4N，加了 λ_norm → +1，合计 4N+7+M。</p>
-    <p><strong>max(..., 1e-8)</strong>：防止 lambda_max=0 导致除以零。</p>
+    <p><strong>obs shape = 4N+7+M</strong></p>
+    <p><strong>max(..., 1e-8)</strong></p>
   </div>
   <div class="lang-en">
     <p><strong>lambda_init=0.0</strong>: Training starts with λ=0, so conflict penalty is only base_penalty=0.2 (very small). The agent is free to explore and may initially choose conflicting actions.</p>
@@ -502,11 +502,11 @@ Constraints:
 </div>
 
 <div class="callout callout-info">
-  <strong>调用时机 When is set_lambda() called:</strong><br>
-  训练回调（通常是 <code>P5Callback</code>）在每 20 个 episode 后计算平均冲突违约率：
+  <strong>When is set_lambda() called:</strong><br>
+  The training callback (typically <code>P5Callback</code>) computes the average conflict violation rate after every 20 episodes:
   <ul>
-    <li>违约率 &gt; 目标（0%）→ 提高 λ（增加惩罚，逼智能体改正）</li>
-    <li>违约率 = 0% → 可以稍微降低 λ（保持稳定，不过度惩罚）</li>
+    
+    
   </ul>
   The training callback (P5Callback) computes the average conflict violation rate every ~20 episodes: if violations &gt; target → raise λ; if no violations → may lower λ slightly.
 </div>
@@ -578,7 +578,7 @@ Constraints:
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p>其他状态（remaining_vms, ecu_placements, ecu_allowed, ar, _step, episode_violations）都正常重置，用于追踪本集数据。</p>
+    <p>Other state variables (remaining_vms, ecu_placements, ecu_allowed, ar, _step, episode_violations) are reset normally for per-episode tracking.</p>
   </div>
   <div class="lang-en">
     <p><strong>λ is NOT reset!</strong> This is a critical design decision. At the start of each new episode, the λ updated by the callback persists. This ensures λ changes monotonically (only increasing, or decreasing slowly), never wiped back to zero by an episode reset.</p>
@@ -607,8 +607,8 @@ Constraints:
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p>P4：<code>(remaining_vms[j] >= req) AND (not _has_conflict(j, step))</code> — 同时检查两个条件</p>
-    <p>P5：<code>remaining_vms >= svc.requirement</code> — 只检查容量</p>
+    <p>P4</p>
+    <p>P5</p>
     
     
   </div>
@@ -622,30 +622,30 @@ Constraints:
 </div>
 
 <div class="callout callout-ok">
-  <strong>直观比较 · Side-by-Side:</strong>
+  <strong>Side-by-Side Comparison:</strong>
   <table style="margin-top:0.5rem">
     <tr>
       <th>Scenario</th>
-      <th>P4 mask 结果</th>
-      <th>P5 mask 结果</th>
+      <th>P4 mask</th>
+      <th>P5 mask</th>
     </tr>
     <tr>
-      <td>ECU j: 容量足，无冲突</td>
+      <td>ECU j: capacity OK, no conflict</td>
       <td style="color:var(--green)">True ✓</td>
       <td style="color:var(--green)">True ✓</td>
     </tr>
     <tr>
-      <td>ECU j: 容量足，有冲突</td>
+      <td>ECU j: capacity OK, conflict present</td>
       <td style="color:var(--red)">)</td>
       <td style="color:var(--yellow)">)</td>
     </tr>
     <tr>
-      <td>ECU j: 容量不足，无冲突</td>
+      <td>ECU j: capacity insufficient, no conflict</td>
       <td style="color:var(--red)">False ✗</td>
       <td style="color:var(--red)">False ✗</td>
     </tr>
     <tr>
-      <td>ECU j: 容量不足，有冲突</td>
+      <td>ECU j: capacity insufficient, conflict present</td>
       <td style="color:var(--red)">False ✗</td>
       <td style="color:var(--red)">False ✗</td>
     </tr>
@@ -689,14 +689,14 @@ Constraints:
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><strong>lambda_norm = clip(λ / λ_max, 0, 1)</strong>：将 λ 归一化到 [0, 1]。当 λ=0 时为 0，当 λ=λ_max=10 时为 1。</p>
+    <p><strong>lambda_norm = clip(λ / λ_max, 0, 1)</strong></p>
     
     <ul>
-      <li>λ 很小时：冲突惩罚轻，智能体可以适当选择冲突动作换取更好的 match_gain</li>
+      
       
     </ul>
     
-    <p><strong>valid_flag 的差异</strong>：P4 的 valid_flag = 容量 AND 无冲突；P5 的 valid_flag = 仅容量。但 P5 仍有 conflict_flag 来告知哪些 ECU 有冲突，只是这不影响掩码。</p>
+    <p><strong>valid_flag difference</strong>: P4's valid_flag = capacity AND no-conflict; P5's valid_flag = capacity only. P5 still provides conflict_flag to show which ECUs have conflicts, but it does not affect the mask.</p>
   </div>
   <div class="lang-en">
     <p><strong>lambda_norm = clip(λ / λ_max, 0, 1)</strong>: Normalizes λ to [0, 1]. λ=0 → 0.0; λ=λ_max=10 → 1.0.</p>
@@ -752,16 +752,16 @@ Constraints:
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><strong>1. Δar（势差奖励）</strong> = ar_new - ar_prev。与 P4 相同，使用 potential-based reward shaping 提供稠密信号。ru 始终计入 _total_ru（即使有冲突），保持 AR 反映实际资源占用。</p>
+    <p><strong>1. Δar (potential-based reward)</strong> = ar_new - ar_prev. Same as P4; uses potential-based reward shaping for a dense signal. ru is always added to _total_ru (even on conflict) to keep AR reflecting actual resource utilisation.</p>
     
-    <p><strong>2. lagrange_penalty（拉格朗日惩罚）</strong> = -(λ + 0.2) × c_t</p>
+    <p><strong>）</strong> = -(λ + 0.2) × c_t</p>
     <ul>
       <li><code>c_t</code></li>
       <li><code>base_penalty = 0.2</code></li>
       <li><code>lambda_val</code></li>
     </ul>
     
-    <p><strong>4. terminal_bonus（终局奖励）</strong>：零违约 → +ar_final，有违约 → 0.0（不再是 -ar）。与 Δar 求和 = ar_final，整集回报 = 2 × ar_final（和 P4 一致的 bootstrap 设计）。</p>
+    <p><strong>）</strong></p>
   </div>
   <div class="lang-en">
     <p>P5 reward has four components:</p>
@@ -793,24 +793,24 @@ Constraints:
 </div>
 
 <table>
-  <tr><th>Component</th><th>P4 值</th><th>P5 值</th><th>Difference</th></tr>
+  <tr><th>Component</th><th>P4</th><th>P5</th><th>Difference</th></tr>
   <tr>
-    <td>per-step 奖励基础</td>
+    <td>per-step</td>
     <td>AR)</td>
     <td>AR)</td>
-    <td>P5 的 AR 包含冲突放置</td>
+    <td>P5</td>
   </tr>
   <tr>
     <td>Conflict penalty</td>
     <td>）</td>
     <td>-(λ + 0.2) × c_t</td>
-    <td>P5 自适应增长</td>
+    <td>P5</td>
   </tr>
   <tr>
     <td>Cap penalty</td>
     <td>）</td>
     <td>-2.0</td>
-    <td>P5 可能有容量违约</td>
+    <td>P5</td>
   </tr>
   <tr>
     <td>)</td>
@@ -830,8 +830,8 @@ Constraints:
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p>P4：<code>if ru > 0: self._total_ru += ru</code>（冲突时 ru=0，不计入）</p>
-    <p>P5：<code>self._total_ru += ru</code>（<em>始终</em>计入，即使有冲突）</p>
+    <p>P4</p>
+    <p>P5</p>
     
   </div>
   <div class="lang-en">
@@ -848,30 +848,27 @@ Constraints:
 
 <div class="lambda-diagram">
 <pre style="background:transparent; border:none; padding:0; font-size:0.9rem; color: var(--text);">
-训练循环 Training Loop:
+Training Loop:
 
   Episode 1..20 (λ=0.0)
-  智能体自由探索，可能产生较多冲突
   Agent explores freely, may produce many conflicts
 
-        ↓ 每 20 集 / Every 20 episodes ↓
+        ↓ Every 20 episodes ↓
 
-  P5Callback 统计平均冲突率 / Compute avg conflict rate
+  P5Callback computes avg conflict rate
   ┌─────────────────────────────────────────────────────────┐
-  │  avg_conflict_rate > 0%  →  λ ← λ + Δλ  (提高惩罚)    │
-  │  avg_conflict_rate = 0%  →  λ ← max(0, λ - ε)  (稳定) │
+  │  avg_conflict_rate > 0%  →  λ ← λ + Δλ  (increase penalty)  │
+  │  avg_conflict_rate = 0%  →  λ ← max(0, λ - ε)  (stabilise)  │
   └─────────────────────────────────────────────────────────┘
-        ↓ 调用 / Call ↓
+        ↓ Call ↓
   env.set_lambda(new_λ)  for each env in DummyVecEnv
 
   Episode 21..40 (λ=Δλ)
-  惩罚稍微加重，智能体开始权衡
   Penalty slightly heavier, agent begins to weigh costs
 
-        ↓ ...重复 ... Repeat ...
+        ↓ ... Repeat ...
 
   Episode N..N+20 (λ→λ_max)
-  惩罚足够重，智能体主动避免冲突 → 违约率趋近 0%
   Penalty heavy enough, agent avoids conflicts voluntarily → violations → 0%
 </pre>
 </div>
@@ -879,11 +876,11 @@ Constraints:
 <div class="bilingual">
   <div class="lang-zh">
     <ol>
-      <li>λ 小 → 冲突便宜 → 智能体忽略冲突 → 违约率高</li>
-      <li>违约率高 → λ 提高</li>
-      <li>λ 高 → 冲突昂贵 → 智能体避免冲突 → 违约率降低</li>
-      <li>违约率低/零 → λ 稳定（或小幅下降）</li>
-      <li>重复，直到收敛到"零违约，最大化 AR"的最优策略</li>
+      
+      
+      
+      
+      
     </ol>
     
   </div>
@@ -903,8 +900,7 @@ Constraints:
 </div>
 
 <div class="callout callout-info">
-  <strong>P5 terminal_bonus 设计：0.0 vs P4 的 0.0（相同）</strong><br><br>
-  P4 和 P5 都在有违约时 terminal_bonus=0.0。区别在于：P5 的 Δar 信号本身已包含冲突影响（ru 始终计入），所以不需要额外用 -ar 来"惩罚"违约——λ 惩罚项已经在步骤级别处理了冲突。整集回报 = Σ Δar + ar_final (仅零违约) = 2 × ar_final，和 P4 一样的 bootstrap 设计。
+  <strong>P5 terminal_bonus design: 0.0 vs P4's 0.0 (identical)</strong><br><br>
   <br><br>
   <strong>P5 terminal_bonus design:</strong> Same as P4 — 0.0 when any violation occurred. The Lagrangian penalty in each step already handles conflict discouragement; there's no need for an additional terminal punishment. Episode return = Σ Δar + ar_final (clean only) = 2 × ar_final, matching P4's bootstrap structure.
 </div>
@@ -918,29 +914,29 @@ Constraints:
     <th>P5 Approach</th>
   </tr>
   <tr>
-    <td><strong>约束执行哲学</strong></td>
+    <td><strong>Constraint enforcement philosophy</strong></td>
     <td>(Engineering guarantee)</td>
     <td>(Economic incentive)</td>
   </tr>
   <tr>
-    <td><strong>探索空间</strong></td>
+    <td><strong>Exploration space</strong></td>
     <td>）</td>
     <td>）</td>
   </tr>
   <tr>
-    <td><strong>违约保证</strong></td>
+    <td><strong>Violation guarantee</strong></td>
     <td>）</td>
     <td>）</td>
   </tr>
   <tr>
-    <td><strong>梯度信号质量</strong></td>
+    <td><strong>Gradient signal quality</strong></td>
     <td>）</td>
     <td>）</td>
   </tr>
   <tr>
-    <td><strong>超参数</strong></td>
+    <td><strong>Hyperparameters</strong></td>
     <td>）</td>
-    <td>需调 λ_init, λ_max, Δλ, 更新频率</td>
+    <td>requires tuning: λ_init, λ_max, Δλ, update frequency</td>
   </tr>
   <tr>
     <td><strong>Analogy</strong></td>
@@ -948,19 +944,19 @@ Constraints:
     <td>(Congestion pricing)</td>
   </tr>
   <tr>
-    <td><strong>适用场景</strong></td>
-    <td>冲突约束是绝对物理限制</td>
-    <td>冲突约束有弹性，允许在探索期临时违反</td>
+    <td><strong>Best suited for</strong></td>
+    <td>conflict constraint is an absolute physical limit</td>
+    <td>conflict constraint is flexible; temporary violations during exploration are acceptable</td>
   </tr>
 </table>
 </div>
 
 <footer>
-  <p>源文件 Source File:</p>
+  <p>Source File:</p>
   <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem5_ppo_lagrangian/env.py</code></p>
-  <p>参考对比 Reference P4:</p>
+  <p>Reference: P4</p>
   <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem4_ppo_mask/env.py</code></p>
-  <p style="margin-top:1rem; color: var(--muted);">P5 — Lagrangian PPO Code Walkthrough · 双语代码精读 · Generated 2026-05</p>
+  <p style="margin-top:1rem; color: var(--muted);">P5 — Lagrangian PPO Code Walkthrough · Generated 2026-05</p>
 </footer>
 
 </div>

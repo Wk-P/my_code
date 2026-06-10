@@ -135,6 +135,16 @@ SHARED = [
      '<p>State vector $s_t \\in \\mathbb{R}^{\\text{dim}}$ concatenated in order:</p>'),
     ('<p>其中：</p>', '<p>where:</p>'),
 
+    # Nav bar scenario descriptions (span inside sticky nav)
+    ('>ECU 数少于服务数，每 ECU 承载多个服务<',
+     '>N &lt; M: services exceed ECUs<'),
+    ('>ECU 数多于服务数，容量充裕<',
+     '>N &gt; M: ECUs exceed services<'),
+    ('>ECU 数多于服务数，容量约束宽松<',
+     '>N &gt; M: capacity constraints loose<'),
+    ('>ECU 数等于服务数<',
+     '>N = M: balanced<'),
+
     # Scenario subtitle variants
     ('ECU 数量多于服务数量，容量约束宽松，分配更灵活。',
      'ECU count exceeds service count; capacity constraints are loose and placement is more flexible.'),
@@ -351,6 +361,11 @@ DOCS_P5 = [
      '<div class="step"> Dual update: $\\lambda \\leftarrow \\max(0, \\lambda + \\alpha \\hat{c}_k)$</div>'),
     ('<div class="step"> 重复 2–4 直至收敛</div>',
      '<div class="step"> Repeat 2–4 until convergence</div>'),
+    # Missing h3 variant
+    ('<h3>对偶上升更新（Dual Ascent）</h3>', '<h3>Dual Ascent Update</h3>'),
+    # LT-specific note
+    ('<div class="note">LT 特有：服务按需求降序排列（FFD 顺序），冲突集索引同步重映射，保证冲突追踪与排序后索引一致。</div>',
+     '<div class="note">LT-specific: services are sorted by demand descending (FFD order); conflict-set indices are remapped accordingly to keep conflict tracking consistent.</div>'),
 ]
 
 # ─── Docs P6-specific ──────────────────────────────────────────────────────
@@ -651,18 +666,388 @@ CODE_SPECIFIC = [
     # = 每个活跃 ECU 的平均利用率
     ('   = 每个活跃 ECU 的平均利用率', '   = average utilisation per active ECU'),
 
+    # P5 comparison card properties
+    ('<p><strong>容量约束</strong>：硬掩码 (Hard Mask)</p>',
+     '<p><strong>Capacity Constraint</strong>: Hard Mask</p>'),
+    ('<p><strong>冲突约束</strong>：硬掩码 (Hard Mask)</p>',
+     '<p><strong>Conflict Constraint</strong>: Hard Mask</p>'),
+    ('<p><strong>观测维度</strong>：5N + 6 + M</p>',
+     '<p><strong>Observation Dim</strong>: 5N + 6 + M</p>'),
+    ('<p><strong>奖励设计</strong>：冲突 → ru=0, penalty=-2.0</p>',
+     '<p><strong>Reward Design</strong>: conflict → ru=0, penalty=-2.0</p>'),
+    ('<p><strong>terminal_bonus (无违约)</strong>：+ar</p>',
+     '<p><strong>terminal_bonus (no violation)</strong>: +ar</p>'),
+    ('<p><strong>terminal_bonus (有违约)</strong>：+0.1 × ar</p>',
+     '<p><strong>terminal_bonus (violation)</strong>: +0.1 × ar</p>'),
+    ('<p><strong>观测维度</strong>：4N + 7 + M（去掉 ecu_allowed_frac，加 λ_norm）</p>',
+     '<p><strong>Observation Dim</strong>: 4N + 7 + M (drop ecu_allowed_frac, add λ_norm)</p>'),
+    ('<p><strong>奖励设计</strong>：冲突 → match_gain 仍计，但 lagrange_penalty=-(λ+0.2)</p>',
+     '<p><strong>Reward Design</strong>: conflict → match_gain still counted, but lagrange_penalty=-(λ+0.2)</p>'),
+    ('<p><strong>terminal_bonus (有违约)</strong>：-ar (更严厉！)</p>',
+     '<p><strong>terminal_bonus (violation)</strong>: -ar (stricter!)</p>'),
+
+    # P5 comparison table headers and cells
+    ('<th>约束类型 Constraint</th>', '<th>Constraint</th>'),
+    ('<th>P4 执行方式 Enforcement</th>', '<th>P4 Enforcement</th>'),
+    ('<th>P5 执行方式 Enforcement</th>', '<th>P5 Enforcement</th>'),
+    ('<td><strong>容量 Capacity</strong></td>', '<td><strong>Capacity</strong></td>'),
+    ('<td><strong>冲突 Conflict</strong></td>', '<td><strong>Conflict</strong></td>'),
+    ('<td><span class="tag tag-hard">HARD</span> 动作掩码，永远不选超容量 ECU</td>',
+     '<td><span class="tag tag-hard">HARD</span> action mask; never selects over-capacity ECU</td>'),
+    ('<td><span class="tag tag-soft">SOFT</span> 拉格朗日惩罚 λ×cost，自适应增大</td>',
+     '<td><span class="tag tag-soft">SOFT</span> Lagrangian penalty λ×cost, adaptively increases</td>'),
+
+    # P5 header subtitle
+    ('硬容量掩码 + 软拉格朗日冲突惩罚 · Adaptive Dual Ascent',
+     'Hard Capacity Mask + Soft Lagrangian Conflict Penalty · Adaptive Dual Ascent'),
+    # P4 header subtitle
+    ('Hard Capacity Masking + Hard Conflict Masking · 双硬约束动作掩码',
+     'Hard Capacity Masking + Hard Conflict Masking · Dual Hard Constraint Masking'),
+    # P4 observation dimension note
+    ('<p><strong>观测向量维度</strong> = <code>5N + 6 + M</code>。其中 N 是 ECU 数，M 是服务数。比如 N=7, M=10，则维度 = 47。</p>',
+     '<p><strong>Observation vector dimension</strong> = <code>5N + 6 + M</code>. Where N = number of ECUs, M = number of services. E.g. N=7, M=10 → dimension = 47.</p>'),
+    # P4 action masking explanation
+    ('<strong>动作掩码的意义：</strong>与其让智能体选一个错误的 ECU 然后给予惩罚，P4 直接把不合法的 ECU 从选项中"隐藏"掉。MaskablePPO 在采样前把被屏蔽动作的 logit 设为负无穷，保证在正常情况下零违约。',
+     '<strong>What action masking means:</strong> Rather than letting the agent choose an illegal ECU and then applying a penalty, P4 removes illegal ECUs from the choices entirely. MaskablePPO sets masked action logits to −∞ before sampling, guaranteeing zero violations under normal conditions.'),
+    # P4 bilingual table headers
+    ('<tr><th>Key Array 关键数组</th><th>Type 类型</th><th>Role 作用</th></tr>',
+     '<tr><th>Key Array</th><th>Type</th><th>Role</th></tr>'),
+    ('<tr><th>Index</th><th>Variable</th><th>中文含义</th><th>English Meaning</th></tr>',
+     '<tr><th>Index</th><th>Variable</th><th>Meaning</th></tr>'),
+    ('<tr><th>Parameter</th><th>Typical Value</th><th>中文说明</th><th>English Explanation</th></tr>',
+     '<tr><th>Parameter</th><th>Typical Value</th><th>Explanation</th></tr>'),
+    # P4 efficiency note (bilingual)
+    ('<strong>Why this is efficient 为什么高效：</strong>',
+     '<strong>Why this is efficient:</strong>'),
+    # P4 Chinese text node after strong
+    ('  P4 预先维护"可用集合"，让查询时只需 O(1) 的集合成员检查。更新只在放置时发生，而非每次查询。',
+     ''),
+    # P4 zero violations strong
+    ('<strong>P4 是强制零违约 · P4 guarantees zero violations:</strong>',
+     '<strong>P4 guarantees zero violations:</strong>'),
+    ('<strong>直观比较 · Side-by-Side:</strong>', '<strong>Side-by-Side Comparison:</strong>'),
+    # P4 source files paragraph
+    ('<p>源文件 Source Files:</p>', '<p>Source Files:</p>'),
+    # P4 mangled table rows (from partially-translated 3-col table)
+    ('<tr><td>）</td><td>+ar_final</td><td>最后一步，且整集无违约</td></tr>',
+     '<tr><td></td><td>+ar_final</td><td>last step, no violations in episode</td></tr>'),
+    ('<tr><td>）</td><td>0.0</td><td>最后一步，有任何违约时不加</td></tr>',
+     '<tr><td></td><td>0.0</td><td>last step, any violation present</td></tr>'),
+    ('<tr><td>1</td><td>/ Load YAML scenario</td><td>ECU + SVC 列表</td></tr>',
+     '<tr><td>1</td><td>/ Load YAML scenario</td><td>ECU + SVC list</td></tr>'),
+    ('<tr><td>3</td><td>/ Train (N_ENVS parallel envs)</td><td>model.zip + 训练曲线数据</td></tr>',
+     '<tr><td>3</td><td>/ Train (N_ENVS parallel envs)</td><td>model.zip + training curve data</td></tr>'),
+    # P5 Chinese table cells
+    ('<td><span class="tag tag-hard">HARD</span> 动作掩码，永远不选冲突 ECU</td>',
+     '<td><span class="tag tag-hard">HARD</span> action mask; never selects conflicting ECU</td>'),
+    ('<td><span class="tag tag-soft">SOFT λ</span> 软惩罚，允许冲突但代价递增</td>',
+     '<td><span class="tag tag-soft">SOFT λ</span> soft penalty; conflicts allowed but cost increases</td>'),
+    ('<td><strong>参数更新</strong></td>', '<td><strong>Parameter Update</strong></td>'),
+    ('<td>无额外参数</td>', '<td>No extra parameters</td>'),
+    ('<td><strong>智能体探索空间</strong></td>', '<td><strong>Agent Exploration Space</strong></td>'),
+    # P5 comparison card cells
+    ('<td>ECU j: 容量足，无冲突</td>', '<td>ECU j: capacity OK, no conflict</td>'),
+    ('<td>ECU j: 容量足，有冲突</td>', '<td>ECU j: capacity OK, conflict present</td>'),
+    ('<td>ECU j: 容量不足，无冲突</td>', '<td>ECU j: capacity insufficient, no conflict</td>'),
+    ('<td>ECU j: 容量不足，有冲突</td>', '<td>ECU j: capacity insufficient, conflict present</td>'),
+    # P5 bilingual strongs
+    ('<strong>核心区别 · Core Difference:</strong>', '<strong>Core Difference:</strong>'),
+    ('<strong>调用时机 When is set_lambda() called:</strong>',
+     '<strong>When is set_lambda() called:</strong>'),
+    # P5 Chinese text (explanatory)
+    ('  P4 用"护栏"（硬掩码）——智能体完全看不到冲突选项，就像考试只能选正确答案。',
+     ''),
+    ('  P5 用"罚款"（软惩罚）——智能体可以选冲突，但会被扣分，且随着 λ 增大，罚款越来越重，最终迫使智能体自发避免冲突。',
+     ''),
+    ('  训练回调（通常是 <code>P5Callback</code>）在每 20 个 episode 后计算平均冲突违约率：',
+     '  The training callback (typically <code>P5Callback</code>) computes the average conflict violation rate after every 20 episodes:'),
+    # P5 paragraph
+    ('    <p>其他状态（remaining_vms, ecu_placements, ecu_allowed, ar, _step, episode_violations）都正常重置，用于追踪本集数据。</p>',
+     '    <p>Other state variables (remaining_vms, ecu_placements, ecu_allowed, ar, _step, episode_violations) are reset normally for per-episode tracking.</p>'),
+    # P4 valid_flag note
+    ('    <p><strong>valid_flag 的差异</strong>：P4 的 valid_flag = 容量 AND 无冲突；P5 的 valid_flag = 仅容量。但 P5 仍有 conflict_flag 来告知哪些 ECU 有冲突，只是这不影响掩码。</p>',
+     '    <p><strong>valid_flag difference</strong>: P4\'s valid_flag = capacity AND no-conflict; P5\'s valid_flag = capacity only. P5 still provides conflict_flag to show which ECUs have conflicts, but it does not affect the mask.</p>'),
+    # P5 reward note
+    ('    <p><strong>1. Δar（势差奖励）</strong> = ar_new - ar_prev。与 P4 相同，使用 potential-based reward shaping 提供稠密信号。ru 始终计入 _total_ru（即使有冲突），保持 AR 反映实际资源占用。</p>',
+     '    <p><strong>1. Δar (potential-based reward)</strong> = ar_new - ar_prev. Same as P4; uses potential-based reward shaping for a dense signal. ru is always added to _total_ru (even on conflict) to keep AR reflecting actual resource utilisation.</p>'),
+    # P6 specific
+    ('      Audience: High school level &nbsp;|&nbsp; 双语 Chinese + English',
+     '      Audience: High school level'),
+    ('<h4>中文解读</h4>', ''),
+    ('<h4>中文详解</h4>', ''),
+    ('<h4>中文注释</h4>', ''),
+    ('<p>观测向量长度 = <strong>4N + 6 + M</strong>：</p>',
+     '<p>Observation vector length = <strong>4N + 6 + M</strong>:</p>'),
+    ('<p>比 P4 多了三个计数器：<code>repairs</code>（修复次数）、<code>cap_violations</code>（容量违规次数）、<code>conflict_violations</code>（冲突违规次数）</p>',
+     '<p>Three extra counters compared to P4: <code>repairs</code> (repair count), <code>cap_violations</code> (capacity violations), <code>conflict_violations</code> (conflict violations).</p>'),
+    ('<p>P6 的 <code>action_masks()</code> 返回 <strong>全 True</strong>！这意味着 AI 可以自由选择任何 ECU（0 到 N-1），没有任何限制。</p>',
+     '<p>P6\'s <code>action_masks()</code> returns <strong>all True</strong>! The agent can freely choose any ECU (0 to N-1) with no restrictions.</p>'),
+    ('<tr><th>属性</th><th>P4 (Action Masking)</th><th>P6 (Repair)</th></tr>',
+     '<tr><th>Property</th><th>P4 (Action Masking)</th><th>P6 (Repair)</th></tr>'),
+    ('<td><span class="tag tag-red">BLOCKED</span> 非法动作不可选</td>',
+     '<td><span class="tag tag-red">BLOCKED</span> illegal actions not selectable</td>'),
+    ('<td><span class="tag tag-green">FREE</span> 所有动作可选</td>',
+     '<td><span class="tag tag-green">FREE</span> all actions selectable</td>'),
+    ('<td>自动修复 → -0.1 惩罚</td>', '<td>auto-repair → -0.1 penalty</td>'),
+    ('<div style="color:var(--accent); font-weight:700; margin-bottom:8px;">═══ STEP() 三条路径 / Three Paths ═══</div>',
+     '<div style="color:var(--accent); font-weight:700; margin-bottom:8px;">═══ STEP() Three Paths ═══</div>'),
+    # P6 PATH box Chinese lines
+    ('        ┌─ PATH A: 智能体选对了 / Agent chose correctly ──────────────────┐',
+     '        ┌─ PATH A: Agent chose correctly ─────────────────────────────────┐'),
+    ('        │  条件: cap OK AND no conflict                                    │',
+     '        │  condition: cap OK AND no conflict                               │'),
+    ('        │  动作: 直接部署到该 ECU                                          │',
+     '        │  action: deploy directly to chosen ECU                           │'),
+    ('        │  奖励: +Δar  (AR 的增量，势差奖励)                              │',
+     '        │  reward: +Δar (AR increment, potential-based)                    │'),
+    ('        │  惩罚: 无 / none                                                 │',
+     '        │  penalty: none                                                   │'),
+    ('        ┌─ PATH B: 智能体选错 → 修复成功 / Repair found ─────────────────┐',
+     '        ┌─ PATH B: Agent chose wrong → Repair found ──────────────────────┐'),
+    ('        │  动作: 强制换到修复后的最佳 ECU                                  │',
+     '        │  action: switch to best legal ECU via best-fit repair            │'),
+    ('        │  计数: self.repairs += 1                                         │',
+     '        │  count: self.repairs += 1                                        │'),
+    ('        ┌─ PATH C: 智能体选错 → 修复失败 / No repair possible ───────────┐',
+     '        ┌─ PATH C: Agent chose wrong → No repair possible ────────────────┐'),
+    ('        │  动作: 立即终止回合 (done=True)                                  │',
+     '        │  action: terminate episode immediately (done=True)               │'),
+    # DDQN specific
+    ('<p>LT — 环境与 DQN 完全相同 · 算法层面减少 Q 值高估 &nbsp;|&nbsp; </p>',
+     ''),
+    ('<p>文档第一句就说了：<strong>"Identical constraint-enforcement strategy to DQNEnv"</strong>。DDQNEnv 的环境逻辑与 DQNEnv <strong>完全一样</strong>。DDQN 的算法改进（双网络减少高估）发生在训练器（Trainer）里，而不是环境里。</p>',
+     '<p>As stated in the docstring: <strong>"Identical constraint-enforcement strategy to DQNEnv"</strong>. DDQNEnv\'s environment logic is <strong>identical</strong> to DQNEnv. The DDQN algorithmic improvement (dual network to reduce overestimation) happens in the Trainer, not the environment.</p>'),
+    ('<strong>答案：Q 值更新公式不同！The Q-value update rule is different!</strong>',
+     '<strong>Answer: The Q-value update rule is different!</strong>'),
+    ('<span class="cm">#   1. 选择最优动作（argmax）</span>',
+     '<span class="cm">#   1. select optimal action (argmax)</span>'),
+    ('<span class="cm">#   2. 评估该动作的价值（Q value）</span>',
+     '<span class="cm">#   2. evaluate the action\'s value (Q value)</span>'),
+    ('<div class="flow-box highlight-dqn">目标网络 Q_target(s\', a)</div>',
+     '<div class="flow-box highlight-dqn">Target network Q_target(s\', a)</div>'),
+    ("<div class=\"flow-box highlight-dqn\">目标网络 Q_target(s', a)</div>",
+     "<div class=\"flow-box highlight-dqn\">Target network Q_target(s', a)</div>"),
+    ('<div class="flow-box" style="color:var(--red); border-color:var(--red)">max_a → 选最大值的动作</div>',
+     '<div class="flow-box" style="color:var(--red); border-color:var(--red)">max_a → select action with highest value</div>'),
+    ('<div class="flow-box" style="color:var(--red); border-color:var(--red)">同一网络评估该动作 Q 值</div>',
+     '<div class="flow-box" style="color:var(--red); border-color:var(--red)">same network evaluates action Q value</div>'),
+    ('<div style="font-size:0.82rem; color:var(--red); padding:4px 0;">容易选到噪声高估的动作并高估其价值</div>',
+     '<div style="font-size:0.82rem; color:var(--red); padding:4px 0;">prone to selecting overestimated actions due to noise</div>'),
+    ('<div class="flow-box highlight-ddqn">在线网络 Q_online(s\', a)</div>',
+     '<div class="flow-box highlight-ddqn">Online network Q_online(s\', a)</div>'),
+    ("<div class=\"flow-box highlight-ddqn\">在线网络 Q_online(s', a)</div>",
+     "<div class=\"flow-box highlight-ddqn\">Online network Q_online(s', a)</div>"),
+    ('<div class="flow-box" style="color:var(--blue); border-color:var(--blue)">argmax → 选它认为最好的动作 a*</div>',
+     '<div class="flow-box" style="color:var(--blue); border-color:var(--blue)">argmax → select best action a*</div>'),
+    ('<div class="flow-box" style="color:var(--green); border-color:var(--green)">目标网络评估 Q_target(s\', a*)</div>',
+     '<div class="flow-box" style="color:var(--green); border-color:var(--green)">target network evaluates Q_target(s\', a*)</div>'),
+    ("<div class=\"flow-box\" style=\"color:var(--green); border-color:var(--green)\">目标网络评估 Q_target(s', a*)</div>",
+     "<div class=\"flow-box\" style=\"color:var(--green); border-color:var(--green)\">target network evaluates Q_target(s', a*)</div>"),
+    ('<div style="font-size:0.82rem; color:var(--green); padding:4px 0;">目标网络"纠正"在线网络的乐观估计</div>',
+     '<div style="font-size:0.82rem; color:var(--green); padding:4px 0;">target network "corrects" the online network\'s optimistic estimate</div>'),
+    ('<p style="color:var(--muted); font-size:0.85rem; margin-bottom:16px;">场景：下一状态 s\' 有两个可能动作 a1, a2。由于神经网络估计有噪声：</p>',
+     '<p style="color:var(--muted); font-size:0.85rem; margin-bottom:16px;">Scenario: next state s\' has two possible actions a1, a2. Due to network estimation noise:</p>'),
+    ("<p style=\"color:var(--muted); font-size:0.85rem; margin-bottom:16px;\">场景：下一状态 s' 有两个可能动作 a1, a2。由于神经网络估计有噪声：</p>",
+     "<p style=\"color:var(--muted); font-size:0.85rem; margin-bottom:16px;\">Scenario: next state s' has two possible actions a1, a2. Due to network estimation noise:</p>"),
+    ('<strong>真实 Q 值（理想情况）：</strong>', '<strong>True Q values (ideal):</strong>'),
+    ('<strong>带噪声的网络估计：</strong>', '<strong>Noisy network estimates:</strong>'),
+    ('      Q_hat(s\', a1) = 0.90，Q_hat(s\', a2) = 0.78（a1 被高估了！）',
+     "      Q_hat(s', a1) = 0.90, Q_hat(s', a2) = 0.78  (a1 overestimated!)"),
+    ("      Q_hat(s', a1) = 0.90，Q_hat(s', a2) = 0.78（a1 被高估了！）",
+     "      Q_hat(s', a1) = 0.90, Q_hat(s', a2) = 0.78  (a1 overestimated!)"),
+    ('      <br>用同一网络评估 → 目标值 = 0.90 <span style="color:var(--red)">（高估！比真实 0.85 高）</span>',
+     '      <br>same network evaluates → target = 0.90 <span style="color:var(--red)">(overestimated! true is 0.85)</span>'),
+    ('      <br><strong style="color:var(--red)">结果：网络学到了虚假乐观的 Q 值</strong>',
+     '      <br><strong style="color:var(--red)">Result: network learns falsely optimistic Q values</strong>'),
+    ('      <span class="blue">在线网络</span>选 argmax → 选 a1（在线网络认为 a1 最好）',
+     '      <span class="blue">online network</span> argmax → selects a1 (online thinks a1 is best)'),
+    ('      <br><span style="color:var(--green)">目标网络</span>评估 Q_target(s\', a1) → 得到 0.85（目标网络估计更保守）',
+     "      <br><span style=\"color:var(--green)\">target network</span> evaluates Q_target(s', a1) → 0.85 (more conservative)"),
+    ("      <br><span style=\"color:var(--green)\">目标网络</span>评估 Q_target(s', a1) → 得到 0.85（目标网络估计更保守）",
+     "      <br><span style=\"color:var(--green)\">target network</span> evaluates Q_target(s', a1) → 0.85 (more conservative)"),
+    ('      <br><strong style="color:var(--green)">结果：目标值 = 0.85，更接近真实 Q 值</strong>',
+     '      <br><strong style="color:var(--green)">Result: target = 0.85, closer to true Q value</strong>'),
+    ('<strong style="color:#2dd4bf;">结论 Conclusion：</strong>',
+     '<strong style="color:#2dd4bf;">Conclusion:</strong>'),
+    ('<tr><th>算法</th><th>）</th><th>ViolRate</th><th>分析</th></tr>',
+     '<tr><th>Algorithm</th><th>AR</th><th>ViolRate</th><th>Analysis</th></tr>'),
+    ('<td>利用率略高，但违规更多</td>', '<td>slightly higher AR, but more violations</td>'),
+    ('<td>违规略少，训练更稳定</td>', '<td>fewer violations, more stable training</td>'),
+    ('<li>高估偏差少 → Q 网络不会"自信地选错" → 减少"confident but wrong"动作</li>',
+     '<li>less overestimation → Q network avoids "confidently wrong" choices → fewer wrong confident actions</li>'),
+    ('<h4 style="color:var(--blue)">为什么 AR 差距不大？</h4>',
+     '<h4 style="color:var(--blue)">Why is the AR gap small?</h4>'),
+    ('<tr><th>维度</th><th style="color:var(--accent)">DQN</th><th style="color:var(--blue)">DDQN</th></tr>',
+     '<tr><th>Dimension</th><th style="color:var(--accent)">DQN</th><th style="color:var(--blue)">DDQN</th></tr>'),
+    ('<td><code style="color:var(--blue)">DDQNEnv</code>（逻辑相同）</td>',
+     '<td><code style="color:var(--blue)">DDQNEnv</code> (logic identical)</td>'),
+    ('<td><code>r + γ·max_a Q_target(s\',a)</code><br><span style="color:var(--red); font-size:0.8rem;">目标网络选+评（高估风险）</span></td>',
+     "<td><code>r + γ·max_a Q_target(s',a)</code><br><span style=\"color:var(--red); font-size:0.8rem;\">target selects+evaluates (overestimation risk)</span></td>"),
+    ("<td><code>r + γ·max_a Q_target(s',a)</code><br><span style=\"color:var(--red); font-size:0.8rem;\">目标网络选+评（高估风险）</span></td>",
+     "<td><code>r + γ·max_a Q_target(s',a)</code><br><span style=\"color:var(--red); font-size:0.8rem;\">target selects+evaluates (overestimation risk)</span></td>"),
+    ('<td><code>r + γ·Q_target(s\', argmax_a Q_online(s\',a))</code><br><span style="color:var(--green); font-size:0.8rem;">在线选/目标评（减少高估）</span></td>',
+     "<td><code>r + γ·Q_target(s', argmax_a Q_online(s',a))</code><br><span style=\"color:var(--green); font-size:0.8rem;\">online selects / target evaluates (reduced overestimation)</span></td>"),
+    ("<td><code>r + γ·Q_target(s', argmax_a Q_online(s',a))</code><br><span style=\"color:var(--green); font-size:0.8rem;\">在线选/目标评（减少高估）</span></td>",
+     "<td><code>r + γ·Q_target(s', argmax_a Q_online(s',a))</code><br><span style=\"color:var(--green); font-size:0.8rem;\">online selects / target evaluates (reduced overestimation)</span></td>"),
+    # ILP text nodes
+    ('      <code>Σ x[i][j] × req_i / cap_j</code> — 所有已分配服务对其所在 ECU 的利用率之和。',
+     '      <code>Σ x[i][j] × req_i / cap_j</code> — sum of utilisation contributions from all assigned services.'),
+    ('      <code>Σ y[j]</code> — 活跃 ECU 的数量。',
+     '      <code>Σ y[j]</code> — number of active ECUs.'),
+    ('    <code>@timer_utils.timer</code> 是一个装饰器（decorator），自动记录 main() 函数的运行时间。',
+     '    <code>@timer_utils.timer</code> is a decorator that automatically records the runtime of main().'),
+    ('    <code>**kwargs</code> 让函数接受任意关键字参数，这里只用到了 <code>config_path</code>。',
+     '    <code>**kwargs</code> lets the function accept arbitrary keyword arguments; only <code>config_path</code> is used here.'),
+    # DQN conflict set paragraph
+    ('<p>冲突集 = {SVC0, SVC2, SVC5}。如果把 SVC0 放到 ECU3，则 ECU3 的 <code>ecu_allowed</code> 里会删除 SVC2 和 SVC5。之后试图把 SVC2 放到 ECU3 时，<code>_has_conflict</code> 返回 True，触发 -2.0 惩罚。</p>',
+     '<p>Conflict set = {SVC0, SVC2, SVC5}. After placing SVC0 on ECU3, SVC2 and SVC5 are removed from ECU3\'s <code>ecu_allowed</code>. If SVC2 is later assigned to ECU3, <code>_has_conflict</code> returns True and triggers a -2.0 penalty.</p>'),
+    # DQN LT scenario styled paragraph
+    ('<p style="margin-top:10px; color:var(--muted); font-size:0.85rem;">LT 场景下两者违规率都很高。PPO+ActionMask 方案（P4）违规率接近 0%，因为有硬约束屏蔽。</p>',
+     '<p style="margin-top:10px; color:var(--muted); font-size:0.85rem;">In the LT scenario both have high violation rates. PPO+ActionMask (P4) achieves near-zero violation rate due to hard constraint masking.</p>'),
+    # DQN example li
+    ('    <li>例：N=10, M=15 → 观测维度 = 5×10+6+15 = <strong>71</strong></li>',
+     '    <li>E.g. N=10, M=15 → observation dim = 5×10+6+15 = <strong>71</strong></li>'),
+    # P3 text nodes
+    ('    观测向量的形状是 <code>5N + 6 + M</code>，例如 N=7, M=10 时，形状为 5×7+6+10=<strong>51</strong>。',
+     '    Observation vector shape is <code>5N + 6 + M</code>; e.g. N=7, M=10 → shape = 5×7+6+10=<strong>51</strong>.'),
+    ('      <code>observation_space = Box(-1, 1, shape=(5N+6+M,))</code> — 观测向量，',
+     '      <code>observation_space = Box(-1, 1, shape=(5N+6+M,))</code> — observation vector,'),
+    # P3 cn paragraph
+    ('<p class="cn" style="margin-top:14px;"><span class="tag tag-green">关键3：terminal_bonus 总是 +AR</span></p>',
+     '<p style="margin-top:14px;"><span class="tag tag-green">Key 3: terminal_bonus is always +AR</span></p>'),
+    # P4/P5/P6 footer lines
+    ('<p style="margin-top:1rem; color: var(--muted);">P4 — Maskable PPO Code Walkthrough · 双语代码精读 · Generated 2026-05</p>',
+     '<p style="margin-top:1rem; color: var(--muted);">P4 — Maskable PPO Code Walkthrough · Generated 2026-05</p>'),
+    ('<p style="margin-top:1rem; color: var(--muted);">P5 — Lagrangian PPO Code Walkthrough · 双语代码精读 · Generated 2026-05</p>',
+     '<p style="margin-top:1rem; color: var(--muted);">P5 — Lagrangian PPO Code Walkthrough · Generated 2026-05</p>'),
+    # P5 training loop ASCII
+    ('训练循环 Training Loop:', 'Training Loop:'),
+    ('        ↓ 每 20 集 / Every 20 episodes ↓', '        ↓ Every 20 episodes ↓'),
+    ('  P5Callback 统计平均冲突率 / Compute avg conflict rate',
+     '  P5Callback computes avg conflict rate'),
+    ('  │  avg_conflict_rate > 0%  →  λ ← λ + Δλ  (提高惩罚)    │',
+     '  │  avg_conflict_rate > 0%  →  λ ← λ + Δλ  (increase penalty)  │'),
+    ('  │  avg_conflict_rate = 0%  →  λ ← max(0, λ - ε)  (稳定) │',
+     '  │  avg_conflict_rate = 0%  →  λ ← max(0, λ - ε)  (stabilise)  │'),
+    ('        ↓ 调用 / Call ↓', '        ↓ Call ↓'),
+    ('        ↓ ...重复 ... Repeat ...', '        ↓ ... Repeat ...'),
+    # P5 terminal bonus note
+    ('<strong>P5 terminal_bonus 设计：0.0 vs P4 的 0.0（相同）</strong>',
+     '<strong>P5 terminal_bonus design: 0.0 vs P4\'s 0.0 (identical)</strong>'),
+    # P5 comparison table cells
+    ('<td><strong>约束执行哲学</strong></td>', '<td><strong>Constraint enforcement philosophy</strong></td>'),
+    ('<td><strong>探索空间</strong></td>', '<td><strong>Exploration space</strong></td>'),
+    ('<td><strong>违约保证</strong></td>', '<td><strong>Violation guarantee</strong></td>'),
+    ('<td><strong>梯度信号质量</strong></td>', '<td><strong>Gradient signal quality</strong></td>'),
+    ('<td><strong>超参数</strong></td>', '<td><strong>Hyperparameters</strong></td>'),
+    ('<td>需调 λ_init, λ_max, Δλ, 更新频率</td>',
+     '<td>requires tuning: λ_init, λ_max, Δλ, update frequency</td>'),
+    ('<td><strong>适用场景</strong></td>', '<td><strong>Best suited for</strong></td>'),
+    ('<td>冲突约束是绝对物理限制</td>', '<td>conflict constraint is an absolute physical limit</td>'),
+    ('<td>冲突约束有弹性，允许在探索期临时违反</td>',
+     '<td>conflict constraint is flexible; temporary violations during exploration are acceptable</td>'),
+    # P5 source file paragraphs
+    ('<p>源文件 Source File:</p>', '<p>Source File:</p>'),
+    ('<p>参考对比 Reference P4:</p>', '<p>Reference: P4</p>'),
+    # DQN DDQN analogy in li
+    ('<li style="margin-top:8px;"><strong>DDQN</strong>：你选股票（在线网络推荐），然后让另一个独立分析师（目标网络）来评估这只股票的合理价格。独立分析师不会受你乐观情绪影响，定价更客观。</li>',
+     '<li style="margin-top:8px;"><strong>DDQN</strong>: you pick a stock (online network recommends), then an independent analyst (target network) evaluates its fair price. The analyst is unaffected by your optimism, giving a more objective valuation.</li>'),
+
+    # P6 remaining PATH box lines
+    ('        │  条件: cap violated OR conflict violated                         │',
+     '        │  condition: cap violated OR conflict violated                    │'),
+    ('        │  奖励: -unplaced_demand / total_cap  (负值，越大越惩罚)          │',
+     '        │  reward: -unplaced_demand / total_cap  (negative, larger = more penalty) │'),
+    ('        │        惩罚 = 剩余未部署需求 / 总容量                            │',
+     '        │        penalty = remaining undeployed demand / total capacity    │'),
+    # P6 rlabel divs
+    ('<div class="rlabel">PATH A<br>correct choice<br>路径A：选对了</div>',
+     '<div class="rlabel">PATH A<br>correct choice</div>'),
+    ('<div class="rlabel">PATH B<br>repaired<br>路径B：修复了</div>',
+     '<div class="rlabel">PATH B<br>repaired</div>'),
+    ('<div class="rlabel">PATH C<br>no repair possible<br>路径C：无法修复</div>',
+     '<div class="rlabel">PATH C<br>no repair possible</div>'),
+    # P6 li items
+    ('<li>4×N 个 ECU 特征（每个 ECU 的初始容量、剩余容量、冲突标志、合法标志；无 ecu_allowed_frac）</li>',
+     '<li>4×N ECU features (initial capacity, remaining capacity, conflict flag, valid flag per ECU; no ecu_allowed_frac)</li>'),
+    ('<li><strong>ECU</strong> → 返回 <code>None</code>，让 <code>step()</code> 触发"路径C"（回合强制结束）</li>',
+     '<li><strong>ECU</strong> → returns <code>None</code>, causing <code>step()</code> to trigger "Path C" (episode terminated)</li>'),
+    ('<li><code>ru = svc.requirement / (initial_vms[action] + 1e-8)</code>（利用率密度）</li>',
+     '<li><code>ru = svc.requirement / (initial_vms[action] + 1e-8)</code> (utilisation density)</li>'),
+    ('<li>每步累加 ru → 计算 AR = _total_ru / 活跃ECU数</li>',
+     '<li>accumulate ru each step → AR = _total_ru / active ECU count</li>'),
+    ('<li>step 奖励 = Δar（AR 的增量），而非直接用 ru</li>',
+     '<li>step reward = Δar (AR increment), not ru directly</li>'),
+    ('<li>Δar 是 potential-based reward shaping：提供稠密信号且保证最优策略不变</li>',
+     '<li>Δar is potential-based reward shaping: dense signal that preserves optimal policy</li>'),
+    ('<li><strong>repair_rate = 0</strong>（从未修复）→ bonus = AR × 1.0 = <span style="color:var(--green)">满额奖励</span></li>',
+     '<li><strong>repair_rate = 0</strong> (no repairs) → bonus = AR × 1.0 = <span style="color:var(--green)">full bonus</span></li>'),
+    ('<li><strong>repair_rate = 0.5</strong>（一半需要修复）→ bonus = AR × 0.5 = <span style="color:var(--yellow)">半额奖励</span></li>',
+     '<li><strong>repair_rate = 0.5</strong> (half repaired) → bonus = AR × 0.5 = <span style="color:var(--yellow)">half bonus</span></li>'),
+    ('<li><strong>repair_rate = 1.0</strong>（每步都修复）→ bonus = AR × 0 = <span style="color:var(--red)">无终止奖励</span></li>',
+     '<li><strong>repair_rate = 1.0</strong> (every step repaired) → bonus = AR × 0 = <span style="color:var(--red)">no terminal bonus</span></li>'),
+    ('<li>所有 P6 特有计数器（repairs, cap_violations, conflict_violations）归零</li>',
+     '<li>All P6-specific counters (repairs, cap_violations, conflict_violations) reset to zero</li>'),
+    # P6 reward table
+    ('<th>奖励组件</th>', '<th>Reward Component</th>'),
+    ('<th>触发条件</th>', '<th>Trigger Condition</th>'),
+    ('<td>轻微惩罚错误选择</td>', '<td>mild penalty for wrong choice</td>'),
+    ('<td>惩罚导致回合失败</td>', '<td>penalty for causing episode failure</td>'),
+    ('<td>奖励高利用率 + 低修复率</td>', '<td>reward for high utilisation + low repair rate</td>'),
+
+    # P3 bilingual content
+    ('<strong>核心设计 / Core design:</strong>', '<strong>Core design:</strong>'),
+    ('<strong>P3 vs P4 动作掩码核心区别：</strong>', '<strong>P3 vs P4 — core action-mask difference:</strong>'),
+    ('    P3: <code>mask = (remaining_vms &gt;= svc.requirement)</code> — 只看容量',
+     '    P3: <code>mask = (remaining_vms &gt;= svc.requirement)</code> — capacity only'),
+    ('    P4: <code>mask = [(remaining_vms[j] &gt;= svc.requirement) AND (not _has_conflict(j, svc_idx)) for j in range(N)]</code> — 容量 AND 无冲突',
+     '    P4: <code>mask = [(remaining_vms[j] &gt;= svc.requirement) AND (not _has_conflict(j, svc_idx)) for j in range(N)]</code> — capacity AND no conflict'),
+
+    # DQN ε-greedy table
+    ('<tr><th>阶段</th><th>ε 值</th><th>行为</th></tr>',
+     '<tr><th>Phase</th><th>ε value</th><th>Behaviour</th></tr>'),
+    ('<tr><td>Start</td><td>ε = 1.0</td><td>完全随机选动作，大量探索环境</td></tr>',
+     '<tr><td>Start</td><td>ε = 1.0</td><td>Fully random actions, maximum exploration</td></tr>'),
+    ('<tr><td>前 50% 训练</td><td>1.0 → 0.0</td><td>逐渐减少随机，增加依靠 Q 值决策</td></tr>',
+     '<tr><td>First 50% training</td><td>1.0 → 0.0</td><td>Gradually less random, more Q-value decisions</td></tr>'),
+    ('<tr><td>后 50% 训练</td><td>ε = 0.0</td><td>完全贪心：总选 Q 值最高的动作</td></tr>',
+     '<tr><td>Last 50% training</td><td>ε = 0.0</td><td>Fully greedy: always select highest Q-value action</td></tr>'),
+
+    # DQN eps divs
+    ('<div class="eps-explore">探索 Explore (ε→1.0～0.0)　前 50% 步数</div>',
+     '<div class="eps-explore">Explore (ε→1.0→0.0) — first 50% of steps</div>'),
+    ('<div class="eps-exploit">利用 Exploit (ε=0.0)　后 50%</div>',
+     '<div class="eps-exploit">Exploit (ε=0.0) — last 50%</div>'),
+
+    # DQN ε-greedy paragraph
+    ('<p>DQN 使用 <strong>ε-贪心（epsilon-greedy）</strong> 策略来平衡探索（Exploration）与利用（Exploitation）：</p>',
+     '<p>DQN uses an <strong>ε-greedy (epsilon-greedy)</strong> policy to balance Exploration and Exploitation:</p>'),
+
+    # DQN li items in update sections
+    ('<li>每 4 步更新一次</li>', '<li>Updated every 4 steps</li>'),
+    ('<li>每 500 步从在线网络复制一次</li>', '<li>Copied from online network every 500 steps</li>'),
+    ('<li>用于计算 TD 目标值</li>', '<li>Used to compute TD target values</li>'),
+
+    # ILP td tags
+    ('<td><span class="tag tag-red">容量</span> Capacity</td>',
+     '<td><span class="tag tag-red">Capacity</span></td>'),
+    ('<td><span class="tag tag-green">冲突</span> Conflict</td>',
+     '<td><span class="tag tag-green">Conflict</span></td>'),
+
     # Card labels (bilingual "Chinese English" → English only)
     # These are handled by regex below
 ]
 
 
 def strip_chinese_from_label(text):
-    """For 'Chinese English' label text, keep only the English portion."""
-    # Find last continuous CJK block and strip everything before/including it
-    # Strategy: keep ASCII-dominant trailing part
+    """For 'Chinese English' or 'English Chinese' label text, keep only the English portion."""
     parts = re.split(r'[一-鿿]+', text)
-    # Last part is likely English
+    # Try last part (English after Chinese)
     candidate = parts[-1].strip()
+    if candidate and not has_cjk(candidate):
+        return candidate
+    # Try first part (English before Chinese)
+    candidate = parts[0].strip()
     if candidate and not has_cjk(candidate):
         return candidate
     return text
@@ -760,19 +1145,74 @@ def remove_chinese_only_paragraphs(html):
 
 
 def remove_chinese_list_items(html):
-    """
-    For <li> elements: if content is mixed Chinese+English with the Chinese part
-    dominant, try to strip the Chinese prefix and keep the English.
-    This is conservative — only remove if CJK ratio > 80%.
-    """
+    """Remove <li> elements where CJK content dominates (ratio > 0.4)."""
     def repl_li(m):
         content = m.group(1)
         plain = re.sub(r'<[^>]+>', '', content)
-        if cjk_ratio(plain) > 0.8:
+        if cjk_ratio(plain) > 0.4:
             return ''
         return m.group(0)
     html = re.sub(r'<li>((?:(?!<li>|</li>).)*?)</li>', repl_li, html, flags=re.DOTALL)
     return html
+
+
+def remove_chinese_text_nodes(html):
+    """Remove bare text lines (not starting with <) that are mostly Chinese."""
+    lines = html.split('\n')
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith('<') or not has_cjk(stripped):
+            result.append(line)
+            continue
+        plain = re.sub(r'<[^>]+>', '', stripped)
+        if cjk_ratio(plain) > 0.3:
+            continue
+        result.append(line)
+    return '\n'.join(result)
+
+
+def remove_analogy_divs(html):
+    """Remove <div class="analogy"> blocks that still contain Chinese."""
+    def repl_div(m):
+        content = m.group(1)
+        if has_cjk(content):
+            return ''
+        return m.group(0)
+    return re.sub(r'<div class="analogy">(.*?)</div>', repl_div, html, flags=re.DOTALL)
+
+
+def clean_bilingual_p_strong(html):
+    """For <p><strong>Chinese</strong>：content</p>, translate the strong."""
+    def repl_p(m):
+        attrs = m.group(1) or ''
+        content = m.group(2)
+        if not has_cjk(content):
+            return m.group(0)
+        # Clean strong tags
+        def repl_strong(ms):
+            inner = ms.group(1)
+            if not has_cjk(inner):
+                return ms.group(0)
+            cleaned = strip_chinese_from_label(inner)
+            # Also try strip_cjk_parentheticals
+            if has_cjk(cleaned):
+                cleaned = strip_cjk_parentheticals(inner)
+            if cleaned and not has_cjk(cleaned):
+                return f'<strong>{cleaned.strip()}</strong>'
+            return ms.group(0)
+        new_content = re.sub(r'<strong>(.*?)</strong>', repl_strong, content, flags=re.DOTALL)
+        # Strip ：Chinese suffix
+        new_content = strip_colon_chinese_suffix(new_content).rstrip()
+        # Strip Chinese parentheticals
+        plain = re.sub(r'<[^>]+>', '', new_content)
+        new_plain = strip_cjk_parentheticals(plain)
+        if new_plain != plain:
+            new_content = new_content.replace(plain, new_plain)
+        if new_content != content and not has_cjk(re.sub(r'<[^>]+>', '', new_content)):
+            return f'<p{attrs}>{new_content}</p>'
+        return m.group(0)
+    return re.sub(r'<p([^>]*)>(.*?)</p>', repl_p, html, flags=re.DOTALL)
 
 
 def remove_lang_labels(html):
@@ -860,6 +1300,18 @@ def clean_bilingual_badge(html):
     return html
 
 
+def strip_colon_chinese_suffix(text):
+    """Strip ：Chinese... suffix from text, even if Chinese crosses inline tags."""
+    colon_pos = text.find('：')
+    if colon_pos == -1:
+        return text
+    after = text[colon_pos + 1:]
+    plain_after = re.sub(r'<[^>]+>', '', after)
+    if has_cjk(plain_after):
+        return text[:colon_pos]
+    return text
+
+
 def clean_bilingual_li(html):
     """For list items with bilingual content, extract English label."""
     def repl_li(m):
@@ -869,15 +1321,20 @@ def clean_bilingual_li(html):
 
         working = content
 
-        # Step 1: Clean Chinese parentheticals from anchor text
+        # Step 1: Clean Chinese parentheticals and bilingual · pattern from anchor text
         def repl_anchor(ma):
-            inner = ma.group(1)
-            href = ma.group(0).split('>')[0] + '>'
+            full = ma.group(0)
+            href_end = full.index('>') + 1
+            href = full[:href_end]
             text = ma.group(1)
+            # Try parenthetical stripping
             cleaned = strip_cjk_parentheticals(text)
-            if not has_cjk(cleaned) and cleaned != text:
-                return href + cleaned + '</a>'
-            return ma.group(0)
+            # Try · bilingual extraction
+            if has_cjk(cleaned):
+                cleaned = clean_bilingual_heading(cleaned)
+            if not has_cjk(cleaned) and cleaned.strip():
+                return href + cleaned.strip() + '</a>'
+            return full
         working = re.sub(r'<a[^>]*>(.*?)</a>', repl_anchor, working, flags=re.DOTALL)
 
         # Step 2: Clean bilingual strong tags
@@ -891,17 +1348,17 @@ def clean_bilingual_li(html):
             return ms.group(0)
         working = re.sub(r'<strong>(.*?)</strong>', repl_strong, working, flags=re.DOTALL)
 
-        # Step 3: Strip ：Chinese description suffix (after tags)
-        working = re.sub(r'：\s*[^<]*[一-鿿][^<]*$', '', working).rstrip()
+        # Step 3: Strip ：Chinese description suffix (crosses inline tags)
+        working = strip_colon_chinese_suffix(working).rstrip()
 
         # Step 4: Strip — Chinese description suffix
-        working = re.sub(r'\s*[—–-]\s*[^<]*[一-鿿][^<]*$', '', working).rstrip()
+        working = re.sub(r'\s*[—–]\s*[^<]*[一-鿿][^<]*$', '', working).rstrip()
 
         # Only accept if result is clean
         if working != content:
             plain = re.sub(r'<[^>]+>', '', working).strip()
             if plain and not has_cjk(plain):
-                return f'<li>{working}</li>'
+                return f'<li>{working.strip()}</li>'
 
         return m.group(0)
     return re.sub(r'<li>(.*?)</li>', repl_li, html, flags=re.DOTALL)
@@ -940,6 +1397,10 @@ def translate_file(path, is_code=False):
         html = clean_bilingual_th_td(html)
         # Clean bilingual li items
         html = clean_bilingual_li(html)
+        # Clean bilingual <p><strong>Chinese</strong>：content</p>
+        html = clean_bilingual_p_strong(html)
+        # Remove analogy divs with Chinese
+        html = remove_analogy_divs(html)
         # Process card labels
         html = process_labels(html)
         # Clean bilingual h2/h3 headings
@@ -948,6 +1409,8 @@ def translate_file(path, is_code=False):
         html = remove_chinese_only_paragraphs(html)
         # Remove Chinese-only list items
         html = remove_chinese_list_items(html)
+        # Remove bare Chinese text nodes
+        html = remove_chinese_text_nodes(html)
     else:
         # Docs H1 titles
         html = apply_replacements(html, DOCS_H1)

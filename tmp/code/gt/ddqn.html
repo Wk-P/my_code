@@ -103,12 +103,12 @@
 </style>
 </head>
 <body>
-<div style="position:sticky;top:0;z-index:100;background:#1a3a1a;border-bottom:2px solid #4ade80;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#4ade80;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">GT</span><span style="color:#4ade80;font-size:.82rem;font-weight:600">N > M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数多于服务数，容量约束宽松</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/ddqn" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/ddqn" style="color:#4ade80;font-size:.75rem;text-decoration:none;font-weight:700">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/ddqn" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">LT</a></div>
+<div style="position:sticky;top:0;z-index:100;background:#1a3a1a;border-bottom:2px solid #4ade80;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#4ade80;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">GT</span><span style="color:#4ade80;font-size:.82rem;font-weight:600">N > M</span><span style="color:#94a3b8;font-size:.78rem">N &gt; M: capacity constraints loose</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/ddqn" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/ddqn" style="color:#4ade80;font-size:.75rem;text-decoration:none;font-weight:700">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/ddqn" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">LT</a></div>
 
 
 <header>
   <h1>DDQN Code Walkthrough <span class="badge">Double DQN</span></h1>
-  <p>LT — 环境与 DQN 完全相同 · 算法层面减少 Q 值高估 &nbsp;|&nbsp; </p>
+  
   <p style="margin-top:10px; color: var(--muted); font-size:0.82rem;">
     Files: <code>ecu_lt_svc_p/problem_ddqn/env.py</code> &nbsp;·&nbsp; comparison with <code>problem_dqn/env.py</code>
   </p>
@@ -140,7 +140,7 @@ Terminal bonus (lt-specific adaptation, aligns reward scale with PPO methods):
 
 <div class="card blue">
   <div class="label">Key Point</div>
-  <p>文档第一句就说了：<strong>"Identical constraint-enforcement strategy to DQNEnv"</strong>。DDQNEnv 的环境逻辑与 DQNEnv <strong>完全一样</strong>。DDQN 的算法改进（双网络减少高估）发生在训练器（Trainer）里，而不是环境里。</p>
+  <p>As stated in the docstring: <strong>"Identical constraint-enforcement strategy to DQNEnv"</strong>. DDQNEnv's environment logic is <strong>identical</strong> to DQNEnv. The DDQN algorithmic improvement (dual network to reduce overestimation) happens in the Trainer, not the environment.</p>
   <p style="color:var(--muted); margin-top:8px;">The docstring explicitly states the environment is identical to DQNEnv. The algorithm difference (Double Q-network update rule) lives entirely in the trainer, not the env.</p>
 </div>
 
@@ -225,7 +225,7 @@ sys.path.insert(<span class="nm">0</span>, str(Path(__file__).parent.parent))
 <h2><span class="section-num">3</span> Why Same Env, Different Results?</h2>
 
 <div class="highlight-box">
-  <strong>答案：Q 值更新公式不同！The Q-value update rule is different!</strong>
+  <strong>Answer: The Q-value update rule is different!</strong>
   
 </div>
 
@@ -237,9 +237,9 @@ sys.path.insert(<span class="nm">0</span>, str(Path(__file__).parent.parent))
   <br><br>
   <span class="cm"># target network handles both:</span>
   <br>
-  <span class="cm">#   1. 选择最优动作（argmax）</span>
+  <span class="cm">#   1. select optimal action (argmax)</span>
   <br>
-  <span class="cm">#   2. 评估该动作的价值（Q value）</span>
+  <span class="cm">#   2. evaluate the action's value (Q value)</span>
   <br>
   <span class="cm"># one network does both → overestimation bias!</span>
 </div>
@@ -261,25 +261,25 @@ sys.path.insert(<span class="nm">0</span>, str(Path(__file__).parent.parent))
   <div class="compare-card dqn">
     <h4 style="color:var(--accent)">DQN —</h4>
     <div class="flow-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
-      <div class="flow-box highlight-dqn">目标网络 Q_target(s', a)</div>
+      <div class="flow-box highlight-dqn">Target network Q_target(s', a)</div>
       <div class="flow-arrow">↓</div>
-      <div class="flow-box" style="color:var(--red); border-color:var(--red)">max_a → 选最大值的动作</div>
+      <div class="flow-box" style="color:var(--red); border-color:var(--red)">max_a → select action with highest value</div>
       <div class="flow-arrow">↓</div>
-      <div class="flow-box" style="color:var(--red); border-color:var(--red)">同一网络评估该动作 Q 值</div>
+      <div class="flow-box" style="color:var(--red); border-color:var(--red)">same network evaluates action Q value</div>
       <div class="flow-arrow">↓</div>
-      <div style="font-size:0.82rem; color:var(--red); padding:4px 0;">容易选到噪声高估的动作并高估其价值</div>
+      <div style="font-size:0.82rem; color:var(--red); padding:4px 0;">prone to selecting overestimated actions due to noise</div>
     </div>
   </div>
   <div class="compare-card ddqn">
     <h4 style="color:var(--blue)">DDQN —</h4>
     <div class="flow-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
-      <div class="flow-box highlight-ddqn">在线网络 Q_online(s', a)</div>
+      <div class="flow-box highlight-ddqn">Online network Q_online(s', a)</div>
       <div class="flow-arrow">↓</div>
-      <div class="flow-box" style="color:var(--blue); border-color:var(--blue)">argmax → 选它认为最好的动作 a*</div>
+      <div class="flow-box" style="color:var(--blue); border-color:var(--blue)">argmax → select best action a*</div>
       <div class="flow-arrow">↓</div>
-      <div class="flow-box" style="color:var(--green); border-color:var(--green)">目标网络评估 Q_target(s', a*)</div>
+      <div class="flow-box" style="color:var(--green); border-color:var(--green)">target network evaluates Q_target(s', a*)</div>
       <div class="flow-arrow">↓</div>
-      <div style="font-size:0.82rem; color:var(--green); padding:4px 0;">目标网络"纠正"在线网络的乐观估计</div>
+      <div style="font-size:0.82rem; color:var(--green); padding:4px 0;">target network "corrects" the online network's optimistic estimate</div>
     </div>
   </div>
 </div>
@@ -288,12 +288,12 @@ sys.path.insert(<span class="nm">0</span>, str(Path(__file__).parent.parent))
 <h2><span class="section-num">4</span> Concrete Overestimation Example</h2>
 
 <div class="overest-demo">
-  <p style="color:var(--muted); font-size:0.85rem; margin-bottom:16px;">场景：下一状态 s' 有两个可能动作 a1, a2。由于神经网络估计有噪声：</p>
+  <p style="color:var(--muted); font-size:0.85rem; margin-bottom:16px;">Scenario: next state s' has two possible actions a1, a2. Due to network estimation noise:</p>
 
   <div class="step">
     <div class="step-num">1</div>
     <div class="step-body">
-      <strong>真实 Q 值（理想情况）：</strong>
+      <strong>True Q values (ideal):</strong>
       Q(s', a1) = 0.85，Q(s', a2) = 0.80
     </div>
   </div>
@@ -301,32 +301,30 @@ sys.path.insert(<span class="nm">0</span>, str(Path(__file__).parent.parent))
   <div class="step">
     <div class="step-num">2</div>
     <div class="step-body">
-      <strong>带噪声的网络估计：</strong>
-      Q_hat(s', a1) = 0.90，Q_hat(s', a2) = 0.78（a1 被高估了！）
+      <strong>Noisy network estimates:</strong>
+      Q_hat(s', a1) = 0.90, Q_hat(s', a2) = 0.78  (a1 overestimated!)
     </div>
   </div>
 
   <div class="step">
     <div class="step-num" style="background:var(--primary)">DQN</div>
     <div class="step-body">
-      目标网络选 max → 选 a1（Q=0.90，被噪声抬高）
-      <br>用同一网络评估 → 目标值 = 0.90 <span style="color:var(--red)">（高估！比真实 0.85 高）</span>
-      <br><strong style="color:var(--red)">结果：网络学到了虚假乐观的 Q 值</strong>
+      <br>same network evaluates → target = 0.90 <span style="color:var(--red)">(overestimated! true is 0.85)</span>
+      <br><strong style="color:var(--red)">Result: network learns falsely optimistic Q values</strong>
     </div>
   </div>
 
   <div class="step">
     <div class="step-num blue">DDQN</div>
     <div class="step-body">
-      <span class="blue">在线网络</span>选 argmax → 选 a1（在线网络认为 a1 最好）
-      <br><span style="color:var(--green)">目标网络</span>评估 Q_target(s', a1) → 得到 0.85（目标网络估计更保守）
-      <br><strong style="color:var(--green)">结果：目标值 = 0.85，更接近真实 Q 值</strong>
+      <span class="blue">online network</span> argmax → selects a1 (online thinks a1 is best)
+      <br><span style="color:var(--green)">target network</span> evaluates Q_target(s', a1) → 0.85 (more conservative)
+      <br><strong style="color:var(--green)">Result: target = 0.85, closer to true Q value</strong>
     </div>
   </div>
 
   <div style="background: #0f1a1a; border: 1px solid #2dd4bf; border-radius:6px; padding:12px; margin-top:12px; font-size:0.85rem;">
-    <strong style="color:#2dd4bf;">结论 Conclusion：</strong>
-    DDQN 用在线网络"提名"最优动作，用目标网络"独立评分"，两者互相制衡，避免了"提名者即裁判"的问题。
+    <strong style="color:#2dd4bf;">Conclusion:</strong>
     <br>
     <span style="color:var(--muted);">DDQN separates "who picks the action" from "who evaluates it" — like having a separate judge who doesn't know who nominated the candidate.</span>
   </div>
@@ -430,18 +428,18 @@ ddqn_model = <span class="fn">DQN</span>(
 <div class="card purple">
   <div class="label">LT Scenario Results</div>
   <table style="margin-bottom:12px;">
-    <tr><th>算法</th><th>）</th><th>ViolRate</th><th>分析</th></tr>
+    <tr><th>Algorithm</th><th>AR</th><th>ViolRate</th><th>Analysis</th></tr>
     <tr>
       <td><span style="color:var(--accent); font-weight:700;">DQN</span></td>
       <td><span style="color:var(--green);">0.667</span></td>
       <td><span style="color:var(--red);">68.1%</span></td>
-      <td>利用率略高，但违规更多</td>
+      <td>slightly higher AR, but more violations</td>
     </tr>
     <tr>
       <td><span style="color:var(--blue); font-weight:700;">DDQN</span></td>
       <td><span style="color:var(--green);">0.659</span></td>
       <td><span style="color:var(--yellow);">64.4%</span></td>
-      <td>违规略少，训练更稳定</td>
+      <td>fewer violations, more stable training</td>
     </tr>
   </table>
 
@@ -466,17 +464,17 @@ ddqn_model = <span class="fn">DQN</span>(
   <div class="compare-card">
     <h4 style="color:var(--accent)">DDQN</h4>
     <ul style="font-size:0.85rem;">
-      <li>高估偏差少 → Q 网络不会"自信地选错" → 减少"confident but wrong"动作</li>
-      <li>更保守的 Q 估计 → 面对模糊情况时决策更谨慎</li>
+      <li>less overestimation → Q network avoids "confidently wrong" choices → fewer wrong confident actions</li>
+      
       
     </ul>
   </div>
   <div class="compare-card">
-    <h4 style="color:var(--blue)">为什么 AR 差距不大？</h4>
+    <h4 style="color:var(--blue)">Why is the AR gap small?</h4>
     <ul style="font-size:0.85rem;">
       
       
-      <li>AR 的改善需要从根本上解决无动作屏蔽的问题，而 DDQN 只优化了 Q 值精度</li>
+      
     </ul>
   </div>
 </div>
@@ -491,11 +489,11 @@ ddqn_model = <span class="fn">DQN</span>(
 <h2><span class="section-num">8</span> Full Comparison Summary</h2>
 
 <table>
-  <tr><th>维度</th><th style="color:var(--accent)">DQN</th><th style="color:var(--blue)">DDQN</th></tr>
+  <tr><th>Dimension</th><th style="color:var(--accent)">DQN</th><th style="color:var(--blue)">DDQN</th></tr>
   <tr>
     <td>Environment Class</td>
     <td><code style="color:var(--accent)">DQNEnv</code></td>
-    <td><code style="color:var(--blue)">DDQNEnv</code>（逻辑相同）</td>
+    <td><code style="color:var(--blue)">DDQNEnv</code> (logic identical)</td>
   </tr>
   <tr>
     <td>Action Masking</td>
@@ -509,8 +507,8 @@ ddqn_model = <span class="fn">DQN</span>(
   </tr>
   <tr>
     <td>Q Target</td>
-    <td><code>r + γ·max_a Q_target(s',a)</code><br><span style="color:var(--red); font-size:0.8rem;">目标网络选+评（高估风险）</span></td>
-    <td><code>r + γ·Q_target(s', argmax_a Q_online(s',a))</code><br><span style="color:var(--green); font-size:0.8rem;">在线选/目标评（减少高估）</span></td>
+    <td><code>r + γ·max_a Q_target(s',a)</code><br><span style="color:var(--red); font-size:0.8rem;">target selects+evaluates (overestimation risk)</span></td>
+    <td><code>r + γ·Q_target(s', argmax_a Q_online(s',a))</code><br><span style="color:var(--green); font-size:0.8rem;">online selects / target evaluates (reduced overestimation)</span></td>
   </tr>
   <tr>
     <td>Replay Buffer</td>
@@ -547,7 +545,7 @@ ddqn_model = <span class="fn">DQN</span>(
   
   <ul style="margin-top:10px;">
     <li><strong>DQN</strong></li>
-    <li style="margin-top:8px;"><strong>DDQN</strong>：你选股票（在线网络推荐），然后让另一个独立分析师（目标网络）来评估这只股票的合理价格。独立分析师不会受你乐观情绪影响，定价更客观。</li>
+    <li style="margin-top:8px;"><strong>DDQN</strong>: you pick a stock (online network recommends), then an independent analyst (target network) evaluates its fair price. The analyst is unaffected by your optimism, giving a more objective valuation.</li>
   </ul>
   <p style="color:var(--muted); margin-top:12px; font-size:0.88rem;">DQN: you pick and price the stock yourself → prone to overconfidence. DDQN: you pick, an independent analyst prices → more objective valuation.</p>
 </div>

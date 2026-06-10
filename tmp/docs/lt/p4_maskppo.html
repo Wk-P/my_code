@@ -155,7 +155,7 @@
   $$</div>
   <p>$\text{conflict\_ecus}(t)$: set of ECUs that already host a service conflicting with service $t$.</p>
   <p>If $\mathbf{m}^t = \mathbf{0}$ (no legal ECU), fall back to the ECU with the largest remaining capacity and apply a $-2.0$ penalty.</p>
-  <div class="note">LT 特有：服务按需求降序排列（FFD 顺序），冲突集索引同步重映射，保证冲突追踪与排序后索引一致。</div>
+  <div class="note">LT-specific: services are sorted by demand descending (FFD order); conflict-set indices are remapped accordingly to keep conflict tracking consistent.</div>
 </div>
 
 <h2>Algorithm: MaskablePPO</h2>

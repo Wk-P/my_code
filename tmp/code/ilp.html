@@ -169,7 +169,7 @@ footer {
     <li><code>name</code>: ECU identifier, e.g. <code>"ECU0"</code></li>
     <li><code>capacity</code></li>
   </ul>
-  <div class="analogy"><strong>Analogy:</strong> 把 ECU 想象成一间宿舍，capacity 就是床位数。服务就是要住进来的人。</div>
+  
 </div>
 
 <h3>SVC class</h3>
@@ -189,7 +189,7 @@ footer {
     <li><code>name</code>: service name, e.g. <code>"SVC0"</code></li>
     <li><code>requirement</code></li>
   </ul>
-  <div class="analogy"><strong>Analogy:</strong> 服务就是一群人，requirement 是他们需要的床位数。我们要把所有人分配进各间宿舍，且不超过床位限制。</div>
+  
 </div>
 
 <hr class="divider">
@@ -223,11 +223,11 @@ AR = (1 / active_ECUs) × Σ_j [ Σ_{i→j} req_i / cap_j ]
       <td>Each service goes to exactly one ECU</td>
     </tr>
     <tr>
-      <td><span class="tag tag-red">容量</span> Capacity</td>
+      <td><span class="tag tag-red">Capacity</span></td>
       <td>— An ECU's total demand ≤ its capacity</td>
     </tr>
     <tr>
-      <td><span class="tag tag-green">冲突</span> Conflict</td>
+      <td><span class="tag tag-green">Conflict</span></td>
       <td>ECU — Conflicting services must be separated</td>
     </tr>
   </table>
@@ -273,9 +273,7 @@ AR = (1 / active_ECUs) × Σ_j [ Σ_{i→j} req_i / cap_j ]
     <li><code>seed</code></li>
   </ul>
   <p class="en" style="margin-top:10px;"><strong>Return value:</strong> a dictionary with the final assignment, active ECU count, and AR score.</p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 这个函数就像一个"聪明的宿舍分配员"。你告诉它有多少间宿舍（N）、多少学生（M）、每间有多少床位（e_list）、每个学生需要多少床位（n_list）、哪些学生不能住同一间（conflict_sets），它会给出最优分配方案。
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -300,9 +298,7 @@ AR = (1 / active_ECUs) × Σ_j [ Σ_{i→j} req_i / cap_j ]
   <p class="en">
     <code>max_iter = 20</code>: cap at 20 iterations, but in practice 3–5 are enough. A fresh <code>LpProblem</code> is created each iteration because the objective changes with λ.
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 就像你去黑板前猜答案，猜完之后看看实际结果，再回去改。λ 就是每次的"猜测值"，不断逼近真实答案。
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -325,10 +321,7 @@ AR = (1 / active_ECUs) × Σ_j [ Σ_{i→j} req_i / cap_j ]
   <p class="en">
     <strong>y[j]</strong> — 1 if ECU j is "active" (hosts at least one service), 0 otherwise. N variables total, used to count active ECUs (the denominator of AR).
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong>
-    把宿舍分配写在一张表格上：x[i][j] 就是第 i 个学生是否住在第 j 间宿舍（打勾/不打勾）。y[j] 就是第 j 间宿舍是否有人（开灯/关灯）。
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -348,12 +341,12 @@ prob <span class="op">+=</span> (
   <ul style="margin-left:20px; margin-top:8px;">
     <li>
       <span class="tag tag-green">F(x)</span>
-      <code>Σ x[i][j] × req_i / cap_j</code> — 所有已分配服务对其所在 ECU 的利用率之和。
+      <code>Σ x[i][j] × req_i / cap_j</code> — sum of utilisation contributions from all assigned services.
       <span class="en">Sum of (service demand / ECU capacity) for every assigned pair.</span>
     </li>
     <li style="margin-top:8px;">
       <span class="tag tag-red">G(y)</span>
-      <code>Σ y[j]</code> — 活跃 ECU 的数量。
+      <code>Σ y[j]</code> — number of active ECUs.
       <span class="en">Count of active ECUs.</span>
     </li>
   </ul>
@@ -361,9 +354,7 @@ prob <span class="op">+=</span> (
   <p class="en" style="margin-top:8px;">
     The full objective is <strong>F(x) − λ × G(y)</strong>. Dinkelbach's theorem guarantees: when the optimal value of this parametric problem equals 0, λ equals the true maximum of AR = F/G.
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 想象 λ 是"开灯成本"。每点亮一间宿舍（y[j]=1）就要付 λ 元。解题器会在"提高利用率收益"和"少开房间节省成本"之间找平衡点。当 λ 等于真实 AR 时，两者完美平衡，我们找到了最优解。
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -379,7 +370,7 @@ prob <span class="op">+=</span> (
 <div class="explain">
   
   <p class="en">For each service i, exactly one x[i][j] can be 1. This ensures every service is deployed to exactly one ECU — no service is left out, none is deployed twice.</p>
-  <div class="analogy"><strong>类比:</strong> 每位学生必须且只能住在一间宿舍。不能无家可归，也不能同时住两间。</div>
+  
 </div>
 
 <h3>NoneConstraint 2 — Capacity (</h3>
@@ -390,7 +381,7 @@ prob <span class="op">+=</span> (
 <div class="explain">
   
   <p class="en">For each ECU j, the total VM demand of all services placed there must not exceed its capacity. When x[i][j]=0 the product is 0, so only assigned services count.</p>
-  <div class="analogy"><strong>类比:</strong> 宿舍不能超过床位数——住进去的人的床位需求总和 ≤ 宿舍床位总数。</div>
+  
 </div>
 
 <h3>NoneConstraint 3 &amp; 4 — Linking LB / UB (</h3>
@@ -408,13 +399,8 @@ prob <span class="op">+=</span> (
       <code>Σ x[i][j] ≥ y[j]</code></li>
     <li style="margin-top:6px;">
       <span class="tag tag-red">LinkUB</span>
-      <code>x[i][j] ≤ y[j]</code>：如果服务 i 放在 ECU j（x[i][j]=1），则 y[j] 也必须是 1。（你不能把人放在一间"关灯"的宿舍）
-    </li>
-  </ul>
-  <p class="en" style="margin-top:10px;">
-    These two constraints ensure y[j] and x[i][j] are consistent: y[j]=1 iff at least one service is assigned to ECU j.
-  </p>
-  <div class="analogy"><strong>类比:</strong> 宿舍有人住（y=1）当且仅当至少有一位学生住进去（x=1）。不允许"空宿舍算开灯"，也不允许"有人住但算关灯"。</div>
+      <code>x[i][j] ≤ y[j]</code></p>
+  
 </div>
 
 <h3>NoneConstraint 5 — Hard Infeasibility Pre-filter (</h3>
@@ -443,7 +429,7 @@ prob <span class="op">+=</span> (
   <p class="en">
     Conflict sets define groups of mutually incompatible services — at most one service from each conflict group may be placed on any single ECU. This models resource conflicts (e.g., two services contend for the same hardware peripheral).
   </p>
-  <div class="analogy"><strong>类比:</strong> 某些学生互相吵架，不能住同一间宿舍。冲突约束就是"吵架组"规则：同一组里最多只能有一人住在同一间房。</div>
+  
 </div>
 
 <hr class="divider">
@@ -487,13 +473,7 @@ lambda_val <span class="op">=</span> new_lambda</pre>
   <p class="en" style="margin-top:10px;">
     After each solve, compute the true AR of the current solution and use it as the new λ. When λ stops changing (converges), we have found the globally optimal AR.
   </p>
-  <div class="analogy">
-    <strong>类比 / Analogy:</strong> 就像反复猜"这次分配的平均利用率是多少"，然后拿猜测结果去重新优化，再看结果，直到两次结果完全一样（误差 &lt; 0.000001）。
-    <br><br>
-    数学保证（Dinkelbach定理）：每次迭代后，AR 单调增加，且最终收敛到全局最优解。
-    <br>
-    Mathematical guarantee (Dinkelbach): AR strictly increases with each iteration and converges to the global optimum.
-  </div>
+  
 </div>
 
 <hr class="divider">
@@ -515,8 +495,8 @@ lambda_val <span class="op">=</span> new_lambda</pre>
 
 <div class="explain">
   <p class="cn">
-    <code>@timer_utils.timer</code> 是一个装饰器（decorator），自动记录 main() 函数的运行时间。
-    <code>**kwargs</code> 让函数接受任意关键字参数，这里只用到了 <code>config_path</code>。
+    <code>@timer_utils.timer</code> is a decorator that automatically records the runtime of main().
+    <code>**kwargs</code> lets the function accept arbitrary keyword arguments; only <code>config_path</code> is used here.
   </p>
   
   <p class="en">
@@ -543,13 +523,13 @@ cache_key <span class="op">=</span> <span class="st">f"<span class="nm">{config_
   
   <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
     <li><code>cache_key</code></li>
-    <li>如果缓存存在且 key 匹配，直接加载结果，跳过 ILP 求解</li>
-    <li>如果缓存只有部分结果（程序中途被中断），从断点处继续（<code>start_idx = len(results)</code>）</li>
+    
+    
   </ul>
   <p class="en">
     Solving 40+ ILP scenarios can take minutes. The cache skips recomputation if results already exist for the exact same config. Incremental caching means even an interrupted run can resume from where it left off.
   </p>
-  <div class="analogy"><strong>类比:</strong> 就像考试前做过的历年真题答案——如果题目没变，直接查答案，不用再算一遍。</div>
+  
 </div>
 
 <h3>NoneScenario Loop and Incremental Saving (</h3>
@@ -576,7 +556,7 @@ cache_key <span class="op">=</span> <span class="st">f"<span class="nm">{config_
   <p class="en">
     <strong>Atomic write pattern:</strong> write to a temp file first, then atomically rename it. This ensures the cache file is never in a corrupted half-written state, even if the program crashes mid-write.
   </p>
-  <div class="analogy"><strong>类比:</strong> 就像写支票时先在草稿纸上写好，确认没错再誊到正式支票上。</div>
+  
 </div>
 
 </main>

@@ -252,7 +252,7 @@ footer code { color: var(--accent); font-size: 0.82rem; }
 </style>
 </head>
 <body>
-<div style="position:sticky;top:0;z-index:100;background:#3a1a3a;border-bottom:2px solid #e879f9;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#e879f9;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">LT</span><span style="color:#e879f9;font-size:.82rem;font-weight:600">N < M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数少于服务数，每 ECU 承载多个服务</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p4_maskppo" style="color:#e879f9;font-size:.75rem;text-decoration:none;font-weight:700">LT</a></div>
+<div style="position:sticky;top:0;z-index:100;background:#3a1a3a;border-bottom:2px solid #e879f9;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#e879f9;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">LT</span><span style="color:#e879f9;font-size:.82rem;font-weight:600">N < M</span><span style="color:#94a3b8;font-size:.78rem">N &lt; M: services exceed ECUs</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p4_maskppo" style="color:#e879f9;font-size:.75rem;text-decoration:none;font-weight:700">LT</a></div>
 
 
 <div class="container">
@@ -260,7 +260,7 @@ footer code { color: var(--accent); font-size: 0.82rem; }
 <div class="page-header">
   <h1>P4 — Maskable PPO</h1>
   <p class="subtitle">
-    Hard Capacity Masking + Hard Conflict Masking · 双硬约束动作掩码<br>
+    Hard Capacity Masking + Hard Conflict Masking · Dual Hard Constraint Masking<br>
     ECU Service Placement with Gymnasium + sb3-contrib MaskablePPO
   </p>
   <<<span class="badge">>>Code Walkthrough</<span>Class Declaration &amp; Docstring</h2>
@@ -313,7 +313,7 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><strong>观测向量维度</strong> = <code>5N + 6 + M</code>。其中 N 是 ECU 数，M 是服务数。比如 N=7, M=10，则维度 = 47。</p>
+    <p><strong>Observation vector dimension</strong> = <code>5N + 6 + M</code>. Where N = number of ECUs, M = number of services. E.g. N=7, M=10 → dimension = 47.</p>
   </div>
   <div class="lang-en">
     <p><strong>What P4Env solves</strong>: Place M services onto N ECUs (N &lt; M), one service per timestep. Multiple services can share the same ECU.</p>
@@ -327,7 +327,7 @@ so the hardest-to-place service is always presented first.
 <div class="callout callout-info">
   <strong>Action masking vs. penalty:</strong> Instead of letting the agent pick a bad ECU and then punishing it, P4 simply <em>hides</em> bad ECUs from the agent. The MaskablePPO algorithm from <code>sb3-contrib</code> zeros out the logits (log-probabilities) for masked actions before sampling, guaranteeing zero violations under normal conditions.
   <br><br>
-  <strong>动作掩码的意义：</strong>与其让智能体选一个错误的 ECU 然后给予惩罚，P4 直接把不合法的 ECU 从选项中"隐藏"掉。MaskablePPO 在采样前把被屏蔽动作的 logit 设为负无穷，保证在正常情况下零违约。
+  <strong>What action masking means:</strong> Rather than letting the agent choose an illegal ECU and then applying a penalty, P4 removes illegal ECUs from the choices entirely. MaskablePPO sets masked action logits to −∞ before sampling, guaranteeing zero violations under normal conditions.
 </div>
 </div>
 
@@ -357,8 +357,8 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><strong>action_space = Discrete(N)</strong>：每一步，智能体从 0 到 N-1 选一个整数，代表选哪个 ECU。</p>
-    <p><strong>observation_space = Box(...)</strong>：观测空间是一个浮点数组，值域 [-1, 1]，形状 5N+6+M。</p>
+    <p><strong>action_space = Discrete(N)</strong></p>
+    <p><strong>observation_space = Box(...)</strong></p>
     
     
     
@@ -375,7 +375,7 @@ so the hardest-to-place service is always presented first.
 </div>
 
 <table>
-  <tr><th>Key Array 关键数组</th><th>Type 类型</th><th>Role 作用</th></tr>
+  <tr><th>Key Array</th><th>Type</th><th>Role</th></tr>
   <tr><td><code>initial_vms</code></td><td>np.ndarray [N]</td><td>/ Initial capacities (fixed)</td></tr>
   <tr><td><code>remaining_vms</code></td><td>np.ndarray [N]</td><td>/ Decremented each step</td></tr>
   <tr><td><code>ecu_placements</code></td><td>list[set], len N</td><td>/ Placed service indices per ECU</td></tr>
@@ -435,9 +435,9 @@ so the hardest-to-place service is always presented first.
 </div>
 
 <div class="callout callout-ok">
-  <strong>Why this is efficient 为什么高效：</strong> Rather than scanning all conflict rules at query time (<code>_has_conflict</code>), P4 precomputes and maintains the "allowed" set so that the check becomes a single O(1) set-membership test. Updates happen only when a placement is made.
+  <strong>Why this is efficient:</strong> Rather than scanning all conflict rules at query time (<code>_has_conflict</code>), P4 precomputes and maintains the "allowed" set so that the check becomes a single O(1) set-membership test. Updates happen only when a placement is made.
   <br><br>
-  P4 预先维护"可用集合"，让查询时只需 O(1) 的集合成员检查。更新只在放置时发生，而非每次查询。
+
 </div>
 </div>
 
@@ -527,8 +527,7 @@ so the hardest-to-place service is always presented first.
 </div>
 
 <div class="callout callout-ok">
-  <strong>P4 是强制零违约 · P4 guarantees zero violations:</strong><br>
-  由于动作掩码覆盖了容量和冲突两个约束，正确训练后的 P4 智能体在推断时几乎不会产生任何违约。FFD 排序进一步降低了遇到空掩码边缘情况的概率。
+  <strong>P4 guarantees zero violations:</strong><br>
   <br><br>
   Because action masking covers both capacity and conflict constraints, a correctly trained P4 agent produces virtually zero violations at inference time. FFD ordering further reduces the probability of encountering the all-False mask edge case.
 </div>
@@ -570,7 +569,7 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><code>np.clip(..., -max_cap, max_cap)</code>：限制剩余容量的范围。当 remaining_vms 为负数（服务超额放置，fallback 场景）时，clip 防止异常大的负值。</p>
+    <p><code>np.clip(..., -max_cap, max_cap)</code></p>
   </div>
   <div class="lang-en">
     <p>The observation vector is what the agent "sees" at each step. All values are normalized to roughly [-1, 1] — crucial for neural network training to avoid exploding gradients.</p>
@@ -580,7 +579,7 @@ so the hardest-to-place service is always presented first.
 </div>
 
 <table class="obs-table">
-  <tr><th>Index</th><th>Variable</th><th>中文含义</th><th>English Meaning</th></tr>
+  <tr><th>Index</th><th>Variable</th><th>Meaning</th></tr>
   <tr><td>[0]</td><td>service_demand_norm</td><td>Current service demand normalized by max ECU capacity</td></tr>
   <tr><td>[1]</td><td>ar</td><td>Running average resource utilization so far</td></tr>
   <tr><td>[2]</td><td>remaining_usable_capacity_sum</td><td>Sum of non-negative remaining capacities, normalized</td></tr>
@@ -636,7 +635,7 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><strong>terminal_bonus</strong>：只在最后一步（done=True）且零违约时才加 +ar_final。有违约时 bonus=0（不再是 +0.1*ar）。加上每步的 Δar 求和 = ar_final，整集回报 = 2 × ar_final，形成稳定的 value function bootstrap。</p>
+    <p><strong>terminal_bonus</strong></p>
   </div>
   <div class="lang-en">
     <p><strong>Δar (potential-based shaping)</strong>: = ar_new − ar_prev. The per-step reward is the incremental AR change, not raw ru. This is a standard potential-based reward shaping trick: it provides dense gradient signal while provably preserving the optimal policy (potential function = current AR).</p>
@@ -651,8 +650,8 @@ so the hardest-to-place service is always presented first.
 <table>
   <tr><th>Reward Component</th><th>Value</th><th>When</th></tr>
   <tr><td>）</td><td>≈ 0</td><td>）</td></tr>
-  <tr><td>）</td><td>+ar_final</td><td>最后一步，且整集无违约</td></tr>
-  <tr><td>）</td><td>0.0</td><td>最后一步，有任何违约时不加</td></tr>
+  <tr><td></td><td>+ar_final</td><td>last step, no violations in episode</td></tr>
+  <tr><td></td><td>0.0</td><td>last step, any violation present</td></tr>
 </table>
 </div>
 
@@ -718,7 +717,7 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <p><strong>functools.partial</strong>：把 <code>_make_p4_env(seed)</code> 固定一个 seed 参数，得到一个无参数的可调用对象，符合 DummyVecEnv 的要求。</p>
+    <p><strong>functools.partial</strong></p>
   </div>
   <div class="lang-en">
     <p><strong>DummyVecEnv</strong>: Creates N_ENVS (typically ~40) parallel environments running in the same process (not true multiprocessing, but fast enough for CPU-bound problems). Parallel envs collect N_ENVS × n_steps transitions per rollout, dramatically speeding up training.</p>
@@ -729,7 +728,7 @@ so the hardest-to-place service is always presented first.
 <h3>NoneHyperparameter Reference</h3>
 
 <table>
-  <tr><th>Parameter</th><th>Typical Value</th><th>中文说明</th><th>English Explanation</th></tr>
+  <tr><th>Parameter</th><th>Typical Value</th><th>Explanation</th></tr>
   <tr>
     <td><code>gamma</code></td><td>0.99</td>
     
@@ -827,19 +826,19 @@ so the hardest-to-place service is always presented first.
 
 <table>
   <tr><th>Step</th><th>Action</th><th>Output</th></tr>
-  <tr><td>1</td><td>/ Load YAML scenario</td><td>ECU + SVC 列表</td></tr>
+  <tr><td>1</td><td>/ Load YAML scenario</td><td>ECU + SVC list</td></tr>
   <tr><td>2</td><td>/ Solve ILP (optimal upper bound)</td><td>AR)</td></tr>
-  <tr><td>3</td><td>/ Train (N_ENVS parallel envs)</td><td>model.zip + 训练曲线数据</td></tr>
+  <tr><td>3</td><td>/ Train (N_ENVS parallel envs)</td><td>model.zip + training curve data</td></tr>
   <tr><td>4</td><td>/ Evaluate (deterministic, test scenarios)</td><td>ppo_res: ars, placed, ecus_used</td></tr>
   <tr><td>5</td><td>/ Save results</td><td>results.json, summary.csv, *.png</td></tr>
 </table>
 </div>
 
 <footer>
-  <p>源文件 Source Files:</p>
+  <p>Source Files:</p>
   <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem4_ppo_mask/env.py</code></p>
   <p><code>/home/soar009/github/my_code/ecu_eq_svc_p/problem4_ppo_mask/run_all.py</code></p>
-  <p style="margin-top:1rem; color: var(--muted);">P4 — Maskable PPO Code Walkthrough · 双语代码精读 · Generated 2026-05</p>
+  <p style="margin-top:1rem; color: var(--muted);">P4 — Maskable PPO Code Walkthrough · Generated 2026-05</p>
 </footer>
 
 </div>
