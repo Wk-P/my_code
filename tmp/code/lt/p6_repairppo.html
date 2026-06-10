@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -139,7 +139,7 @@ footer {
 </style>
 </head>
 <body>
-<div style="position:sticky;top:0;z-index:100;background:#3a1a3a;border-bottom:2px solid #e879f9;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#e879f9;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">LT</span><span style="color:#e879f9;font-size:.82rem;font-weight:600">N < M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数少于服务数，每 ECU 承载多个服务</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← 返回列表</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p6_repairppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p6_repairppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p6_repairppo" style="color:#e879f9;font-size:.75rem;text-decoration:none;font-weight:700">LT</a></div>
+<div style="position:sticky;top:0;z-index:100;background:#3a1a3a;border-bottom:2px solid #e879f9;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#e879f9;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">LT</span><span style="color:#e879f9;font-size:.82rem;font-weight:600">N < M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数少于服务数，每 ECU 承载多个服务</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p6_repairppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p6_repairppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p6_repairppo" style="color:#e879f9;font-size:.75rem;text-decoration:none;font-weight:700">LT</a></div>
 
 
 <header>
@@ -159,9 +159,7 @@ footer {
 <div class="section">
   <div class="section-header">
     <div class="section-num">1</div>
-    <div>
-      <h2>设计思想 / Design Philosophy (Lines 1–12)</h2>
-      <div class="sub">P6 的核心创新 — The core innovation of P6</div>
+    <div>— The core innovation of P6</div>
     </div>
   </div>
   <div class="section-body">
@@ -179,13 +177,13 @@ Constraints:
 """</span></pre>
 
     <div class="explain-box">
-      <h4>中文解读 / Chinese Explanation</h4>
-      <p>P6 解决的是 <strong>ECU 资源分配</strong>问题：有 N 个 ECU（嵌入式控制单元），有 M 个服务要部署，每次分配一个服务。</p>
-      <p>P6 的创新在于：<strong>不屏蔽非法动作（不像 P4），也不直接给大惩罚（不像 P5/DQN）</strong>，而是采用"修复"策略：</p>
+      <h4>Chinese Explanation</h4>
+      
+      
       <ul>
         <li>AI 选了一个非法的 ECU → 环境悄悄地帮它换到最优合法的 ECU（叫做 "repair 修复"）</li>
         <li>修复了 → 给 -0.1 小惩罚，告诉 AI "你选错了，但我帮你救回来了"</li>
-        <li>如果连修复都无法做到 → 直接结束当前回合，并给需求惩罚</li>
+        
         <li>回合结束时：修复次数越少 → 奖励越高</li>
       </ul>
     </div>
@@ -207,9 +205,7 @@ Constraints:
 <div class="section">
   <div class="section-header">
     <div class="section-num">2</div>
-    <div>
-      <h2><code>__init__</code> — 初始化 / Initialization</h2>
-      <div class="sub">环境的基本参数设置 — setting up env parameters and extra counters</div>
+    <div>— setting up env parameters and extra counters</div>
     </div>
   </div>
   <div class="section-body">
@@ -237,12 +233,12 @@ Constraints:
 
     <div class="explain-box">
       <h4>中文解读</h4>
-      <p>P6 的动作空间是 <code>Discrete(N)</code>：每步 AI 选一个 ECU 编号（0 到 N-1）来部署当前服务。</p>
+      
       <p>观测向量长度 = <strong>4N + 6 + M</strong>：</p>
       <ul>
         <li>6 个全局特征（当前服务需求、AR、剩余容量等）</li>
         <li>4×N 个 ECU 特征（每个 ECU 的初始容量、剩余容量、冲突标志、合法标志；无 ecu_allowed_frac）</li>
-        <li>M 个服务的剩余需求列表</li>
+        
       </ul>
       <p>比 P4 多了三个计数器：<code>repairs</code>（修复次数）、<code>cap_violations</code>（容量违规次数）、<code>conflict_violations</code>（冲突违规次数）</p>
     </div>
@@ -250,23 +246,23 @@ Constraints:
     <table class="obs-table">
       <thead>
         <tr>
-          <th>观测向量片段 / Obs Segment</th>
-          <th>索引 / Index</th>
-          <th>含义 / Meaning</th>
+          <th>/ Obs Segment</th>
+          <th>/ Index</th>
+          <th>/ Meaning</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td>service_demand_norm</td><td>[0]</td><td>当前服务的需求量（归一化） / current service's normalized demand</td></tr>
-        <tr><td>ar</td><td>[1]</td><td>当前累计平均利用率 AR / current AR</td></tr>
-        <tr><td>remaining_cap_sum</td><td>[2]</td><td>剩余 ECU 容量之和（归一化）/ total remaining capacity</td></tr>
-        <tr><td>remaining_demand_sum</td><td>[3]</td><td>剩余服务需求之和（归一化）/ total remaining demand</td></tr>
-        <tr><td>usable_ecu_frac</td><td>[4]</td><td>有效 ECU 比例 / fraction of ECUs that can accept current SVC</td></tr>
-        <tr><td>services_remaining_frac</td><td>[5]</td><td>还剩多少服务未部署 / fraction of services not yet placed</td></tr>
-        <tr><td>init_cap_pct[N]</td><td>[6:6+N]</td><td>每个 ECU 的初始容量比 / initial capacity per ECU</td></tr>
-        <tr><td>remaining_abs_norm[N]</td><td>[6+N:6+2N]</td><td>每个 ECU 的剩余容量 / remaining capacity per ECU</td></tr>
-        <tr><td>conflict_flag[N]</td><td>[6+2N:6+3N]</td><td>当前服务在该 ECU 是否冲突 / conflict flag per ECU</td></tr>
-        <tr><td>valid_flag[N]</td><td>[6+3N:6+4N]</td><td>该 ECU 是否合法（容量OK且无冲突）/ valid action flag</td></tr>
-        <tr><td>remaining_svcs[M]</td><td>[6+4N:end]</td><td>所有服务的剩余需求（按降序）/ remaining SVC demands</td></tr>
+        <tr><td>service_demand_norm</td><td>[0]</td><td>） / current service's normalized demand</td></tr>
+        <tr><td>ar</td><td>[1]</td><td>AR / current AR</td></tr>
+        <tr><td>remaining_cap_sum</td><td>[2]</td><td>）/ total remaining capacity</td></tr>
+        <tr><td>remaining_demand_sum</td><td>[3]</td><td>）/ total remaining demand</td></tr>
+        <tr><td>usable_ecu_frac</td><td>[4]</td><td>/ fraction of ECUs that can accept current SVC</td></tr>
+        <tr><td>services_remaining_frac</td><td>[5]</td><td>/ fraction of services not yet placed</td></tr>
+        <tr><td>init_cap_pct[N]</td><td>[6:6+N]</td><td>/ initial capacity per ECU</td></tr>
+        <tr><td>remaining_abs_norm[N]</td><td>[6+N:6+2N]</td><td>/ remaining capacity per ECU</td></tr>
+        <tr><td>conflict_flag[N]</td><td>[6+2N:6+3N]</td><td>/ conflict flag per ECU</td></tr>
+        <tr><td>valid_flag[N]</td><td>[6+3N:6+4N]</td><td>）/ valid action flag</td></tr>
+        <tr><td>remaining_svcs[M]</td><td>[6+4N:end]</td><td>）/ remaining SVC demands</td></tr>
       </tbody>
     </table>
   </div>
@@ -276,9 +272,7 @@ Constraints:
 <div class="section">
   <div class="section-header">
     <div class="section-num">3</div>
-    <div>
-      <h2><code>_best_fit_repair(svc_idx)</code> — 最佳修复函数 (Lines 93–103)</h2>
-      <div class="sub">P6 的核心机制 — the heart of P6's repair strategy</div>
+    <div>— the heart of P6's repair strategy</div>
     </div>
   </div>
   <div class="section-body">
@@ -302,12 +296,12 @@ Constraints:
 
     <div class="explain-box">
       <h4>中文详解</h4>
-      <p>这个函数的工作分三步：</p>
+      
       <ul>
-        <li><strong>第一步：筛选合法 ECU</strong> — 找出所有满足两个条件的 ECU：<br>
+        <li><strong>ECU</strong> — 找出所有满足两个条件的 ECU：<br>
           &nbsp;&nbsp;① <code>remaining_vms[j] &gt;= svc.requirement</code>：剩余容量足够放得下这个服务<br>
           &nbsp;&nbsp;② <code>svc_idx in ecu_allowed[j]</code>：没有冲突约束（该服务被该 ECU 允许部署）</li>
-        <li><strong>第二步：若无合法 ECU</strong> → 返回 <code>None</code>，让 <code>step()</code> 触发"路径C"（回合强制结束）</li>
+        <li><strong>ECU</strong> → 返回 <code>None</code>，让 <code>step()</code> 触发"路径C"（回合强制结束）</li>
         <li><strong>第三步：最佳适配</strong> → 在所有合法 ECU 中，选择<strong>利用率密度最高</strong>的那个：<br>
           &nbsp;&nbsp;<code>req / initial_cap</code> 越大 → 说明这个服务对这个 ECU 的"填充比"越高 → 选择"最紧凑"的那个</li>
       </ul>
@@ -320,12 +314,12 @@ Constraints:
     </div>
 
     <div class="explain-box green">
-      <h4>关键：双重筛选 / Two-gate filter</h4>
-      <p>注意修复函数用的是 <strong>AND</strong>（两个条件都要满足）：</p>
+      <h4>Two-gate filter</h4>
+      
       <ul>
         <li>只有容量够 → 但有冲突 → 不算合法</li>
         <li>没有冲突 → 但容量不够 → 也不算合法</li>
-        <li>两个条件都满足 → 才能被修复选中</li>
+        
       </ul>
     </div>
   </div>
@@ -335,44 +329,42 @@ Constraints:
 <div class="section">
   <div class="section-header">
     <div class="section-num">4</div>
-    <div>
-      <h2><code>action_masks()</code> — 全放开的动作掩码</h2>
-      <div class="sub">P6 allows ALL actions — contrast with P4 which blocks invalid ones</div>
+    <div>P6 allows ALL actions — contrast with P4 which blocks invalid ones</div>
     </div>
   </div>
   <div class="section-body">
     <div class="explain-box yellow">
-      <h4>注意 / Important</h4>
+      <h4>Important</h4>
       <p>P6 的 <code>action_masks()</code> 返回 <strong>全 True</strong>！这意味着 AI 可以自由选择任何 ECU（0 到 N-1），没有任何限制。</p>
       <p>P6 does NOT restrict the action space. The agent can freely pick any ECU — including invalid ones. The "repair" mechanism inside <code>step()</code> handles the consequence after the fact.</p>
     </div>
 
     <div class="explain-box">
-      <h4>对比 P4 / Comparison with P4</h4>
+      <h4>P4 / Comparison with P4</h4>
       <table class="obs-table">
         <thead>
           <tr><th>属性</th><th>P4 (Action Masking)</th><th>P6 (Repair)</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>动作限制 / Action restriction</td>
+            <td>/ Action restriction</td>
             <td><span class="tag tag-red">BLOCKED</span> 非法动作不可选</td>
             <td><span class="tag tag-green">FREE</span> 所有动作可选</td>
           </tr>
           <tr>
-            <td>违规后果 / Violation result</td>
-            <td>不可能发生 / impossible</td>
+            <td>/ Violation result</td>
+            <td>/ impossible</td>
             <td>自动修复 → -0.1 惩罚</td>
           </tr>
           <tr>
-            <td>探索性 / Exploration</td>
-            <td>受限 / restricted</td>
-            <td>自由 / unrestricted</td>
+            <td>/ Exploration</td>
+            <td>/ restricted</td>
+            <td>/ unrestricted</td>
           </tr>
           <tr>
-            <td>训练难度 / Training difficulty</td>
-            <td>较易（搜索空间小）</td>
-            <td>较难（要学会避免修复）</td>
+            <td>/ Training difficulty</td>
+            <td>）</td>
+            <td>）</td>
           </tr>
         </tbody>
       </table>
@@ -384,16 +376,14 @@ Constraints:
 <div class="section">
   <div class="section-header">
     <div class="section-num">5</div>
-    <div>
-      <h2><code>step()</code> — 三条执行路径 / Three Execution Paths</h2>
-      <div class="sub">最核心的逻辑 — the most important section</div>
+    <div>— the most important section</div>
     </div>
   </div>
   <div class="section-body">
     <pre><span class="kw">def</span> <span class="fn">step</span>(<span class="nm">self</span>, action: <span class="fn">int</span>):
     svc = <span class="nm">self</span>.services[<span class="nm">self</span>._step]
 
-    <span class="cm"># ── 检测违规 / Detect violations ──</span>
+    <span class="cm"># ── Detect violations ──</span>
     cap_violated      = <span class="fn">bool</span>(<span class="nm">self</span>.remaining_vms[action] < svc.requirement)
     conflict_violated = <span class="nm">self</span>.<span class="fn">_has_conflict</span>(action, <span class="nm">self</span>._step)
 
@@ -401,33 +391,33 @@ Constraints:
     <span class="kw">if</span> cap_violated <span class="kw">or</span> conflict_violated:
         repaired = <span class="nm">self</span>.<span class="fn">_best_fit_repair</span>(<span class="nm">self</span>._step)
 
-        <span class="kw">if</span> repaired <span class="kw">is None</span>:           <span class="cm"># ── PATH C: 修复失败 ──</span>
+        <span class="kw">if</span> repaired <span class="kw">is None</span>:           <span class="cm"># ── PATH C: repair failed ──</span>
             unplaced_demand = <span class="fn">sum</span>(<span class="nm">self</span>.services[i].requirement
                                   <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>._step, <span class="nm">self</span>.M))
             penalty = -<span class="fn">float</span>(unplaced_demand) / (<span class="fn">float</span>(np.<span class="fn">sum</span>(<span class="nm">self</span>.initial_vms)) + <span class="num">1e-8</span>)
             <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">_obs</span>(), penalty, <span class="kw">True</span>, <span class="kw">False</span>, {...}
 
-        action = repaired              <span class="cm"># ── PATH B: 使用修复后的 ECU ──</span>
+        action = repaired              <span class="cm"># ── PATH B: use repaired ECU ──</span>
         was_repaired = <span class="kw">True</span>
         <span class="nm">self</span>.repairs += <span class="num">1</span>
         <span class="kw">if</span> cap_violated:
             <span class="nm">self</span>.cap_violations += <span class="num">1</span>
         <span class="kw">if</span> conflict_violated:
             <span class="nm">self</span>.conflict_violations += <span class="num">1</span>
-    <span class="cm"># else: PATH A — 智能体选择正确 ──</span>
+    <span class="cm"># else: PATH A — agent chose correctly ──</span>
 
-    <span class="cm"># ── 计算奖励 / Compute reward ──</span>
+    <span class="cm"># ── Compute reward ──</span>
     repair_penalty = <span class="num">-0.1</span> <span class="kw">if</span> was_repaired <span class="kw">else</span> <span class="num">0.0</span>
     ar_prev = <span class="nm">self</span>.ar  <span class="cm"># capture before placement for Δar</span>
     ru = svc.requirement / (<span class="nm">self</span>.initial_vms[action] + <span class="num">1e-8</span>)
     <span class="cm"># ru = utilization density; accumulated to compute AR</span>
 
-    <span class="nm">self</span>.remaining_vms[action] -= svc.requirement   <span class="cm"># 扣减容量</span>
+    <span class="nm">self</span>.remaining_vms[action] -= svc.requirement   <span class="cm"># deduct capacity</span>
     _was_empty = <span class="kw">not</span> <span class="nm">self</span>.ecu_placements[action]
-    <span class="nm">self</span>.ecu_placements[action].<span class="fn">add</span>(<span class="nm">self</span>._step)      <span class="cm"># 记录部署</span>
+    <span class="nm">self</span>.ecu_placements[action].<span class="fn">add</span>(<span class="nm">self</span>._step)      <span class="cm"># record deployment</span>
     <span class="kw">if</span> _was_empty:
         <span class="nm">self</span>._n_active += <span class="num">1</span>
-    <span class="nm">self</span>.<span class="fn">_update_ecu_allowed</span>(action, <span class="nm">self</span>._step)     <span class="cm"># 更新冲突集合</span>
+    <span class="nm">self</span>.<span class="fn">_update_ecu_allowed</span>(action, <span class="nm">self</span>._step)     <span class="cm"># update conflict sets</span>
     <span class="nm">self</span>._total_ru += ru
     _active = <span class="nm">self</span>._n_active
     <span class="nm">self</span>.ar = <span class="nm">self</span>._total_ru / _active
@@ -485,7 +475,7 @@ Constraints:
     </div>
 
     <div class="explain-box">
-      <h4>Δar（势差奖励）是什么 / What is Δar?</h4>
+      <h4>What is Δar?</h4>
       <p><code>Δar = ar_new - ar_prev</code></p>
       <ul>
         <li><code>ru = svc.requirement / (initial_vms[action] + 1e-8)</code>（利用率密度）</li>
@@ -502,13 +492,11 @@ Constraints:
 <div class="section">
   <div class="section-header">
     <div class="section-num">6</div>
-    <div>
-      <h2>终止奖励 / Terminal Bonus — Repair Rate Penalty</h2>
-      <div class="sub">回合结束时根据修复率动态调整奖励</div>
+    <div>None/ Terminal Bonus — Repair Rate Penalty</div>
     </div>
   </div>
   <div class="section-body">
-    <pre><span class="cm"># 回合结束时触发 / triggered when done == True</span>
+    <pre><span class="cm"># triggered when done == True</span>
 done = <span class="nm">self</span>._step >= <span class="nm">self</span>.M
 terminal_bonus = <span class="num">0.0</span>
 <span class="kw">if</span> done:
@@ -520,14 +508,14 @@ terminal_bonus = <span class="num">0.0</span>
 
     <div class="explain-box green">
       <h4>中文解读</h4>
-      <p><code>repair_rate = repairs / M</code>：这一回合中，有多少比例的步骤触发了修复？</p>
+      
       <p><code>terminal_bonus = AR × (1 - repair_rate)</code>：</p>
       <ul>
         <li><strong>repair_rate = 0</strong>（从未修复）→ bonus = AR × 1.0 = <span style="color:var(--green)">满额奖励</span></li>
         <li><strong>repair_rate = 0.5</strong>（一半需要修复）→ bonus = AR × 0.5 = <span style="color:var(--yellow)">半额奖励</span></li>
         <li><strong>repair_rate = 1.0</strong>（每步都修复）→ bonus = AR × 0 = <span style="color:var(--red)">无终止奖励</span></li>
       </ul>
-      <p>这激励 AI 学会自己就选正确的 ECU，而不是依赖修复来帮它兜底。</p>
+      
     </div>
 
     <div class="explain-box blue">
@@ -554,9 +542,7 @@ terminal_bonus = <span class="num">0.0</span>
 <div class="section">
   <div class="section-header">
     <div class="section-num">7</div>
-    <div>
-      <h2><code>reset()</code> — 回合重置 / Episode Reset</h2>
-      <div class="sub">每回合开始时初始化所有状态</div>
+    <div>/ Episode Reset</div>
     </div>
   </div>
   <div class="section-body">
@@ -583,7 +569,7 @@ terminal_bonus = <span class="num">0.0</span>
     <span class="nm">self</span>.ecu_placements  = [<span class="fn">set</span>() <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
     <span class="nm">self</span>.ecu_allowed     = [<span class="fn">set</span>(<span class="fn">range</span>(<span class="nm">self</span>.M)) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">self</span>.N)]
 
-    <span class="cm"># 重置所有计数器 / reset all counters</span>
+    <span class="cm"># reset all counters</span>
     <span class="nm">self</span>.ar              = <span class="num">0.0</span>
     <span class="nm">self</span>._step           = <span class="num">0</span>
     <span class="nm">self</span>.repairs             = <span class="num">0</span>   <span class="cm"># ← P6-specific</span>
@@ -594,9 +580,9 @@ terminal_bonus = <span class="num">0.0</span>
     <div class="explain-box">
       <h4>中文解读</h4>
       <ul>
-        <li><strong>服务按需求量降序排列（FFD）</strong>：需求量大的服务先部署（大服务更难放，先放更安全，减少 PATH C 提前终止）</li>
-        <li><strong>冲突集合重映射（sort_idx/inv_perm）</strong>：<code>sort_idx[i] = old_i</code>，<code>inv_perm[old_i] = i</code>，将冲突集合中的旧索引转换为新排序后的索引</li>
-        <li><code>ecu_allowed[j] = set(range(M))</code>：一开始每个 ECU 可以放所有服务（无冲突限制）；随着部署进行，冲突集合会逐步更新</li>
+        <li><strong>（FFD）</strong></li>
+        <li><strong>（sort_idx/inv_perm）</strong>：<code>sort_idx[i] = old_i</code>，<code>inv_perm[old_i] = i</code>，将冲突集合中的旧索引转换为新排序后的索引</li>
+        <li><code>ecu_allowed[j] = set(range(M))</code></li>
         <li>所有 P6 特有计数器（repairs, cap_violations, conflict_violations）归零</li>
       </ul>
     </div>
@@ -612,9 +598,7 @@ terminal_bonus = <span class="num">0.0</span>
 <div class="section">
   <div class="section-header">
     <div class="section-num">8</div>
-    <div>
-      <h2>完整奖励总结 / Full Reward Summary</h2>
-      <div class="sub">每步的奖励组成 — every component at a glance</div>
+    <div>— every component at a glance</div>
     </div>
   </div>
   <div class="section-body">
@@ -623,33 +607,33 @@ terminal_bonus = <span class="num">0.0</span>
         <tr>
           <th>奖励组件</th>
           <th>触发条件</th>
-          <th>数值 / Value</th>
-          <th>目的 / Purpose</th>
+          <th>/ Value</th>
+          <th>/ Purpose</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td><code>+Δar</code></td>
-          <td>每步成功部署（修复或不修复）</td>
-          <td><span class="tag tag-green">正值 / positive</span></td>
-          <td>势差奖励，鼓励高利用率部署（Δar = ar_new − ar_prev）</td>
+          <td>）</td>
+          <td><span class="tag tag-green">/ positive</span></td>
+          <td>（Δar = ar_new − ar_prev）</td>
         </tr>
         <tr>
           <td><code>-0.1</code></td>
-          <td>触发了修复（PATH B）</td>
-          <td><span class="tag tag-yellow">固定 / fixed</span></td>
+          <td>（PATH B）</td>
+          <td><span class="tag tag-yellow">/ fixed</span></td>
           <td>轻微惩罚错误选择</td>
         </tr>
         <tr>
           <td><code>-demand/cap</code></td>
-          <td>无法修复，回合提前结束（PATH C）</td>
-          <td><span class="tag tag-red">负值 / negative</span></td>
+          <td>（PATH C）</td>
+          <td><span class="tag tag-red">/ negative</span></td>
           <td>惩罚导致回合失败</td>
         </tr>
         <tr>
           <td><code>+AR × (1−repair_rate)</code></td>
-          <td>回合成功结束（所有服务部署完成）</td>
-          <td><span class="tag tag-purple">动态 / dynamic</span></td>
+          <td>）</td>
+          <td><span class="tag tag-purple">/ dynamic</span></td>
           <td>奖励高利用率 + 低修复率</td>
         </tr>
       </tbody>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -143,14 +143,12 @@ footer {
 </style>
 </head>
 <body>
-<div style="position:sticky;top:0;z-index:100;background:#1e3a5f;border-bottom:2px solid #60a5fa;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#60a5fa;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">EQ</span><span style="color:#60a5fa;font-size:.82rem;font-weight:600">N = M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数等于服务数，每 ECU 平均分配一个服务</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← 返回列表</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p3_ppo" style="color:#60a5fa;font-size:.75rem;text-decoration:none;font-weight:700">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p3_ppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p3_ppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">LT</a></div>
+<div style="position:sticky;top:0;z-index:100;background:#1e3a5f;border-bottom:2px solid #60a5fa;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#60a5fa;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">EQ</span><span style="color:#60a5fa;font-size:.82rem;font-weight:600">N = M</span><span style="color:#94a3b8;font-size:.78rem">N = M, one service per ECU on average</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p3_ppo" style="color:#60a5fa;font-size:.75rem;text-decoration:none;font-weight:700">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p3_ppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p3_ppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">LT</a></div>
 
 
 <header>
   <h1>Problem 3 — P3Env (PPO Unconstrained Baseline)</h1>
   <p>
-    <span class="lang-badge">中文</span>
-    <span class="lang-badge">English</span>
     &nbsp;Code walkthrough for high school level readers
   </p>
   <p style="margin-top:12px; color:var(--muted); font-size:0.9rem;">
@@ -162,32 +160,29 @@ footer {
 
 <!-- TOC -->
 <div class="toc">
-  <h3>Table of Contents / 目录</h3>
+  <h3>NoneTable of Contents /</h3>
   <ol>
-    <li><a href="#s1">What is a Gymnasium Environment? (什么是强化学习环境)</a></li>
-    <li><a href="#s2">Class Header &amp; Module Docstring (类说明与文档)</a></li>
-    <li><a href="#s3">__init__() — Constructor (构造函数)</a></li>
+    <li><a href="#s1">What is a Gymnasium Environment?</a></li>
+    <li><a href="#s2">Class Header &amp; Module Docstring</a></li>
+    <li><a href="#s3">__init__() — Constructor</a></li>
     <li><a href="#s4">Conflict Helpers — _init_conflict_sets / _has_conflict / _update_ecu_allowed</a></li>
-    <li><a href="#s5">reset() — Starting a New Episode (重置新回合)</a></li>
-    <li><a href="#s6">action_masks() — Capacity-Only Mask (只检查容量的动作掩码)</a></li>
-    <li><a href="#s7">_obs() — Building the Observation Vector (构建观测向量)</a></li>
-    <li><a href="#s8">step() — The Core P3 Logic (P3核心逻辑)</a></li>
-    <li><a href="#s9">P3 vs P4 Comparison (P3与P4对比)</a></li>
+    <li><a href="#s5">reset() — Starting a New Episode</a></li>
+    <li><a href="#s6">action_masks() — Capacity-Only Mask</a></li>
+    <li><a href="#s7">_obs() — Building the Observation Vector</a></li>
+    <li><a href="#s8">step() — The Core P3 Logic</a></li>
+    <li><a href="#s9">P3 vs P4 Comparison</a></li>
   </ol>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 1 -->
-<h2 id="s1">1. What is a Gymnasium Environment? (什么是强化学习环境)</h2>
+<h2 id="s1">1. What is a Gymnasium Environment?</h2>
 
 <div class="explain">
-  <p class="cn">
-    <strong>强化学习（RL）</strong>的核心组件是"环境"（Environment）和"智能体"（Agent）。
-    <strong>Gymnasium</strong>（前身是 OpenAI Gym）是一个标准接口库，定义了环境的三大核心函数：
-  </p>
+  
   <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
-    <li><code>reset()</code> — 开始新的一局游戏，返回初始观测</li>
-    <li><code>step(action)</code> — 执行一个动作，返回 (观测, 奖励, 是否结束, 截断, 信息)</li>
-    <li><code>render()</code> — 可视化当前状态（可选）</li>
+    <li><code>reset()</code></li>
+    <li><code>step(action)</code></li>
+    <li><code>render()</code></li>
   </ul>
   <p class="en" style="margin-top:10px;">
     <strong>Reinforcement Learning</strong> has two key players: the <strong>environment</strong> (the world) and the <strong>agent</strong> (the learner). Gymnasium defines a standard interface. The agent calls step() repeatedly to take actions and receive rewards, learning to maximize total reward over time.
@@ -195,10 +190,7 @@ footer {
   <div class="analogy">
     <strong>类比 / Analogy:</strong> 把环境想象成一个棋盘游戏。reset() 是"重新摆棋"，step(action) 是"走一步"，然后裁判（环境）告诉你得了多少分、游戏是否结束。AI（智能体）通过不断练习学会下好棋。
   </div>
-  <p class="cn" style="margin-top:12px;">
-    <strong>P3Env 具体做什么：</strong>每一局游戏（episode）就是把 M 个服务依次分配给 N 个 ECU 的过程。每步分配一个服务，共 M 步。
-    目标是让最终的 AR（平均资源利用率）尽可能高。
-  </p>
+  
   <p class="en">
     <strong>P3Env specific task:</strong> each episode sequentially places M services onto N ECUs, one per step. The goal is to maximize final AR.
   </p>
@@ -207,7 +199,7 @@ footer {
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 2 -->
-<h2 id="s2">2. Class Header &amp; Module Docstring (类说明与文档)</h2>
+<h2 id="s2">2. Class Header &amp; Module Docstring</h2>
 
 <pre><span class="st">"""
 P3 Environment — Unconstrained baseline (violations recorded, never penalized).
@@ -245,17 +237,13 @@ Terminal bonus: always +AR (unconstrained upper bound).
     """</span></pre>
 
 <div class="explain">
-  <p class="cn">
-    <strong>关键词："Unconstrained baseline"（无约束基线）</strong>。
-    P3 的核心特点是：容量违规和冲突违规都 <em>只记录，不惩罚</em>。
-    这使得 P3 可以达到比任何有约束方法都高的 AR 值，作为理论上界（天花板）使用。
-  </p>
+  
   <p class="en">
     The module docstring is the most important design decision: <strong>P3 records violations but never penalizes them</strong>. This makes P3 an unconstrained upper bound — useful as a theoretical ceiling to compare against constrained methods (P4, P5, etc.).
   </p>
   <div class="highlight-box">
     <strong>核心设计 / Core design:</strong>
-    P3 = 记录违规（知道发生了）但不扣分（不学习避免它）。
+    P3 = log violations (knows they happened) but no penalty (does not learn to avoid them).
     P3 = records violations (knows they happened) but never deducts reward (never learns to avoid them).
   </div>
   <p class="cn" style="margin-top:10px;">
@@ -270,7 +258,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 3 -->
-<h2 id="s3">3. __init__() — Constructor (构造函数)</h2>
+<h2 id="s3">3. __init__() — Constructor</h2>
 
 <pre><span class="kw">def</span> <span class="fn">__init__</span>(<span class="nb">self</span>, ecus: <span class="fn">list</span>[ECU], services: <span class="fn">list</span>[SVC], scenarios<span class="op">=</span><span class="kw">None</span>):
     <span class="kw">super</span>().<span class="fn">__init__</span>()
@@ -289,17 +277,17 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <span class="nb">self</span>.<span class="fn">reset</span>()</pre>
 
 <div class="explain">
-  <p class="cn"><strong>逐行解析：</strong></p>
+  
   <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
-    <li><code>super().__init__()</code> — 调用父类 gym.Env 的初始化，设置基础环境框架</li>
-    <li><code>scenarios</code> — 可选的多场景列表；如果提供，每个 reset() 会随机选一个场景（用于训练多样性）</li>
-    <li><code>action_space = Discrete(N)</code> — AI 每步可以选 0 到 N-1 中的一个动作，对应 N 个 ECU 中的一个</li>
+    <li><code>super().__init__()</code></li>
+    <li><code>scenarios</code></li>
+    <li><code>action_space = Discrete(N)</code></li>
     <li>
       <code>observation_space = Box(-1, 1, shape=(5N+6+M,))</code> — 观测向量，
       大小为 <code>5N+6+M</code>，每个值在 [-1, 1] 之间（归一化）
     </li>
-    <li><code>initial_vms</code> — 每个 ECU 的初始容量，保存下来用于归一化计算（不会变化）</li>
-    <li><code>self.reset()</code> — 构造时自动调用一次 reset，初始化所有状态变量</li>
+    <li><code>initial_vms</code></li>
+    <li><code>self.reset()</code></li>
   </ul>
   <p class="en" style="margin-top:10px;">
     Key design choices: action space is discrete (choose 1 of N ECUs); observation space is a fixed-size float array. <code>initial_vms</code> is stored separately from <code>remaining_vms</code> so we always have the original capacities for normalization even after services are placed.
@@ -310,72 +298,72 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <code>observation_space</code> 是环境给 AI 看的"仪表盘"——一组数字告诉它当前状态。
   </div>
 
-  <h4 style="margin-top:16px; color:var(--accent);">观测向量各维度含义 / Observation Vector Breakdown</h4>
+  <h4 style="margin-top:16px; color:var(--accent);">Observation Vector Breakdown</h4>
   <table class="obs-table">
     <tr>
-      <th>索引 Index</th>
-      <th>大小 Size</th>
-      <th>含义 Meaning</th>
+      <th>Index</th>
+      <th>Size</th>
+      <th>Meaning</th>
     </tr>
     <tr>
       <td>[0]</td>
       <td>1</td>
-      <td>当前服务的需求，除以最大 ECU 容量归一化 — Current service demand / max ECU capacity</td>
+      <td>— Current service demand / max ECU capacity</td>
     </tr>
     <tr>
       <td>[1]</td>
       <td>1</td>
-      <td>当前累计 AR（平均利用率） — Current cumulative AR</td>
+      <td>） — Current cumulative AR</td>
     </tr>
     <tr>
       <td>[2]</td>
       <td>1</td>
-      <td>所有 ECU 剩余容量之和（负数截断为0后）归一化 — Remaining usable capacity sum (clipped ≥ 0)</td>
+      <td>— Remaining usable capacity sum (clipped ≥ 0)</td>
     </tr>
     <tr>
       <td>[3]</td>
       <td>1</td>
-      <td>所有剩余服务的需求之和归一化 — Remaining service demand sum</td>
+      <td>— Remaining service demand sum</td>
     </tr>
     <tr>
       <td>[4]</td>
       <td>1</td>
-      <td>有足够容量放当前服务的 ECU 比例 — Fraction of ECUs with enough capacity</td>
+      <td>— Fraction of ECUs with enough capacity</td>
     </tr>
     <tr>
       <td>[5]</td>
       <td>1</td>
-      <td>还剩多少比例的服务未分配 — Fraction of services remaining</td>
+      <td>— Fraction of services remaining</td>
     </tr>
     <tr>
       <td>[6 : 6+N]</td>
       <td>N</td>
-      <td>每个 ECU 的初始容量占最大容量的比例 — Initial capacity fraction per ECU</td>
+      <td>— Initial capacity fraction per ECU</td>
     </tr>
     <tr>
       <td>[6+N : 6+2N]</td>
       <td>N</td>
-      <td>每个 ECU 当前剩余容量归一化（可为负！）— Remaining capacity per ECU (can be negative)</td>
+      <td>！）— Remaining capacity per ECU (can be negative)</td>
     </tr>
     <tr>
       <td>[6+2N : 6+3N]</td>
       <td>N</td>
-      <td>冲突标志：当前服务放到该 ECU 是否有冲突（1=有冲突）— Conflict flag per ECU</td>
+      <td>）— Conflict flag per ECU</td>
     </tr>
     <tr>
       <td>[6+3N : 6+4N]</td>
       <td>N</td>
-      <td>每个 ECU 还能放多少比例的服务（无冲突）— ECU allowed fraction</td>
+      <td>）— ECU allowed fraction</td>
     </tr>
     <tr>
       <td>[6+4N : 6+5N]</td>
       <td>N</td>
-      <td>有效动作标志：该 ECU 有足够容量（1=有效）—「注意：P3 只检查容量，不检查冲突！」— Valid-action flag (capacity only)</td>
+      <td>！」— Valid-action flag (capacity only)</td>
     </tr>
     <tr>
       <td>[6+5N : 6+5N+M]</td>
       <td>M</td>
-      <td>所有服务的需求（已分配的置为0，未分配的按降序排列）— Remaining service demands</td>
+      <td>）— Remaining service demands</td>
     </tr>
   </table>
 </div>
@@ -383,7 +371,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 4 -->
-<h2 id="s4">4. Conflict Helpers (冲突辅助函数)</h2>
+<h2 id="s4">4. Conflict Helpers</h2>
 
 <h3>_init_conflict_sets() — Generate Random Conflict Groups</h3>
 <pre><span class="kw">def</span> <span class="fn">_init_conflict_sets</span>(<span class="nb">self</span>, K: <span class="fn">int</span> <span class="op">=</span> <span class="nm">10</span>) <span class="op">-&gt;</span> <span class="fn">list</span>[<span class="fn">set</span>]:
@@ -394,10 +382,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <span class="kw">return</span> sets</pre>
 
 <div class="explain">
-  <p class="cn">
-    生成 K=10 个随机的冲突集合。每个集合包含 2 到 M 个随机选取的服务索引。
-    只在没有提供外部场景（<code>scenarios=None</code>）时使用（即独立测试时）。
-  </p>
+  
   <p class="en">
     Generates K=10 random conflict groups. Each group has between 2 and M service indices, chosen randomly. Used only when no external scenario list is provided (standalone testing).
   </p>
@@ -408,10 +393,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <span class="kw">return</span> svc_idx <span class="kw">not</span> <span class="kw">in</span> <span class="nb">self</span>.ecu_allowed[ecu_idx]</pre>
 
 <div class="explain">
-  <p class="cn">
-    <code>ecu_allowed[j]</code> 是一个集合，记录"ECU j 还能接受哪些服务（不会产生冲突）"。
-    如果当前服务 <code>svc_idx</code> 不在这个集合里，说明放进去会产生冲突。
-  </p>
+  
   <p class="en">
     <code>ecu_allowed[j]</code> is a set of service indices that can still be placed on ECU j without causing a conflict. If the current service is not in this set, placing it there would violate a conflict constraint.
   </p>
@@ -424,13 +406,8 @@ Terminal bonus: always +AR (unconstrained upper bound).
             <span class="nb">self</span>.ecu_allowed[ecu_idx] <span class="op">-=</span> (subset <span class="op">-</span> {svc_idx})</pre>
 
 <div class="explain">
-  <p class="cn">
-    当服务 <code>svc_idx</code> 被放到 ECU <code>ecu_idx</code> 后，需要更新这个 ECU 的"允许列表"。
-    遍历所有冲突集合，如果该服务在某个冲突集合里，就把同一冲突集合里的其他服务从允许列表中移除。
-  </p>
-  <p class="cn" style="margin-top:8px;">
-    <code>subset - {svc_idx}</code>：集合差运算，去掉已经放进去的服务本身（它不需要从允许列表里移除）。
-  </p>
+  
+  
   <p class="en">
     After placing service svc_idx on ECU ecu_idx, we remove all conflicting peers from that ECU's allowed set. <code>subset - {svc_idx}</code> is set-difference: removes the placed service from the exclusion list (we exclude its peers, not itself).
   </p>
@@ -443,7 +420,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 5 -->
-<h2 id="s5">5. reset() — Starting a New Episode (重置新回合)</h2>
+<h2 id="s5">5. reset() — Starting a New Episode</h2>
 
 <pre><span class="kw">def</span> <span class="fn">reset</span>(<span class="nb">self</span>, seed<span class="op">=</span><span class="kw">None</span>, options<span class="op">=</span><span class="kw">None</span>):
     <span class="kw">super</span>().<span class="fn">reset</span>(seed<span class="op">=</span>seed)
@@ -478,39 +455,28 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <span class="kw">return</span> <span class="nb">self</span>.<span class="fn">_obs</span>(), {}</pre>
 
 <div class="explain">
-  <p class="cn"><strong>逐段解析：</strong></p>
+  
 
-  <p class="cn">
-    <span class="tag tag-blue">场景选择</span>
-    如果提供了多场景列表，随机选一个（caps=容量列表, reqs=需求列表, _cs=冲突集合）。
-    训练时每个回合用不同场景，让 AI 学到泛化能力。
-  </p>
+  
   <p class="en">If a scenarios list is provided, randomly pick one each episode. This forces the AI to generalize across different ECU/service configurations.</p>
 
-  <p class="cn" style="margin-top:12px;">
-    <span class="tag tag-yellow">索引重映射</span>
-    <strong>这是一个易错点！</strong>服务列表按需求降序排列后，服务的索引位置变了。
-    但冲突集合里记录的是原始索引。需要把原始索引映射到新的排序后索引：
-  </p>
+  
   <ul style="margin-left:20px; margin-top:6px; color:var(--muted); font-size:0.93rem;">
-    <li><code>sorted_order</code>：排序后，原来第几号服务现在排第几</li>
-    <li><code>orig_to_new</code>：原始索引 → 新索引的映射字典</li>
-    <li>冲突集合里的每个索引都用这个映射转换</li>
+    <li><code>sorted_order</code></li>
+    <li><code>orig_to_new</code></li>
+    
   </ul>
   <p class="en">
     <strong>Index remapping (tricky part):</strong> services are sorted by requirement descending, so their positions change. Conflict sets store original indices. We must remap them to match the new sorted order, or conflict checking would silently use wrong indices.
   </p>
 
-  <p class="cn" style="margin-top:12px;">
-    <span class="tag tag-green">状态重置</span>
-    所有计数器和状态变量归零：
-  </p>
+  
   <ul style="margin-left:20px; margin-top:6px; color:var(--muted); font-size:0.93rem;">
-    <li><code>remaining_vms</code> — 恢复为初始容量的副本</li>
-    <li><code>ecu_placements</code> — 每个 ECU 的已分配服务集合，初始为空</li>
-    <li><code>ecu_allowed</code> — 每个 ECU 的允许服务集合，初始为全集（所有 M 个服务）</li>
-    <li><code>ar, _total_ru, _step</code> — AR 累计值、总利用率、当前步骤计数，全部清零</li>
-    <li><code>capacity_violations, conflict_violations</code> — 违规计数器清零</li>
+    <li><code>remaining_vms</code></li>
+    <li><code>ecu_placements</code></li>
+    <li><code>ecu_allowed</code></li>
+    <li><code>ar, _total_ru, _step</code></li>
+    <li><code>capacity_violations, conflict_violations</code></li>
   </ul>
   <div class="analogy">
     <strong>类比 / Analogy:</strong> reset() 就是"开始新的一局"——清空棋盘（ecu_placements=[]），重置分数（ar=0），重新洗牌（服务重新排序），准备好记分板（违规计数=0）。
@@ -520,7 +486,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 6 -->
-<h2 id="s6">6. action_masks() — Capacity-Only Mask (只检查容量的动作掩码)</h2>
+<h2 id="s6">6. action_masks() — Capacity-Only Mask</h2>
 
 <pre><span class="kw">def</span> <span class="fn">action_masks</span>(<span class="nb">self</span>) <span class="op">-&gt;</span> np.ndarray:
     <span class="kw">if</span> <span class="nb">self</span>._step <span class="op">&gt;=</span> <span class="nb">self</span>.M:
@@ -535,15 +501,10 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <span class="kw">return</span> mask</pre>
 
 <div class="explain">
-  <p class="cn">
-    <strong>动作掩码（action mask）</strong>是一个布尔数组，告诉 AI 哪些 ECU 是"允许选择"的。
-    MaskPPO 算法会忽略掩码为 False 的动作（即强制不选那些 ECU）。
-  </p>
-  <p class="cn" style="margin-top:8px;">
-    <span class="tag tag-red">P3 关键特点：只检查容量，完全不检查冲突！</span>
-  </p>
+  
+  
   <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
-    <li><code>remaining_vms &gt;= svc.requirement</code> — 对每个 ECU 检查剩余容量是否够用</li>
+    <li><code>remaining_vms &gt;= svc.requirement</code></li>
     <li>如果所有 ECU 都满了（mask 全 False）：选剩余容量最多的 ECU 作为"强制溢出"后备</li>
     <li>即使强制溢出，也不报错，只是 remaining_vms 会变成负数</li>
   </ul>
@@ -565,7 +526,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 7 -->
-<h2 id="s7">7. _obs() — Building the Observation Vector (构建观测向量)</h2>
+<h2 id="s7">7. _obs() — Building the Observation Vector</h2>
 
 <pre><span class="kw">def</span> <span class="fn">_obs</span>(<span class="nb">self</span>) <span class="op">-&gt;</span> np.ndarray:
     max_cap   <span class="op">=</span> <span class="fn">float</span>(np.<span class="fn">max</span>(<span class="nb">self</span>.initial_vms) <span class="op">+</span> <span class="nm">1e-8</span>)
@@ -625,32 +586,21 @@ Terminal bonus: always +AR (unconstrained upper bound).
     ]).<span class="fn">astype</span>(np.float32)</pre>
 
 <div class="explain">
-  <p class="cn"><strong>关键计算细节：</strong></p>
+  
 
   <ul style="margin-left:20px; margin-top:8px; color:var(--muted); font-size:0.93rem;">
     <li>
-      <code>max_cap + 1e-8</code>：加一个极小值防止除以零（0.00000001 就是保险丝）
-    </li>
+      <code>max_cap + 1e-8</code></li>
     <li>
-      <code>remaining_abs_norm = clip(remaining_vms, -max_cap, max_cap) / max_cap</code>：
-      剩余容量可能为负（P3 允许溢出），先 clip 防止极端值，再归一化到 [-1, 1]
-    </li>
+      <code>remaining_abs_norm = clip(remaining_vms, -max_cap, max_cap) / max_cap</code></li>
     <li>
-      <code>remaining_usable_capacity_sum = sum(clip(remaining_vms, 0, None)) / total_cap</code>：
-      只统计非负的剩余容量，即"实际还能用的容量"。负数说明已超载，不应算入可用容量
-    </li>
+      <code>remaining_usable_capacity_sum = sum(clip(remaining_vms, 0, None)) / total_cap</code></li>
     <li>
-      <code>valid_flag = (remaining_vms &gt;= svc.requirement).astype(float32)</code>：
-      注意！P3 的 valid_flag 只看容量，不看冲突。这与 P4 不同
-    </li>
+      <code>valid_flag = (remaining_vms &gt;= svc.requirement).astype(float32)</code></li>
     <li>
-      <code>remaining_svcs[t] = 0.0 if t &lt; _step else req_t / max_cap</code>：
-      已分配的服务（索引 &lt; _step）置为 0，未分配的保留其归一化需求
-    </li>
+      <code>remaining_svcs[t] = 0.0 if t &lt; _step else req_t / max_cap</code></li>
     <li>
-      <code>ecu_allowed_frac = len(ecu_allowed[j]) / M</code>：
-      ECU j 还能接受多少比例的服务（无冲突）。随着服务被放入，这个值会减小
-    </li>
+      <code>ecu_allowed_frac = len(ecu_allowed[j]) / M</code></li>
   </ul>
 
   <p class="en" style="margin-top:10px;">
@@ -665,7 +615,7 @@ Terminal bonus: always +AR (unconstrained upper bound).
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 8 -->
-<h2 id="s8">8. step() — The Core P3 Logic (P3核心逻辑)</h2>
+<h2 id="s8">8. step() — The Core P3 Logic</h2>
 
 <pre><span class="kw">def</span> <span class="fn">step</span>(<span class="nb">self</span>, action: <span class="fn">int</span>):
     <span class="kw">assert</span> <span class="nm">0</span> <span class="op">&lt;=</span> action <span class="op">&lt;</span> <span class="nb">self</span>.N, <span class="st">f"Invalid action {action}"</span>
@@ -708,25 +658,18 @@ Terminal bonus: always +AR (unconstrained upper bound).
     <span class="kw">return</span> <span class="nb">self</span>.<span class="fn">_obs</span>(), reward, done, <span class="kw">False</span>, info</pre>
 
 <div class="explain">
-  <p class="cn"><strong>逐行解析（最重要的部分）：</strong></p>
+  
 
-  <p class="cn" style="margin-top:10px;"><span class="tag tag-red">关键1：违规只记录不惩罚</span></p>
-  <p class="cn">
-    先检测是否违规（<code>cap_violated</code>, <code>conflict_violated</code>），如果违规就给计数器加1，
-    但是——<strong>不扣分，不影响奖励计算</strong>。
-  </p>
+  
+  
   <p class="en">
     Violations are detected and counted but do NOT affect the reward. The AI never receives negative feedback for violating constraints.
   </p>
 
-  <p class="cn" style="margin-top:14px;"><span class="tag tag-blue">关键2：ru 总是正的，总是被累加</span></p>
+  
   <pre style="font-size:0.85rem; margin:8px 0;">ru = svc.requirement / (self.initial_vms[action] + 1e-8)
 self._total_ru += ru  <span class="cm"># always add — unconstrained baseline</span></pre>
-  <p class="cn">
-    <code>ru</code>（Resource Utilization，资源利用率）= 服务需求 / ECU 初始容量。
-    无论这次分配是否违规，ru 都被加到 <code>_total_ru</code>。
-    这意味着即使 remaining_vms 变成了负数（容量超载），ru 仍然是正数并被计入。
-  </p>
+  
   <p class="en">
     <code>ru = req / initial_cap</code> — always positive, always added to the total, regardless of violations. Even if remaining_vms goes negative (capacity exceeded), ru is still counted as if the placement was valid.
   </p>
@@ -734,21 +677,13 @@ self._total_ru += ru  <span class="cm"># always add — unconstrained baseline</
   <p class="cn" style="margin-top:14px;"><span class="tag tag-green">关键3：terminal_bonus 总是 +AR</span></p>
   <pre style="font-size:0.85rem; margin:8px 0;">terminal_bonus = self.ar if done else 0.0  <span class="cm"># always +AR</span>
 reward = float(ru + terminal_bonus)</pre>
-  <p class="cn">
-    最后一步（done=True）时，奖励额外加上整个 episode 的 AR 值。
-    因为 AR 不受违规惩罚，这会鼓励 AI 尽可能提高 AR，而不管有多少违规。
-  </p>
+  
   <p class="en">
     At the final step, the AI receives a bonus equal to the full AR value. Since AR is never reduced by violations, this creates a strong incentive to maximize AR even at the cost of unlimited violations.
   </p>
 
-  <p class="cn" style="margin-top:14px;"><span class="tag tag-purple">为什么 AR &gt; 1 在 P3 中是可能的？</span></p>
-  <p class="cn">
-    正常情况下，利用率 = 已用 VM / 总 VM ≤ 1。但 P3 允许容量超载：
-    当 remaining_vms 变为负数时，已使用的 VM 数超过了 ECU 总容量，
-    所以对那个 ECU 的利用率 &gt; 1.0，导致整体 AR 可以超过 1.0。
-    这就是为什么 P3 能作为"理论上界"——它打破了物理约束。
-  </p>
+  
+  
   <p class="en">
     When remaining_vms goes negative, more VMs are "used" than the ECU has, making per-ECU utilization &gt; 1.0. AR = total_util / active_ECUs can therefore exceed 1.0 in P3. This is intentional — P3 represents the unconstrained ceiling.
   </p>
@@ -763,16 +698,16 @@ reward = float(ru + terminal_bonus)</pre>
 <hr class="divider">
 
 <!-- ═══════════════════════════════════════════════════════════ SECTION 9 -->
-<h2 id="s9">9. P3 vs P4 — Key Differences Comparison Card (P3 与 P4 关键区别对比)</h2>
+<h2 id="s9">9. P3 vs P4 — Key Differences Comparison Card</h2>
 
 <div class="explain">
-  <p class="cn">P4（<code>problem4_ppo_mask/env.py</code>）是加了硬约束掩码的版本。下面逐点对比两者的核心区别。</p>
+  
   <p class="en">P4 is the "hard-masked" version — capacity AND conflict constraints are both enforced via action masking. Below is a side-by-side comparison of the key design differences.</p>
 </div>
 
 <div class="compare-grid">
   <div class="compare-card p3">
-    <h4>P3 — Unconstrained Baseline (无约束基线)</h4>
+    <h4>P3 — Unconstrained Baseline</h4>
     <p style="color:var(--muted); font-size:0.88rem; margin-bottom:12px;">violations recorded, never penalized</p>
     <pre><span class="cm"># action_masks(): capacity only</span>
 mask <span class="op">=</span> (<span class="nb">self</span>.remaining_vms <span class="op">&gt;=</span> svc.requirement)
@@ -795,7 +730,7 @@ reward <span class="op">=</span> ru <span class="op">+</span> terminal_bonus
   </div>
 
   <div class="compare-card p4">
-    <h4>P4 — Hard Capacity + Conflict Mask (硬掩码)</h4>
+    <h4>P4 — Hard Capacity + Conflict Mask</h4>
     <p style="color:var(--muted); font-size:0.88rem; margin-bottom:12px;">both constraints enforced; violations only from forced-overflow fallback</p>
     <pre><span class="cm"># action_masks(): capacity AND conflict</span>
 mask <span class="op">=</span> np.<span class="fn">array</span>([
@@ -823,54 +758,51 @@ reward <span class="op">=</span> ru <span class="op">+</span> violation_penalty 
 </div>
 
 <div class="explain" style="margin-top:8px;">
-  <p class="cn"><strong>总结对比表：</strong></p>
+  
   <table class="obs-table" style="margin-top:12px;">
     <tr>
-      <th>特性 Feature</th>
+      <th>Feature</th>
       <th>P3</th>
       <th>P4</th>
     </tr>
     <tr>
-      <td style="color:var(--text);">容量约束 Capacity</td>
-      <td><span style="color:var(--red);">掩码（不看冲突）Only in mask</span></td>
-      <td><span style="color:var(--green);">掩码+惩罚 Mask + penalty</span></td>
+      <td style="color:var(--text);">Capacity</td>
+      <td><span style="color:var(--red);">）Only in mask</span></td>
+      <td><span style="color:var(--green);">Mask + penalty</span></td>
     </tr>
     <tr>
-      <td style="color:var(--text);">冲突约束 Conflict</td>
-      <td><span style="color:var(--red);">不执行 Never enforced</span></td>
-      <td><span style="color:var(--green);">掩码+惩罚 Mask + penalty</span></td>
+      <td style="color:var(--text);">Conflict</td>
+      <td><span style="color:var(--red);">Never enforced</span></td>
+      <td><span style="color:var(--green);">Mask + penalty</span></td>
     </tr>
     <tr>
-      <td style="color:var(--text);">违规时 ru</td>
-      <td><span style="color:var(--red);">仍计入 Always counted</span></td>
-      <td><span style="color:var(--green);">置为 0 Set to 0</span></td>
+      <td style="color:var(--text);">ru</td>
+      <td><span style="color:var(--red);">Always counted</span></td>
+      <td><span style="color:var(--green);">0 Set to 0</span></td>
     </tr>
     <tr>
-      <td style="color:var(--text);">违规惩罚 Penalty</td>
-      <td><span style="color:var(--red);">无 None</span></td>
+      <td style="color:var(--text);">Penalty</td>
+      <td><span style="color:var(--red);">None</span></td>
       <td><span style="color:var(--green);">-2.0 Heavy penalty</span></td>
     </tr>
     <tr>
-      <td style="color:var(--text);">终局奖励 Terminal bonus</td>
-      <td><span style="color:var(--red);">始终 +AR Always +AR</span></td>
-      <td><span style="color:var(--green);">+AR (无违规) 或 +0.1×AR</span></td>
+      <td style="color:var(--text);">Terminal bonus</td>
+      <td><span style="color:var(--red);">+AR Always +AR</span></td>
+      <td><span style="color:var(--green);">+0.1×AR</span></td>
     </tr>
     <tr>
-      <td style="color:var(--text);">AR 可能 &gt; 1?</td>
-      <td><span style="color:var(--red);">可以 Yes (unconstrained)</span></td>
-      <td><span style="color:var(--green);">不可以 No (constrained)</span></td>
+      <td style="color:var(--text);">&gt; 1?</td>
+      <td><span style="color:var(--red);">Yes (unconstrained)</span></td>
+      <td><span style="color:var(--green);">No (constrained)</span></td>
     </tr>
     <tr>
-      <td style="color:var(--text);">用途 Purpose</td>
-      <td><span style="color:var(--accent);">理论上界 Upper bound ceiling</span></td>
-      <td><span style="color:var(--accent);">可行解方法 Feasible solution</span></td>
+      <td style="color:var(--text);">Purpose</td>
+      <td><span style="color:var(--accent);">Upper bound ceiling</span></td>
+      <td><span style="color:var(--accent);">Feasible solution</span></td>
     </tr>
   </table>
 
-  <p class="cn" style="margin-top:14px;">
-    <strong>结论：</strong>P3 的 AR 是一个"理想状态"的参考值——比较 P4/P5 等有约束方法的 AR 时，
-    可以用 P3 的 AR 作为分母，计算"约束方法达到了理想值的多少比例"（即接近程度）。
-  </p>
+  
   <p class="en">
     <strong>Conclusion:</strong> P3's AR is a theoretical ceiling. When comparing constrained methods (P4, P5, etc.), we can compute how close they get to P3's AR as a measure of efficiency. A constrained AR / P3 AR ratio close to 1.0 means the constraints have little cost.
   </p>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RL Algorithms — Core Update Mathematics</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+  options: { skipHtmlTags: ['script','noscript','style','textarea'] }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+    background: #0f1117;
+    color: #e0e0e0;
+    padding: 2rem;
+    line-height: 1.7;
+  }
+  h1 {
+    font-size: 1.8rem;
+    color: #7eb8f7;
+    border-bottom: 2px solid #2a3a5a;
+    padding-bottom: 0.6rem;
+    margin-bottom: 2rem;
+  }
+  h2 {
+    font-size: 1.25rem;
+    color: #a5d6a7;
+    margin: 2.4rem 0 1rem;
+    padding: 0.3rem 0.8rem;
+    border-left: 4px solid #4caf50;
+    background: #141c14;
+    border-radius: 0 6px 6px 0;
+  }
+  h3 {
+    font-size: 1rem;
+    color: #90caf9;
+    margin: 1.4rem 0 0.5rem;
+  }
+  p { margin-bottom: 0.8rem; color: #bbb; }
+
+  .math-block {
+    background: #1a1f2e;
+    border: 1px solid #2c3a5a;
+    border-radius: 8px;
+    padding: 1.1rem 1.4rem;
+    margin: 0.8rem 0 1.2rem;
+    overflow-x: auto;
+    font-size: 1.05rem;
+  }
+  .math-block p {
+    color: #e0e0e0;
+    margin: 0.35rem 0;
+  }
+  .math-block p.note {
+    color: #888;
+    font-size: 0.88rem;
+    margin-top: 0.5rem;
+  }
+
+  .params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.6rem 0 1.2rem;
+  }
+  .param {
+    background: #1e2a3a;
+    border: 1px solid #3a5070;
+    border-radius: 4px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.85rem;
+    color: #80c8f8;
+    font-family: 'Consolas', monospace;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 2rem;
+    font-size: 0.9rem;
+  }
+  th {
+    background: #1a2a3a;
+    color: #7eb8f7;
+    padding: 0.6rem 1rem;
+    text-align: left;
+    border-bottom: 2px solid #2a3a5a;
+  }
+  td {
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid #1e2a3a;
+    color: #ccc;
+    vertical-align: top;
+  }
+  tr:hover td { background: #15202e; }
+
+  .relation {
+    background: #1a1a2e;
+    border: 1px solid #3a2a5a;
+    border-radius: 8px;
+    padding: 1.1rem 1.4rem;
+    margin-top: 1rem;
+  }
+  .relation p { margin: 0.3rem 0; color: #ccc; }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 3px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    font-weight: bold;
+  }
+  .tag-dqn  { background:#1a3a2a; color:#66bb6a; border:1px solid #2d6a40; }
+  .tag-ppo  { background:#1a2a3a; color:#42a5f5; border:1px solid #1e5080; }
+  .tag-lag  { background:#2a1a3a; color:#ce93d8; border:1px solid #5a2a7a; }
+</style>
+</head>
+<body>
+
+<h1>RL Algorithms — Core Update Mathematics (Bellman Level)</h1>
+
+<!-- ═══════════════════════════════════════════════════════════ DQN -->
+<h2>DQN / DDQN <span class="tag tag-dqn">Off-policy · Value Function</span></h2>
+
+<h3>Standard DQN — Bellman Optimality Equation</h3>
+<div class="math-block">
+  <p>$$Q^*(s,a) = \mathbb{E}\bigl[r + \gamma \max_{a'} Q^*(s', a')\bigr]$$</p>
+</div>
+
+<h3>Q-Target (using target network $\theta^-$ during training)</h3>
+<div class="math-block">
+  <p>$$y_t = r_t + \gamma \cdot \max_{a'} Q(s_{t+1},\, a';\, \theta^-)$$</p>
+</div>
+
+<h3>DDQN Improvement (reduces overestimation bias)</h3>
+<div class="math-block">
+  <p>$$y_t = r_t + \gamma \cdot Q\!\Bigl(s_{t+1},\; \underbrace{\arg\max_{a'} Q(s_{t+1}, a';\, \theta)}_{\text{online network selects action}};\; \theta^-\Bigr)$$</p>
+  <p class="note">The online network $\theta$ selects the action; the target network $\theta^-$ evaluates it — decoupling the two roles.</p>
+</div>
+
+<h3>Parameter Update (Huber Loss)</h3>
+<div class="math-block">
+  <p>$$\mathcal{L}(\theta) = \mathbb{E}\bigl[(y_t - Q(s_t, a_t;\, \theta))^2\bigr]$$</p>
+  <p>$$\theta \;\leftarrow\; \theta - \alpha \cdot \nabla_\theta \mathcal{L}(\theta)$$</p>
+</div>
+
+<h3>Target Network Update (hard copy every 500 steps)</h3>
+<div class="math-block">
+  <p>$$\theta^- \leftarrow \tau\,\theta + (1-\tau)\,\theta^- \quad (\tau = 1.0 \Rightarrow \text{full hard copy})$$</p>
+</div>
+
+<h3>$\varepsilon$-Greedy Exploration Decay</h3>
+<div class="math-block">
+  <p>$$\varepsilon(t) = \max\!\left(\varepsilon_{\text{final}},\;\varepsilon_{\text{init}} - \frac{(\varepsilon_{\text{init}} - \varepsilon_{\text{final}}) \cdot t}{T \times 0.1}\right)$$</p>
+  <p class="note">Decays from 1.0 to 0.0 over the first 10% of training steps, then pure greedy thereafter.</p>
+</div>
+
+<div class="params">
+  <span class="param">γ = 0.99</span>
+  <span class="param">lr = 1e-3</span>
+  <span class="param">τ = 1.0</span>
+  <span class="param">buffer = 100 K</span>
+  <span class="param">batch = 64</span>
+  <span class="param">target_update = 500 steps</span>
+  <span class="param">net = [128, 128]</span>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ PPO -->
+<h2>PPO — P3 / P4 / P6 <span class="tag tag-ppo">On-policy · Policy Gradient</span></h2>
+
+<h3>Step 1 — TD Error (per step)</h3>
+<div class="math-block">
+  <p>$$\delta_t = r_t + \gamma \cdot V(s_{t+1}) - V(s_t)$$</p>
+</div>
+
+<h3>Step 2 — GAE (Generalized Advantage Estimation)</h3>
+<div class="math-block">
+  <p>$$\hat{A}_t = \sum_{l=0}^{\infty} (\gamma \lambda_{\text{GAE}})^l \cdot \delta_{t+l}$$</p>
+  <p class="note">
+    $\lambda_{\text{GAE}} \to 1$: low bias, high variance (approaches Monte Carlo);&nbsp;
+    $\lambda_{\text{GAE}} \to 0$: high bias, low variance (approaches TD(0)).
+    This project uses $\lambda_{\text{GAE}} = 0.95$ to balance both ends.
+  </p>
+</div>
+
+<h3>Step 3 — Value Function Target and Loss</h3>
+<div class="math-block">
+  <p>$$V^{\text{target}}_t = \hat{A}_t + V(s_t)$$</p>
+  <p>$$\mathcal{L}_{\text{VF}} = \mathbb{E}\bigl[(V(s_t) - V^{\text{target}}_t)^2\bigr]$$</p>
+</div>
+
+<h3>Step 4 — PPO-Clip Policy Objective</h3>
+<div class="math-block">
+  <p>$$r_t(\theta) = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_{\text{old}}}(a_t \mid s_t)}$$</p>
+  <p>$$\mathcal{L}_{\text{CLIP}} = \mathbb{E}\!\left[\min\!\left(r_t(\theta)\,\hat{A}_t,\;\operatorname{clip}(r_t(\theta),\,1-\varepsilon,\,1+\varepsilon)\,\hat{A}_t\right)\right]$$</p>
+  <p class="note">The clip prevents excessively large policy updates in a single step. $\varepsilon = 0.2$.</p>
+</div>
+
+<h3>Step 5 — Total Loss (joint optimisation)</h3>
+<div class="math-block">
+  <p>$$\mathcal{L}(\theta) = -\mathcal{L}_{\text{CLIP}} + c_1 \cdot \mathcal{L}_{\text{VF}} - c_2 \cdot \mathcal{H}[\pi_\theta]$$</p>
+  <p class="note">$\mathcal{H}[\pi_\theta]$: policy entropy bonus to prevent premature convergence. $c_1, c_2$ are SB3 default coefficients.</p>
+</div>
+
+<div class="params">
+  <span class="param">γ = 0.999 (P3/P4/P6)</span>
+  <span class="param">λ_GAE = 0.95</span>
+  <span class="param">ε_clip = 0.2</span>
+  <span class="param">lr = 3e-4</span>
+  <span class="param">n_steps = 512</span>
+  <span class="param">batch = 256</span>
+  <span class="param">epochs = 10</span>
+  <span class="param">net = [256, 256]</span>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ P5 -->
+<h2>P5 — PPO + Lagrangian Dual Ascent <span class="tag tag-lag">Constrained MDP · Dual Method</span></h2>
+
+<p>The inner PPO update steps are identical to the above. The key difference is that the <strong>reward signal itself contains $\lambda$</strong>:</p>
+
+<div class="math-block">
+  <p>$$r_t = \underbrace{\frac{\text{req}_t}{\text{cap}_j \cdot n_{\text{active}}}}_{\text{utilisation gain}} + \underbrace{(-2.0) \cdot \mathbf{1}[\text{cap violated}]}_{\text{fixed capacity penalty}} - \underbrace{(\lambda + 0.2) \cdot c_t}_{\text{Lagrangian conflict penalty}} + \underbrace{\text{AR} \cdot \mathbf{1}[\text{done} \wedge \text{no viol}]}_{\text{terminal bonus}}$$</p>
+  <p class="note">$c_t = 1$ if a conflict violation occurs at the current step, otherwise $c_t = 0$.</p>
+</div>
+
+<h3>Outer Dual Variable Update (every 200 episodes)</h3>
+<div class="math-block">
+  <p>$$\bar{v} = \frac{1}{W}\sum_{ep \in \text{window}} \text{conf\_viol\_rate}_{ep}$$</p>
+  <p>$$\lambda \;\leftarrow\; \operatorname{clip}\!\bigl(\lambda + \alpha(\bar{v} - v^*),\;0,\;\lambda_{\max}\bigr)$$</p>
+  <p class="note">
+    $\bar{v}$: mean conflict violation rate over the window;&nbsp;
+    $v^* = 0$ (target: zero violations);&nbsp;
+    $\alpha = 0.01$;&nbsp; $\lambda_{\max} = 5.0$.
+  </p>
+</div>
+
+<h3>Bi-level Optimisation Structure</h3>
+<div class="math-block">
+  <p>$$\max_\theta \min_{\lambda \geq 0}\;\mathcal{L}(\theta, \lambda) = \mathbb{E}\!\left[\sum_t r_t^{\text{util}}\right] - \lambda \cdot \mathbb{E}\!\left[\sum_t c_t\right]$$</p>
+  <p class="note">
+    <strong>Inner loop:</strong> PPO performs gradient ascent on $\theta$ (maximises reward for fixed $\lambda$).<br>
+    <strong>Outer loop:</strong> Gradient ascent on $\lambda$ (if violation rate exceeds target, $\lambda$ increases, driving violations toward zero).
+  </p>
+</div>
+
+<div class="params">
+  <span class="param">γ = 0.99</span>
+  <span class="param">λ_GAE = 0.95</span>
+  <span class="param">ε_clip = 0.2</span>
+  <span class="param">lr = 3e-4</span>
+  <span class="param">λ_init = 0.5</span>
+  <span class="param">λ_lr = 0.01</span>
+  <span class="param">λ_max = 5.0</span>
+  <span class="param">window = 200 ep</span>
+  <span class="param">net pi=[256,256] vf=[512,512]</span>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ comparison -->
+<h2>Side-by-Side Comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Algorithm</th>
+      <th>Core Equation Type</th>
+      <th>Update Target</th>
+      <th>Constraint Mechanism</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>DQN</strong></td>
+      <td>Bellman Optimality</td>
+      <td>$Q^* \leftarrow r + \gamma \max Q^*$</td>
+      <td>Large negative penalty on violation; terminal $\pm AR$</td>
+    </tr>
+    <tr>
+      <td><strong>DDQN</strong></td>
+      <td>Decoupled Bellman</td>
+      <td>$\theta$ selects action, $\theta^-$ evaluates</td>
+      <td>Same as DQN</td>
+    </tr>
+    <tr>
+      <td><strong>P3 PPO</strong></td>
+      <td>Policy Gradient + GAE + Clip</td>
+      <td>$\theta \leftarrow \theta + \alpha \nabla \mathcal{L}_{\text{CLIP}}$</td>
+      <td>Violations recorded only, never blocked</td>
+    </tr>
+    <tr>
+      <td><strong>P4 PPO</strong></td>
+      <td>Policy Gradient + GAE + Clip</td>
+      <td>Same as P3</td>
+      <td>Hard action masking (invalid actions never sampled)</td>
+    </tr>
+    <tr>
+      <td><strong>P5 PPO+Lag</strong></td>
+      <td>Policy Gradient + Dual Ascent</td>
+      <td>$\theta$ maximises $\lambda$-penalised reward; $\lambda$ via dual ascent</td>
+      <td>Soft constraint: $(\lambda + 0.2) \cdot c_t$</td>
+    </tr>
+    <tr>
+      <td><strong>P6 PPO</strong></td>
+      <td>Policy Gradient + GAE + Clip</td>
+      <td>Same as P3</td>
+      <td>Best-fit repair heuristic (post-hoc correction)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Relationship Between the Three Families</h2>
+<div class="relation">
+  <p><strong>DQN:</strong> Directly fits $Q^*$ to satisfy the Bellman optimality equation → optimal policy recovered as $\pi^*(s) = \arg\max_a Q^*(s,a)$.</p>
+  <p><strong>PPO:</strong> Does not estimate $Q^*$ directly. Uses GAE to construct the advantage $\hat{A}_t \approx Q^\pi - V^\pi$, then updates the policy with a clipped surrogate objective to bound step size.</p>
+  <p><strong>P5:</strong> Adds a primal-dual iteration on top of PPO, relaxing the constrained MDP into an unconstrained Lagrangian dual problem solved by alternating inner (PPO) and outer ($\lambda$) updates.</p>
+</div>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -252,7 +252,7 @@ footer code { color: var(--accent); font-size: 0.82rem; }
 </style>
 </head>
 <body>
-<div style="position:sticky;top:0;z-index:100;background:#3a1a3a;border-bottom:2px solid #e879f9;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#e879f9;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">LT</span><span style="color:#e879f9;font-size:.82rem;font-weight:600">N < M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数少于服务数，每 ECU 承载多个服务</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← 返回列表</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p4_maskppo" style="color:#e879f9;font-size:.75rem;text-decoration:none;font-weight:700">LT</a></div>
+<div style="position:sticky;top:0;z-index:100;background:#3a1a3a;border-bottom:2px solid #e879f9;padding:.4rem 1.2rem;display:flex;align-items:center;gap:.8rem;font-family:'Segoe UI',sans-serif"><span style="background:#e879f9;color:#000;font-weight:700;font-size:.78rem;padding:.15rem .55rem;border-radius:4px">LT</span><span style="color:#e879f9;font-size:.82rem;font-weight:600">N < M</span><span style="color:#94a3b8;font-size:.78rem">ECU 数少于服务数，每 ECU 承载多个服务</span><a href="/docs/code" style="margin-left:auto;color:#64748b;font-size:.75rem;text-decoration:none">← Back to list</a><span style="color:#2d3148;font-size:.75rem">|</span><a href="/docs/code/eq/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">EQ</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/gt/p4_maskppo" style="color:#94a3b8;font-size:.75rem;text-decoration:none;">GT</a>  <span style="color:#2d3148;font-size:.75rem">|</span>  <a href="/docs/code/lt/p4_maskppo" style="color:#e879f9;font-size:.75rem;text-decoration:none;font-weight:700">LT</a></div>
 
 
 <div class="container">
@@ -263,29 +263,7 @@ footer code { color: var(--accent); font-size: 0.82rem; }
     Hard Capacity Masking + Hard Conflict Masking · 双硬约束动作掩码<br>
     ECU Service Placement with Gymnasium + sb3-contrib MaskablePPO
   </p>
-  <span class="badge">代码精读 · Code Walkthrough · High School Level</span>
-</div>
-
-<!-- Table of Contents -->
-<div class="toc">
-  <h3>目录 · Table of Contents</h3>
-  <ol>
-    <li><a href="#s1">P4Env 类声明与文档字符串 · Class Declaration &amp; Docstring</a></li>
-    <li><a href="#s2">__init__ 构造函数 · Constructor</a></li>
-    <li><a href="#s3">冲突辅助方法 · Conflict Helper Methods</a></li>
-    <li><a href="#s4">reset() — 环境重置 · Episode Reset</a></li>
-    <li><a href="#s5">action_masks() — P4 核心！· THE CORE of P4</a></li>
-    <li><a href="#s6">_obs() — 观测向量构造 · Observation Vector</a></li>
-    <li><a href="#s7">step() — 环境推进与奖励 · Step &amp; Reward</a></li>
-    <li><a href="#s8">run_all.py — _make_p4_env() 工厂函数</a></li>
-    <li><a href="#s9">run_all.py — train_maskppo() 训练函数</a></li>
-    <li><a href="#s10">run_all.py — main() 完整流水线</a></li>
-  </ol>
-</div>
-
-<!-- ═══════════════════════════ SECTION 1 ═══════════════════════════ -->
-<div class="section" id="s1">
-<h2><span class="section-num">1</span>P4Env 类声明与文档字符串 · Class Declaration &amp; Docstring</h2>
+  <<<span class="badge">>>Code Walkthrough</<span>Class Declaration &amp; Docstring</h2>
 
 <pre><span class="cm">"""
 P4 Environment — Hard capacity AND hard conflict (both masked).
@@ -335,13 +313,9 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p><strong>P4Env 解决的问题</strong>：把 M 个服务（SVC）分配到 N 个 ECU（N &lt; M），每步只分配一个服务，多个服务可以共享同一个 ECU。</p>
-    <p><strong>两种硬约束</strong>：①容量约束 — 每个 ECU 的已用容量不能超过初始容量；②冲突约束 — 某些服务不能同时放在同一个 ECU 上（类似于"互相排斥"的软件依赖）。<em>两种约束都通过动作掩码（action masking）强制执行。</em></p>
     <p><strong>观测向量维度</strong> = <code>5N + 6 + M</code>。其中 N 是 ECU 数，M 是服务数。比如 N=7, M=10，则维度 = 47。</p>
   </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>What P4Env solves</strong>: Place M services onto N ECUs (N &lt; M), one service per timestep. Multiple services can share the same ECU.</p>
     <p><strong>Two hard constraints</strong>: ① Capacity — a service cannot be placed if it exceeds the ECU's remaining room; ② Conflict — some pairs/groups of services are forbidden from sharing an ECU. <em>Both are enforced via action masking — the agent never even sees illegal actions as valid options.</em></p>
     <p><strong>Observation vector size</strong> = <code>5N + 6 + M</code>. For N=7, M=10, the shape is 47.</p>
@@ -359,7 +333,7 @@ so the hardest-to-place service is always presented first.
 
 <!-- ═══════════════════════════ SECTION 2 ═══════════════════════════ -->
 <div class="section" id="s2">
-<h2><span class="section-num">2</span>__init__ 构造函数 · Constructor</h2>
+<h2><span class="section-num">2</span>Constructor</h2>
 
 <pre><span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, <span class="nm">ecus</span>: <span class="nm">list</span>[<span class="nm">ECU</span>], <span class="nm">services</span>: <span class="nm">list</span>[<span class="nm">SVC</span>], <span class="nm">scenarios</span>=<span class="kw">None</span>):
     <span class="nm">super</span>().<span class="fn">__init__</span>()
@@ -383,16 +357,14 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
     <p><strong>action_space = Discrete(N)</strong>：每一步，智能体从 0 到 N-1 选一个整数，代表选哪个 ECU。</p>
     <p><strong>observation_space = Box(...)</strong>：观测空间是一个浮点数组，值域 [-1, 1]，形状 5N+6+M。</p>
-    <p><strong>initial_vms</strong>：每个 ECU 的初始容量（不会变化，用作归一化基准）。</p>
-    <p><strong>remaining_vms</strong>：每个 ECU 的剩余容量（随每步放置服务而减少）。</p>
-    <p><strong>ecu_placements</strong>：长度 N 的列表，每个元素是一个 set，记录放在该 ECU 上的服务索引。</p>
-    <p><strong>ecu_allowed</strong>：长度 N 的列表，每个元素是一个 set，记录当前还可以放在该 ECU 上（不引起冲突）的服务索引。初始为全集 {0,1,...,M-1}，随着放置逐渐缩小。</p>
+    
+    
+    
+    
   </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>action_space = Discrete(N)</strong>: Each step the agent picks an integer 0..N-1, representing which ECU to assign the current service to.</p>
     <p><strong>observation_space = Box(...)</strong>: A float32 array with values in [-1, 1] and shape 5N+6+M.</p>
     <p><strong>initial_vms</strong>: Per-ECU initial capacities — never changes, used as normalization denominator.</p>
@@ -404,17 +376,17 @@ so the hardest-to-place service is always presented first.
 
 <table>
   <tr><th>Key Array 关键数组</th><th>Type 类型</th><th>Role 作用</th></tr>
-  <tr><td><code>initial_vms</code></td><td>np.ndarray [N]</td><td>ECU 初始容量 / Initial capacities (fixed)</td></tr>
-  <tr><td><code>remaining_vms</code></td><td>np.ndarray [N]</td><td>ECU 剩余容量 / Decremented each step</td></tr>
-  <tr><td><code>ecu_placements</code></td><td>list[set], len N</td><td>已放服务索引 / Placed service indices per ECU</td></tr>
-  <tr><td><code>ecu_allowed</code></td><td>list[set], len N</td><td>无冲突可放服务集 / Conflict-free placeable services</td></tr>
-  <tr><td><code>conflict_sets</code></td><td>list[set]</td><td>K 个互斥服务子集 / K mutual-exclusion subsets</td></tr>
+  <tr><td><code>initial_vms</code></td><td>np.ndarray [N]</td><td>/ Initial capacities (fixed)</td></tr>
+  <tr><td><code>remaining_vms</code></td><td>np.ndarray [N]</td><td>/ Decremented each step</td></tr>
+  <tr><td><code>ecu_placements</code></td><td>list[set], len N</td><td>/ Placed service indices per ECU</td></tr>
+  <tr><td><code>ecu_allowed</code></td><td>list[set], len N</td><td>/ Conflict-free placeable services</td></tr>
+  <tr><td><code>conflict_sets</code></td><td>list[set]</td><td>/ K mutual-exclusion subsets</td></tr>
 </table>
 </div>
 
 <!-- ═══════════════════════════ SECTION 3 ═══════════════════════════ -->
 <div class="section" id="s3">
-<h2><span class="section-num">3</span>冲突辅助方法 · Conflict Helper Methods</h2>
+<h2><span class="section-num">3</span>Conflict Helper Methods</h2>
 
 <h3>3a. _init_conflict_sets(K=10)</h3>
 <pre><span class="kw">def</span> <span class="fn">_init_conflict_sets</span>(<span class="nm">self</span>, <span class="nm">K</span>: <span class="nm">int</span> = <span class="num">10</span>) -> <span class="nm">list</span>[<span class="nm">set</span>]:
@@ -426,12 +398,8 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p>生成 K=10 个随机"互斥子集"。每个子集里选了随机数量（2 到 M）个服务，<strong>规则：同一 ECU 上，每个子集最多只能有一个服务</strong>。</p>
-    <p>类比：想象有 10 条规则，比如"服务 A、服务 C、服务 F 不能放在同一个 ECU 上"。生成 K=10 条这样的随机规则。</p>
-  </div>
+    </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p>Generates K=10 random "mutual-exclusion subsets". Each subset contains a random number (2 to M) of service indices. The rule: <strong>at most one service from each subset may land on the same ECU</strong>.</p>
     <p>Analogy: Think of 10 rules like "services A, C, and F cannot share an ECU." This method randomly generates 10 such rules.</p>
   </div>
@@ -443,12 +411,8 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p>检查"把服务 svc_idx 放到 ECU ecu_idx 上是否产生冲突"。</p>
-    <p><code>ecu_allowed[ecu_idx]</code> 是当前还允许放置在该 ECU 上的服务集合。如果 svc_idx <strong>不在</strong>这个集合里，说明有冲突，返回 True。</p>
-  </div>
+    </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p>Checks whether placing service <code>svc_idx</code> onto ECU <code>ecu_idx</code> would create a conflict.</p>
     <p><code>ecu_allowed[ecu_idx]</code> is the current set of services still safe to place there. If <code>svc_idx</code> is <em>not</em> in that set, there's a conflict — return True.</p>
   </div>
@@ -462,13 +426,8 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p>把服务 svc_idx 成功放到 ecu_idx 后，调用此方法<strong>更新该 ECU 的可用服务集合</strong>。</p>
-    <p>遍历所有冲突子集：如果 svc_idx 属于某个子集，则该子集中其他所有服务都不能再放到这个 ECU 上了（<code>subset - {svc_idx}</code>），所以把它们从 <code>ecu_allowed[ecu_idx]</code> 中删除（集合差 <code>-=</code>）。</p>
-    <p>例：子集 = {A, C, F}，放了 A 之后，C 和 F 就从这个 ECU 的可用列表里删掉。</p>
-  </div>
+    </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p>After successfully placing service <code>svc_idx</code> on ECU <code>ecu_idx</code>, this method <strong>propagates the conflict constraint</strong>.</p>
     <p>It loops through all conflict subsets. If <code>svc_idx</code> belongs to a subset, all <em>other</em> services in that subset (<code>subset - {svc_idx}</code>) are removed from <code>ecu_allowed[ecu_idx]</code> using set-difference (<code>-=</code>).</p>
     <p>Example: subset = {A, C, F}. After placing A, both C and F are removed from this ECU's allowed list.</p>
@@ -484,7 +443,7 @@ so the hardest-to-place service is always presented first.
 
 <!-- ═══════════════════════════ SECTION 4 ═══════════════════════════ -->
 <div class="section" id="s4">
-<h2><span class="section-num">4</span>reset() — 环境重置 · Episode Reset</h2>
+<h2><span class="section-num">4</span>Episode Reset</h2>
 
 <pre><span class="kw">def</span> <span class="fn">reset</span>(<span class="nm">self</span>, <span class="nm">seed</span>=<span class="kw">None</span>, <span class="nm">options</span>=<span class="kw">None</span>):
     <span class="nm">super</span>().<span class="fn">reset</span>(<span class="nm">seed</span>=<span class="nm">seed</span>)
@@ -519,14 +478,8 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p><strong>从场景库随机取一个场景</strong>（训练时，每个 episode 都可能用不同的容量/需求组合，增强泛化能力）。若没有场景库，则用构造时传入的固定数据。</p>
-    <p><strong>服务按需求降序排列</strong>（<code>reverse=True</code>）：贪心策略——先处理"最难放"的大服务，减少后续无解的情况。</p>
-    <p><strong>索引重映射</strong>：排序后服务索引变了，冲突子集里存的是原始索引，必须用 <code>inv_perm</code> 逆排列数组把它们转换成新索引，否则冲突规则会乱掉。<code>sort_idx[i] = old_i</code> 表示"新位置 i 的原索引"，<code>inv_perm[old_i] = i</code> 是它的逆映射。</p>
-    <p><strong>ecu_allowed 初始化</strong>：每个 ECU 的允许集合重置为全集 <code>set(range(M))</code>，表示"尚未放置任何服务，所有服务都可以放"。</p>
-  </div>
+    </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>Random scenario sampling</strong>: During training, each episode may use a different (capacity, demand) combination from a pre-built scenario library. This prevents the agent from memorizing one layout and forces it to generalize.</p>
     <p><strong>Sort descending by requirement</strong>: Greedy scheduling heuristic — tackle the largest, hardest-to-place services first, reducing infeasibility later in the episode.</p>
     <p><strong>Index remapping</strong>: After sorting, service indices change. <code>sort_idx[i] = old_i</code> means "new position i came from original index old_i." <code>inv_perm[old_i] = i</code> is the inverse — it maps original indices to new ones, used to remap each conflict set so rules remain correct after reordering.</p>
@@ -537,7 +490,7 @@ so the hardest-to-place service is always presented first.
 
 <!-- ═══════════════════════════ SECTION 5 ═══════════════════════════ -->
 <div class="section" id="s5">
-<h2><span class="section-num">5</span>action_masks() — P4 的核心！· THE CORE of P4</h2>
+<h2><span class="section-num">5</span>！· THE CORE of P4</h2>
 
 <span class="tag tag-core">CORE</span><span class="tag tag-hard">HARD CONSTRAINT</span>
 
@@ -555,17 +508,14 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p><strong>主掩码逻辑</strong>：对每个 ECU j，当且仅当同时满足两个条件时，mask[j]=True：</p>
     <ol>
-      <li><code>remaining_vms[j] >= svc.requirement</code>：剩余容量足够（容量约束）</li>
-      <li><code>not _has_conflict(j, step)</code>：没有冲突（冲突约束）</li>
+      <li><code>remaining_vms[j] >= svc.requirement</code></li>
+      <li><code>not _has_conflict(j, step)</code></li>
     </ol>
-    <p><strong>全 False 边缘情况</strong>：如果没有任何 ECU 同时满足两个条件（极端情况），mask 全为 False。MaskablePPO 有内部保护，不会因空掩码崩溃。FFD 排序大幅减少了这种情况发生的概率。</p>
-    <p><strong>MaskablePPO 如何使用这个掩码</strong>：在神经网络输出 logits（对 N 个动作的评分）之后，被掩码为 False 的动作的 logit 被设为 -∞，softmax 之后概率变为 0，智能体永远不会选那些动作。</p>
+    
+    
   </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>Main mask logic</strong>: For each ECU j, mask[j]=True if and only if BOTH conditions hold:</p>
     <ol>
       <li><code>remaining_vms[j] >= svc.requirement</code>: Enough remaining capacity (capacity constraint)</li>
@@ -586,7 +536,7 @@ so the hardest-to-place service is always presented first.
 
 <!-- ═══════════════════════════ SECTION 6 ═══════════════════════════ -->
 <div class="section" id="s6">
-<h2><span class="section-num">6</span>_obs() — 观测向量构造 · Observation Vector Construction</h2>
+<h2><span class="section-num">6</span>Observation Vector Construction</h2>
 
 <pre><span class="kw">def</span> <span class="fn">_obs</span>(<span class="nm">self</span>) -> <span class="nm">np</span>.<span class="nm">ndarray</span>:
     <span class="nm">max_cap</span>   = <span class="fn">float</span>(<span class="nm">np</span>.<span class="fn">max</span>(<span class="nm">self</span>.initial_vms) <span class="op">+</span> <span class="num">1e-8</span>)
@@ -620,13 +570,9 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p>观测向量是智能体"看到的世界"。所有数值都归一化到大约 [-1, 1] 范围，这对神经网络训练很重要（避免梯度爆炸）。</p>
-    <p><code>1e-8</code>：加一个极小数，防止除以零。</p>
     <p><code>np.clip(..., -max_cap, max_cap)</code>：限制剩余容量的范围。当 remaining_vms 为负数（服务超额放置，fallback 场景）时，clip 防止异常大的负值。</p>
   </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p>The observation vector is what the agent "sees" at each step. All values are normalized to roughly [-1, 1] — crucial for neural network training to avoid exploding gradients.</p>
     <p><code>1e-8</code>: Small epsilon added to denominators to prevent division-by-zero.</p>
     <p><code>np.clip(..., -max_cap, max_cap)</code>: Clamps remaining capacity. In fallback scenarios where a service is placed on an over-capacity ECU, <code>remaining_vms</code> can go negative; clip prevents huge outlier values.</p>
@@ -634,25 +580,25 @@ so the hardest-to-place service is always presented first.
 </div>
 
 <table class="obs-table">
-  <tr><th>索引 Index</th><th>变量名 Variable</th><th>中文含义</th><th>English Meaning</th></tr>
-  <tr><td>[0]</td><td>service_demand_norm</td><td>当前服务需求 / 最大容量</td><td>Current service demand normalized by max ECU capacity</td></tr>
-  <tr><td>[1]</td><td>ar</td><td>当前累计平均资源利用率</td><td>Running average resource utilization so far</td></tr>
-  <tr><td>[2]</td><td>remaining_usable_capacity_sum</td><td>所有 ECU 剩余容量之和（归一化，≥0）</td><td>Sum of non-negative remaining capacities, normalized</td></tr>
-  <tr><td>[3]</td><td>remaining_service_demand_sum</td><td>剩余未放服务总需求（归一化）</td><td>Total demand of unplaced services, normalized</td></tr>
-  <tr><td>[4]</td><td>remaining_usable_ecu_count</td><td>有足够容量的 ECU 比例</td><td>Fraction of ECUs with enough capacity for current service</td></tr>
-  <tr><td>[5]</td><td>remaining_services_count</td><td>剩余未放服务比例</td><td>Fraction of services not yet placed</td></tr>
-  <tr><td>[6:6+N]</td><td>initial_cap_pct</td><td>每个 ECU 的初始容量占比</td><td>Per-ECU initial capacity fraction</td></tr>
-  <tr><td>[6+N:6+2N]</td><td>remaining_abs_norm</td><td>每个 ECU 剩余容量（归一化）</td><td>Per-ECU remaining capacity, normalized &amp; clipped</td></tr>
-  <tr><td>[6+2N:6+3N]</td><td>conflict_flag</td><td>1=把当前服务放此 ECU 有冲突</td><td>1 if placing current service on this ECU creates conflict</td></tr>
-  <tr><td>[6+3N:6+4N]</td><td>ecu_allowed_frac</td><td>ECU 可放服务的比例（越低越受限）</td><td>Fraction of services still conflict-free on this ECU</td></tr>
-  <tr><td>[6+4N:6+5N]</td><td>valid_flag</td><td>1=该 ECU 同时满足容量和冲突约束</td><td>1 if this ECU satisfies BOTH capacity AND conflict constraints</td></tr>
-  <tr><td>[6+5N:6+5N+M]</td><td>remaining_svcs</td><td>剩余服务需求（降序排列，已放置的设为0）</td><td>Remaining service demands, descending order (placed → 0)</td></tr>
+  <tr><th>Index</th><th>Variable</th><th>中文含义</th><th>English Meaning</th></tr>
+  <tr><td>[0]</td><td>service_demand_norm</td><td>Current service demand normalized by max ECU capacity</td></tr>
+  <tr><td>[1]</td><td>ar</td><td>Running average resource utilization so far</td></tr>
+  <tr><td>[2]</td><td>remaining_usable_capacity_sum</td><td>Sum of non-negative remaining capacities, normalized</td></tr>
+  <tr><td>[3]</td><td>remaining_service_demand_sum</td><td>Total demand of unplaced services, normalized</td></tr>
+  <tr><td>[4]</td><td>remaining_usable_ecu_count</td><td>Fraction of ECUs with enough capacity for current service</td></tr>
+  <tr><td>[5]</td><td>remaining_services_count</td><td>Fraction of services not yet placed</td></tr>
+  <tr><td>[6:6+N]</td><td>initial_cap_pct</td><td>Per-ECU initial capacity fraction</td></tr>
+  <tr><td>[6+N:6+2N]</td><td>remaining_abs_norm</td><td>Per-ECU remaining capacity, normalized &amp; clipped</td></tr>
+  <tr><td>[6+2N:6+3N]</td><td>conflict_flag</td><td>1 if placing current service on this ECU creates conflict</td></tr>
+  <tr><td>[6+3N:6+4N]</td><td>ecu_allowed_frac</td><td>Fraction of services still conflict-free on this ECU</td></tr>
+  <tr><td>[6+4N:6+5N]</td><td>valid_flag</td><td>1 if this ECU satisfies BOTH capacity AND conflict constraints</td></tr>
+  <tr><td>[6+5N:6+5N+M]</td><td>remaining_svcs</td><td>Remaining service demands, descending order (placed → 0)</td></tr>
 </table>
 </div>
 
 <!-- ═══════════════════════════ SECTION 7 ═══════════════════════════ -->
 <div class="section" id="s7">
-<h2><span class="section-num">7</span>step() — 环境推进与奖励 · Step &amp; Reward</h2>
+<h2><span class="section-num">7</span>Step &amp; Reward</h2>
 
 <pre><span class="kw">def</span> <span class="fn">step</span>(<span class="nm">self</span>, <span class="nm">action</span>: <span class="nm">int</span>):
     <span class="nm">svc</span> = <span class="nm">self</span>.services[<span class="nm">self</span>._step]
@@ -690,14 +636,9 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p><strong>Δar（势差奖励）</strong>：= ar_new - ar_prev。每步奖励不再是 ru，而是 AR 的增量，是 potential-based reward shaping 的经典形式：既提供稠密信号，又保证最优策略不变（势函数为当前 AR）。</p>
-    <p><strong>ru（资源利用率）</strong>：仍然计算，用于 AR 追踪。违约时 ru=0 且不计入 _total_ru，保证 AR 只反映合规放置。</p>
-    <p><strong>AR（平均资源利用率）</strong>：= 所有有效 ru 之和 / 活跃 ECU 数（活跃 = 至少放了一个服务的 ECU）。这是整体性能的核心指标。</p>
     <p><strong>terminal_bonus</strong>：只在最后一步（done=True）且零违约时才加 +ar_final。有违约时 bonus=0（不再是 +0.1*ar）。加上每步的 Δar 求和 = ar_final，整集回报 = 2 × ar_final，形成稳定的 value function bootstrap。</p>
   </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>Δar (potential-based shaping)</strong>: = ar_new − ar_prev. The per-step reward is the incremental AR change, not raw ru. This is a standard potential-based reward shaping trick: it provides dense gradient signal while provably preserving the optimal policy (potential function = current AR).</p>
     <p><strong>ru (resource utilization)</strong>: Still computed internally for AR tracking. Set to 0 if a violation occurred — violations are excluded from the AR accumulator, keeping AR a pure measure of compliant placements.</p>
     <p><strong>AR (average resource utilization)</strong>: = sum of valid ru / number of active ECUs (active = has at least one placed service). Primary performance metric.</p>
@@ -708,16 +649,16 @@ so the hardest-to-place service is always presented first.
 <div class="formula">reward_t = Δar + terminal_bonus &nbsp;&nbsp; | &nbsp;&nbsp; Δar = ar_new − ar_prev</div>
 
 <table>
-  <tr><th>奖励项 Reward Component</th><th>值 Value</th><th>何时发生 When</th></tr>
-  <tr><td>Δar（势差奖励）</td><td>通常 &gt; 0，违约时 ≈ 0</td><td>每步（无违约时正值，与 ru 同号）</td></tr>
-  <tr><td>terminal_bonus（零违约）</td><td>+ar_final</td><td>最后一步，且整集无违约</td></tr>
-  <tr><td>terminal_bonus（有违约）</td><td>0.0</td><td>最后一步，有任何违约时不加</td></tr>
+  <tr><th>Reward Component</th><th>Value</th><th>When</th></tr>
+  <tr><td>）</td><td>≈ 0</td><td>）</td></tr>
+  <tr><td>）</td><td>+ar_final</td><td>最后一步，且整集无违约</td></tr>
+  <tr><td>）</td><td>0.0</td><td>最后一步，有任何违约时不加</td></tr>
 </table>
 </div>
 
 <!-- ═══════════════════════════ SECTION 8 ═══════════════════════════ -->
 <div class="section" id="s8">
-<h2><span class="section-num">8</span>run_all.py — _make_p4_env() 工厂函数</h2>
+<h2><span class="section-num">8</span>run_all.py — _make_p4_env()</h2>
 
 <pre><span class="kw">def</span> <span class="fn">_mask_fn</span>(<span class="nm">env</span>) -> <span class="nm">np</span>.<span class="nm">ndarray</span>:
     <span class="kw">return</span> <span class="nm">env</span>.<span class="fn">action_masks</span>()
@@ -736,14 +677,8 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p><strong>为什么需要工厂函数</strong>：<code>DummyVecEnv</code> 需要一个函数列表（而非环境实例列表），因为它要在自己的进程/线程内部创建环境。工厂函数是"菜单"，<code>DummyVecEnv</code> 按需调用。</p>
-    <p><strong>ActionMasker 包装器</strong>：将 P4Env 包装成一个带动作掩码的 Gymnasium 环境。参数 <code>_mask_fn</code> 告诉包装器如何获取掩码（调用 <code>env.action_masks()</code>）。MaskablePPO 需要这个包装器才能工作。</p>
-    <p><strong>Monitor 包装器</strong>：sb3 的标准包装器，自动记录每集的总奖励、长度等信息，方便回调函数读取。</p>
-    <p><strong>不同 seed</strong>：每个并行环境用不同的 seed（<code>C.SEED + i</code>），保证环境间的随机多样性。</p>
-  </div>
+    </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>Why a factory function</strong>: <code>DummyVecEnv</code> accepts a list of callables (not env instances) so it can construct environments internally. The factory is a recipe; <code>DummyVecEnv</code> calls it N times.</p>
     <p><strong>ActionMasker wrapper</strong>: Wraps P4Env into a Gymnasium env that exposes action masks. The <code>_mask_fn</code> parameter tells the wrapper how to retrieve the mask (call <code>env.action_masks()</code>). MaskablePPO requires this wrapper to function.</p>
     <p><strong>Monitor wrapper</strong>: Standard SB3 wrapper that automatically logs episode rewards, lengths, etc., making them accessible to training callbacks.</p>
@@ -754,7 +689,7 @@ so the hardest-to-place service is always presented first.
 
 <!-- ═══════════════════════════ SECTION 9 ═══════════════════════════ -->
 <div class="section" id="s9">
-<h2><span class="section-num">9</span>run_all.py — train_maskppo() 训练函数</h2>
+<h2><span class="section-num">9</span>run_all.py — train_maskppo()</h2>
 
 <pre><span class="kw">def</span> <span class="fn">train_maskppo</span>(<span class="nm">ecus</span>, <span class="nm">services</span>, <span class="nm">device</span>: <span class="nm">str</span>):
     <span class="nm">n_envs</span> = <span class="fn">max</span>(<span class="num">1</span>, <span class="fn">int</span>(<span class="nm">C</span>.<span class="nm">N_ENVS</span>))
@@ -783,69 +718,66 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p><strong>DummyVecEnv</strong>：创建 N_ENVS（默认约40）个并行环境。每个环境在同一进程内的不同"槽"中运行（非真正多进程，但对 CPU 密集型问题已够快）。并行环境加速数据收集——每次 rollout 收集 N_ENVS × n_steps 个转换样本。</p>
     <p><strong>functools.partial</strong>：把 <code>_make_p4_env(seed)</code> 固定一个 seed 参数，得到一个无参数的可调用对象，符合 DummyVecEnv 的要求。</p>
   </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>DummyVecEnv</strong>: Creates N_ENVS (typically ~40) parallel environments running in the same process (not true multiprocessing, but fast enough for CPU-bound problems). Parallel envs collect N_ENVS × n_steps transitions per rollout, dramatically speeding up training.</p>
     <p><strong>functools.partial</strong>: Fixes the <code>seed</code> argument of <code>_make_p4_env</code>, producing a zero-argument callable that DummyVecEnv can call repeatedly.</p>
   </div>
 </div>
 
-<h3>超参数详解 · Hyperparameter Reference</h3>
+<h3>NoneHyperparameter Reference</h3>
 
 <table>
-  <tr><th>参数 Parameter</th><th>典型值 Typical Value</th><th>中文说明</th><th>English Explanation</th></tr>
+  <tr><th>Parameter</th><th>Typical Value</th><th>中文说明</th><th>English Explanation</th></tr>
   <tr>
     <td><code>gamma</code></td><td>0.99</td>
-    <td>折扣因子。0.99 在短序列（M=10 步）下既能看到 terminal_bonus 又不会使 variance 过大。Δar 奖励比原 ru 更稠密，不再需要 0.999 那么高的折扣。</td>
+    
     <td>Discount factor. 0.99 is sufficient for M=10 step episodes — the Δar potential shaping provides dense per-step signal, so the agent doesn't need the near-1 discount required when rewards are sparse.</td>
   </tr>
   <tr>
     <td><code>gae_lambda</code></td><td>0.95</td>
-    <td>广义优势估计平衡参数。0=纯TD（低方差高偏差），1=纯MC（低偏差高方差），0.95是经验最佳折中</td>
+    
     <td>GAE balance: 0 = pure TD (low variance, high bias), 1 = pure Monte Carlo (low bias, high variance). 0.95 is the standard sweet spot.</td>
   </tr>
   <tr>
     <td><code>clip_range</code></td><td>0.2</td>
-    <td>PPO 信任域半径。限制策略每次更新的最大变化量，防止策略崩溃。目标函数被截断在 [1-0.2, 1+0.2] 比率区间</td>
+    
     <td>PPO trust region size. Clips the probability ratio in [0.8, 1.2], preventing catastrophic policy updates ("falling off a cliff").</td>
   </tr>
   <tr>
     <td><code>n_steps</code></td><td>2048</td>
-    <td>每次 rollout 每个环境收集的步数。收集完再做一批梯度更新</td>
+    
     <td>Steps collected per environment per rollout before a gradient update batch. Total transitions = n_steps × n_envs.</td>
   </tr>
   <tr>
     <td><code>n_epochs</code></td><td>10</td>
-    <td>每批数据重复训练次数。复用收集的数据提高样本效率</td>
+    
     <td>Number of gradient update passes over each collected rollout batch — reuses data for sample efficiency.</td>
   </tr>
   <tr>
     <td><code>batch_size</code></td><td>256~512</td>
-    <td>每次梯度下降使用的小批次大小</td>
+    
     <td>Mini-batch size for each gradient descent step within an epoch.</td>
   </tr>
   <tr>
     <td><code>n_envs</code></td><td>40</td>
-    <td>并行环境数。约40×加速数据收集。是 P4 能快速训练的关键</td>
+    
     <td>Number of parallel environments. ~40× data collection speedup — key to P4's training speed.</td>
   </tr>
   <tr>
     <td><code>ent_coef</code></td><td>0.005</td>
-    <td>熵正则化系数。鼓励策略保持探索性，防止过早收敛到次优确定性策略。</td>
+    
     <td>Entropy regularization coefficient. Penalizes overly deterministic policies, preventing premature convergence to suboptimal greedy strategies.</td>
   </tr>
   <tr>
     <td><code>net_arch</code></td><td>dict(pi=[256,256], vf=[512,512])</td>
-    <td>策略网络（pi）和价值网络（vf）分离设计：vf 更宽以提升价值估计精度，pi 保持紧凑避免过拟合。</td>
+    
     <td>Asymmetric architecture: wider value network (512×512) for better return estimation; compact policy network (256×256) to avoid overfitting the action distribution.</td>
   </tr>
   <tr>
     <td><code>policy="MlpPolicy"</code></td><td>—</td>
-    <td>使用多层感知机（MLP）神经网络。net_arch 指定隐层结构</td>
+    
     <td>Multi-layer perceptron policy network. Layer sizes configured via <code>net_arch</code>.</td>
   </tr>
 </table>
@@ -853,28 +785,28 @@ so the hardest-to-place service is always presented first.
 
 <!-- ═══════════════════════════ SECTION 10 ═══════════════════════════ -->
 <div class="section" id="s10">
-<h2><span class="section-num">10</span>run_all.py — main() 完整流水线 · Full Pipeline</h2>
+<h2><span class="section-num">10</span>Full Pipeline</h2>
 
 <pre><span class="op">@</span><span class="nm">timer_utils</span>.<span class="nm">timer</span>
 <span class="kw">def</span> <span class="fn">main</span>():
-    <span class="cm"># 1. 加载场景</span>
+    <span class="cm"># 1. load scenarios</span>
     <span class="nm">ecus</span>, <span class="nm">services</span>, <span class="nm">sc_name</span>, <span class="nm">prototype_name</span> = <span class="fn">load_scenario</span>(...)
 
-    <span class="cm"># 2. 用 ILP（整数线性规划）求最优解 —— 作为性能上界</span>
+    <span class="cm"># 2. solve ILP for optimal solution — used as performance upper bound</span>
     <span class="nm">ilp_ar</span>, <span class="nm">ilp_per_sc</span> = <span class="fn">solve_ilp_all_scenarios</span>(...)
-    <span class="cm"># ILP 对所有测试场景求最优，给出 AR 上界</span>
+    <span class="cm"># ILP solves all test scenarios optimally, giving the AR upper bound</span>
 
-    <span class="cm"># 3. 训练 MaskablePPO</span>
+    <span class="cm"># 3. train MaskablePPO</span>
     <span class="nm">model</span>, <span class="nm">cb</span> = <span class="fn">train_maskppo</span>(<span class="nm">ecus</span>, <span class="nm">services</span>, <span class="nm">device</span>)
     <span class="nm">model</span>.<span class="fn">save</span>(<span class="fn">str</span>(<span class="nm">C</span>.<span class="nm">MODEL_PATH</span>))
 
-    <span class="cm"># 4. 评估 MaskablePPO（确定性策略）</span>
+    <span class="cm"># 4. evaluate MaskablePPO (deterministic policy)</span>
     <span class="kw">def</span> <span class="fn">ppo_policy</span>(<span class="nm">obs</span>, <span class="nm">mask</span>):
         <span class="nm">action</span>, <span class="nm">_</span> = <span class="nm">model</span>.<span class="fn">predict</span>(<span class="nm">obs</span>, <span class="nm">deterministic</span>=<span class="kw">True</span>, <span class="nm">action_masks</span>=<span class="nm">mask</span>)
         <span class="kw">return</span> <span class="fn">int</span>(<span class="nm">action</span>)
     <span class="nm">ppo_res</span> = <span class="fn">run_episodes</span>(<span class="nm">ecus</span>, <span class="nm">services</span>, <span class="nm">ppo_policy</span>)
 
-    <span class="cm"># 5. 保存结果 JSON + CSV + 绘图</span>
+    <span class="cm"># 5. save results JSON + CSV + plots</span>
     <span class="nm">log_path</span> = <span class="nm">base_path</span> <span class="op">/</span> <span class="st">"results.json"</span>
     <span class="nm">csv_path</span> = <span class="nm">base_path</span> <span class="op">/</span> <span class="st">"summary.csv"</span>
     <span class="fn">plot_training_curve</span>(<span class="nm">cb</span>, <span class="nm">ilp_ar</span>, <span class="nm">base_path</span>, <span class="nm">sc_name</span>)
@@ -882,14 +814,8 @@ so the hardest-to-place service is always presented first.
 
 <div class="bilingual">
   <div class="lang-zh">
-    <div class="lang-label">中文解释</div>
-    <p><strong>ILP（整数线性规划）的作用</strong>：ILP 是精确算法，能找到全局最优解，但计算时间随问题规模指数增长（NP-hard）。P4 用 ILP 的结果作为"性能天花板"（upper bound），来衡量 PPO 距离最优有多远。</p>
-    <p><strong>确定性策略评估</strong>：训练时智能体随机采样动作（探索），评估时用 <code>deterministic=True</code> 直接选 logit 最大的动作（无随机性），得到可复现的结果。</p>
-    <p><strong>三个输出图</strong>：①训练曲线（AR 随时间变化）②对比图（ILP vs PPO 的 AR 分布）③违约率（P4 的两条线都是0）。</p>
-    <p><strong>@timer_utils.timer 装饰器</strong>：在函数结束时打印总运行时间，方便性能分析。</p>
-  </div>
+    </div>
   <div class="lang-en">
-    <div class="lang-label">English Explanation</div>
     <p><strong>Role of ILP</strong>: ILP finds the globally optimal solution but takes exponential time (NP-hard). P4 uses ILP results as a performance ceiling (upper bound AR) to measure how close PPO gets to optimal.</p>
     <p><strong>Deterministic evaluation</strong>: During training, the agent samples actions stochastically (exploration). During evaluation, <code>deterministic=True</code> picks the highest-logit action — no randomness, reproducible results.</p>
     <p><strong>Three output plots</strong>: ① Training curve (AR over timesteps) ② Comparison chart (ILP vs PPO AR distributions as box plots) ③ Violation rate (both lines are 0 for P4 — zero violations guaranteed).</p>
@@ -897,15 +823,15 @@ so the hardest-to-place service is always presented first.
   </div>
 </div>
 
-<h3>完整流水线示意图 · Pipeline Diagram</h3>
+<h3>NonePipeline Diagram</h3>
 
 <table>
-  <tr><th>步骤 Step</th><th>操作 Action</th><th>输出 Output</th></tr>
-  <tr><td>1</td><td>加载 YAML 场景 / Load YAML scenario</td><td>ECU + SVC 列表</td></tr>
-  <tr><td>2</td><td>ILP 求最优 / Solve ILP (optimal upper bound)</td><td>ilp_ar (最优 AR)</td></tr>
-  <tr><td>3</td><td>MaskablePPO 训练 / Train (N_ENVS parallel envs)</td><td>model.zip + 训练曲线数据</td></tr>
-  <tr><td>4</td><td>评估 / Evaluate (deterministic, test scenarios)</td><td>ppo_res: ars, placed, ecus_used</td></tr>
-  <tr><td>5</td><td>保存结果 / Save results</td><td>results.json, summary.csv, *.png</td></tr>
+  <tr><th>Step</th><th>Action</th><th>Output</th></tr>
+  <tr><td>1</td><td>/ Load YAML scenario</td><td>ECU + SVC 列表</td></tr>
+  <tr><td>2</td><td>/ Solve ILP (optimal upper bound)</td><td>AR)</td></tr>
+  <tr><td>3</td><td>/ Train (N_ENVS parallel envs)</td><td>model.zip + 训练曲线数据</td></tr>
+  <tr><td>4</td><td>/ Evaluate (deterministic, test scenarios)</td><td>ppo_res: ars, placed, ecus_used</td></tr>
+  <tr><td>5</td><td>/ Save results</td><td>results.json, summary.csv, *.png</td></tr>
 </table>
 </div>
 
