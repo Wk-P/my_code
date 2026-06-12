@@ -22,3 +22,5 @@ scripts/
 old-conference-data/
 old-research-code/
 logs/
+old-*
+CLAUDE.md
