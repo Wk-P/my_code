@@ -1,0 +1,211 @@
+[2026-06-18 21:31:15] === 并行实验启动 ===
+[2026-06-18 21:31:15] === 并行实验启动 ===
+[2026-06-18 21:31:15] 实验组: ecu_eq_svc_p ecu_gt_svc_p ecu_lt_svc_p
+[2026-06-18 21:31:15] 实验组: ecu_eq_svc_p ecu_gt_svc_p ecu_lt_svc_p
+[2026-06-18 21:31:15] [ecu_eq_svc_p] 启动中 ...
+[2026-06-18 21:31:15] [ecu_eq_svc_p] 启动中 ...
+Stale PID file found (PID 16913 is no longer running). Overwriting.
+Training started in background.
+  PID      : 2035426  (saved to /home/soar009/github/my_code/old-research-code/ecu_eq_svc_p/run_scripts/run_background.pid)
+  Log      : /home/soar009/github/my_code/old-research-code/ecu_eq_svc_p/run_scripts/run_background.log
+
+Useful commands:
+  tail -f /home/soar009/github/my_code/old-research-code/ecu_eq_svc_p/run_scripts/run_background.log          # follow live output
+  kill $(cat /home/soar009/github/my_code/old-research-code/ecu_eq_svc_p/run_scripts/run_background.pid)      # stop the run
+  cat /home/soar009/github/my_code/old-research-code/ecu_eq_svc_p/run_scripts/run_background.pid              # check PID
+[2026-06-18 21:31:15] [ecu_eq_svc_p] PID=2035426  日志: /home/soar009/github/my_code/old-research-code/ecu_eq_svc_p/run_scripts/run_background.log
+[2026-06-18 21:31:15] [ecu_eq_svc_p] PID=2035426  日志: /home/soar009/github/my_code/old-research-code/ecu_eq_svc_p/run_scripts/run_background.log
+[2026-06-18 21:31:15] [ecu_gt_svc_p] 启动中 ...
+[2026-06-18 21:31:15] [ecu_gt_svc_p] 启动中 ...
+Stale PID file found (PID 16927 is no longer running). Overwriting.
+Training started in background.
+  PID      : 2035442  (saved to /home/soar009/github/my_code/old-research-code/ecu_gt_svc_p/run_scripts/run_background.pid)
+  Log      : /home/soar009/github/my_code/old-research-code/ecu_gt_svc_p/run_scripts/run_background.log
+
+Useful commands:
+  tail -f /home/soar009/github/my_code/old-research-code/ecu_gt_svc_p/run_scripts/run_background.log          # follow live output
+  kill $(cat /home/soar009/github/my_code/old-research-code/ecu_gt_svc_p/run_scripts/run_background.pid)      # stop the run
+  cat /home/soar009/github/my_code/old-research-code/ecu_gt_svc_p/run_scripts/run_background.pid              # check PID
+[2026-06-18 21:31:15] [ecu_gt_svc_p] PID=2035442  日志: /home/soar009/github/my_code/old-research-code/ecu_gt_svc_p/run_scripts/run_background.log
+[2026-06-18 21:31:15] [ecu_gt_svc_p] PID=2035442  日志: /home/soar009/github/my_code/old-research-code/ecu_gt_svc_p/run_scripts/run_background.log
+[2026-06-18 21:31:15] [ecu_lt_svc_p] 启动中 ...
+[2026-06-18 21:31:15] [ecu_lt_svc_p] 启动中 ...
+Stale PID file found (PID 16941 is no longer running). Overwriting.
+Training started in background.
+  PID      : 2035458  (saved to /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/run_scripts/run_background.pid)
+  Log      : /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/run_scripts/run_background.log
+
+Useful commands:
+  tail -f /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/run_scripts/run_background.log          # follow live output
+  kill $(cat /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/run_scripts/run_background.pid)      # stop the run
+  cat /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/run_scripts/run_background.pid              # check PID
+[2026-06-18 21:31:15] [ecu_lt_svc_p] PID=2035458  日志: /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/run_scripts/run_background.log
+[2026-06-18 21:31:15] [ecu_lt_svc_p] PID=2035458  日志: /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/run_scripts/run_background.log
+[2026-06-18 21:31:15] --- 全部已启动，等待完成 ---
+[2026-06-18 21:31:15] --- 全部已启动，等待完成 ---
+[2026-06-18 21:31:15] 实时日志查看: tail -f /home/soar009/github/my_code/old-research-code/ecu_{eq,gt,lt}_svc_p/run_scripts/run_background.log
+[2026-06-18 21:31:15] 实时日志查看: tail -f /home/soar009/github/my_code/old-research-code/ecu_{eq,gt,lt}_svc_p/run_scripts/run_background.log
+[2026-06-18 21:32:15] [ecu_gt_svc_p] 运行中 ... 1m0s
+[2026-06-18 21:32:15] [ecu_gt_svc_p] 运行中 ... 1m0s
+[2026-06-18 21:32:15] [ecu_lt_svc_p] 运行中 ... 1m0s
+[2026-06-18 21:32:15] [ecu_lt_svc_p] 运行中 ... 1m0s
+[2026-06-18 21:32:15] [ecu_eq_svc_p] 运行中 ... 1m0s
+[2026-06-18 21:32:15] [ecu_eq_svc_p] 运行中 ... 1m0s
+[2026-06-18 21:33:15] [ecu_gt_svc_p] 运行中 ... 2m0s
+[2026-06-18 21:33:15] [ecu_gt_svc_p] 运行中 ... 2m0s
+[2026-06-18 21:33:15] [ecu_lt_svc_p] 运行中 ... 2m0s
+[2026-06-18 21:33:15] [ecu_lt_svc_p] 运行中 ... 2m0s
+[2026-06-18 21:33:15] [ecu_eq_svc_p] 运行中 ... 2m0s
+[2026-06-18 21:33:15] [ecu_eq_svc_p] 运行中 ... 2m0s
+[2026-06-18 21:34:15] [ecu_gt_svc_p] 运行中 ... 3m0s
+[2026-06-18 21:34:15] [ecu_gt_svc_p] 运行中 ... 3m0s
+[2026-06-18 21:34:15] [ecu_lt_svc_p] 运行中 ... 3m0s
+[2026-06-18 21:34:15] [ecu_lt_svc_p] 运行中 ... 3m0s
+[2026-06-18 21:34:15] [ecu_eq_svc_p] 运行中 ... 3m0s
+[2026-06-18 21:34:15] [ecu_eq_svc_p] 运行中 ... 3m0s
+[2026-06-18 21:35:15] [ecu_gt_svc_p] 运行中 ... 4m0s
+[2026-06-18 21:35:15] [ecu_gt_svc_p] 运行中 ... 4m0s
+[2026-06-18 21:35:15] [ecu_lt_svc_p] 运行中 ... 4m0s
+[2026-06-18 21:35:15] [ecu_lt_svc_p] 运行中 ... 4m0s
+[2026-06-18 21:35:15] [ecu_eq_svc_p] 运行中 ... 4m0s
+[2026-06-18 21:35:15] [ecu_eq_svc_p] 运行中 ... 4m0s
+[2026-06-18 21:36:15] [ecu_gt_svc_p] 运行中 ... 5m0s
+[2026-06-18 21:36:15] [ecu_gt_svc_p] 运行中 ... 5m0s
+[2026-06-18 21:36:15] [ecu_lt_svc_p] 运行中 ... 5m0s
+[2026-06-18 21:36:15] [ecu_lt_svc_p] 运行中 ... 5m0s
+[2026-06-18 21:36:15] [ecu_eq_svc_p] 运行中 ... 5m0s
+[2026-06-18 21:36:15] [ecu_eq_svc_p] 运行中 ... 5m0s
+[2026-06-18 21:37:15] [ecu_gt_svc_p] 运行中 ... 6m0s
+[2026-06-18 21:37:15] [ecu_gt_svc_p] 运行中 ... 6m0s
+[2026-06-18 21:37:16] [ecu_lt_svc_p] 运行中 ... 6m1s
+[2026-06-18 21:37:16] [ecu_lt_svc_p] 运行中 ... 6m1s
+[2026-06-18 21:37:16] [ecu_eq_svc_p] 运行中 ... 6m1s
+[2026-06-18 21:37:16] [ecu_eq_svc_p] 运行中 ... 6m1s
+[2026-06-18 21:38:16] [ecu_gt_svc_p] 运行中 ... 7m1s
+[2026-06-18 21:38:16] [ecu_gt_svc_p] 运行中 ... 7m1s
+[2026-06-18 21:38:16] [ecu_lt_svc_p] 运行中 ... 7m1s
+[2026-06-18 21:38:16] [ecu_lt_svc_p] 运行中 ... 7m1s
+[2026-06-18 21:38:16] [ecu_eq_svc_p] 运行中 ... 7m1s
+[2026-06-18 21:38:16] [ecu_eq_svc_p] 运行中 ... 7m1s
+[2026-06-18 21:39:16] [ecu_gt_svc_p] 运行中 ... 8m1s
+[2026-06-18 21:39:16] [ecu_gt_svc_p] 运行中 ... 8m1s
+[2026-06-18 21:39:16] [ecu_lt_svc_p] 运行中 ... 8m1s
+[2026-06-18 21:39:16] [ecu_lt_svc_p] 运行中 ... 8m1s
+[2026-06-18 21:39:16] [ecu_eq_svc_p] 运行中 ... 8m1s
+[2026-06-18 21:39:16] [ecu_eq_svc_p] 运行中 ... 8m1s
+[2026-06-18 21:40:16] [ecu_gt_svc_p] 运行中 ... 9m1s
+[2026-06-18 21:40:16] [ecu_gt_svc_p] 运行中 ... 9m1s
+[2026-06-18 21:40:16] [ecu_lt_svc_p] 运行中 ... 9m1s
+[2026-06-18 21:40:16] [ecu_lt_svc_p] 运行中 ... 9m1s
+[2026-06-18 21:40:16] [ecu_eq_svc_p] 运行中 ... 9m1s
+[2026-06-18 21:40:16] [ecu_eq_svc_p] 运行中 ... 9m1s
+[2026-06-18 21:41:16] [ecu_gt_svc_p] 运行中 ... 10m1s
+[2026-06-18 21:41:16] [ecu_gt_svc_p] 运行中 ... 10m1s
+[2026-06-18 21:41:16] [ecu_lt_svc_p] 运行中 ... 10m1s
+[2026-06-18 21:41:16] [ecu_lt_svc_p] 运行中 ... 10m1s
+[2026-06-18 21:41:16] [ecu_eq_svc_p] 运行中 ... 10m1s
+[2026-06-18 21:41:16] [ecu_eq_svc_p] 运行中 ... 10m1s
+[2026-06-18 21:42:16] [ecu_gt_svc_p] 运行中 ... 11m1s
+[2026-06-18 21:42:16] [ecu_gt_svc_p] 运行中 ... 11m1s
+[2026-06-18 21:42:16] [ecu_lt_svc_p] 运行中 ... 11m1s
+[2026-06-18 21:42:16] [ecu_lt_svc_p] 运行中 ... 11m1s
+[2026-06-18 21:42:16] [ecu_eq_svc_p] 运行中 ... 11m1s
+[2026-06-18 21:42:16] [ecu_eq_svc_p] 运行中 ... 11m1s
+[2026-06-18 21:43:16] [ecu_gt_svc_p] 运行中 ... 12m1s
+[2026-06-18 21:43:16] [ecu_gt_svc_p] 运行中 ... 12m1s
+[2026-06-18 21:43:16] [ecu_lt_svc_p] 运行中 ... 12m1s
+[2026-06-18 21:43:16] [ecu_lt_svc_p] 运行中 ... 12m1s
+[2026-06-18 21:43:16] [ecu_eq_svc_p] 运行中 ... 12m1s
+[2026-06-18 21:43:16] [ecu_eq_svc_p] 运行中 ... 12m1s
+[2026-06-18 21:44:16] [ecu_gt_svc_p] 运行中 ... 13m1s
+[2026-06-18 21:44:16] [ecu_gt_svc_p] 运行中 ... 13m1s
+[2026-06-18 21:44:16] [ecu_lt_svc_p] 运行中 ... 13m1s
+[2026-06-18 21:44:16] [ecu_lt_svc_p] 运行中 ... 13m1s
+[2026-06-18 21:44:16] [ecu_eq_svc_p] 运行中 ... 13m1s
+[2026-06-18 21:44:16] [ecu_eq_svc_p] 运行中 ... 13m1s
+[2026-06-18 21:45:16] [ecu_gt_svc_p] 运行中 ... 14m1s
+[2026-06-18 21:45:16] [ecu_gt_svc_p] 运行中 ... 14m1s
+[2026-06-18 21:45:16] [ecu_lt_svc_p] 运行中 ... 14m1s
+[2026-06-18 21:45:16] [ecu_lt_svc_p] 运行中 ... 14m1s
+[2026-06-18 21:45:16] [ecu_eq_svc_p] 运行中 ... 14m1s
+[2026-06-18 21:45:16] [ecu_eq_svc_p] 运行中 ... 14m1s
+[2026-06-18 21:46:16] [ecu_gt_svc_p] 运行中 ... 15m1s
+[2026-06-18 21:46:16] [ecu_gt_svc_p] 运行中 ... 15m1s
+[2026-06-18 21:46:16] [ecu_lt_svc_p] 运行中 ... 15m1s
+[2026-06-18 21:46:16] [ecu_lt_svc_p] 运行中 ... 15m1s
+[2026-06-18 21:46:16] [ecu_eq_svc_p] 运行中 ... 15m1s
+[2026-06-18 21:46:16] [ecu_eq_svc_p] 运行中 ... 15m1s
+[2026-06-18 21:47:16] [ecu_gt_svc_p] 运行中 ... 16m1s
+[2026-06-18 21:47:16] [ecu_gt_svc_p] 运行中 ... 16m1s
+[2026-06-18 21:47:16] [ecu_lt_svc_p] 运行中 ... 16m1s
+[2026-06-18 21:47:16] [ecu_lt_svc_p] 运行中 ... 16m1s
+[2026-06-18 21:47:16] [ecu_eq_svc_p] 运行中 ... 16m1s
+[2026-06-18 21:47:16] [ecu_eq_svc_p] 运行中 ... 16m1s
+[2026-06-18 21:48:16] [ecu_gt_svc_p] 运行中 ... 17m1s
+[2026-06-18 21:48:16] [ecu_gt_svc_p] 运行中 ... 17m1s
+[2026-06-18 21:48:16] [ecu_lt_svc_p] 运行中 ... 17m1s
+[2026-06-18 21:48:16] [ecu_lt_svc_p] 运行中 ... 17m1s
+[2026-06-18 21:48:16] [ecu_eq_svc_p] 运行中 ... 17m1s
+[2026-06-18 21:48:16] [ecu_eq_svc_p] 运行中 ... 17m1s
+[2026-06-18 21:49:16] [ecu_gt_svc_p] 运行中 ... 18m1s
+[2026-06-18 21:49:16] [ecu_gt_svc_p] 运行中 ... 18m1s
+[2026-06-18 21:49:16] [ecu_lt_svc_p] 运行中 ... 18m1s
+[2026-06-18 21:49:16] [ecu_lt_svc_p] 运行中 ... 18m1s
+[2026-06-18 21:49:16] [ecu_eq_svc_p] 运行中 ... 18m1s
+[2026-06-18 21:49:16] [ecu_eq_svc_p] 运行中 ... 18m1s
+[2026-06-18 21:50:16] [ecu_gt_svc_p] 运行中 ... 19m1s
+[2026-06-18 21:50:16] [ecu_gt_svc_p] 运行中 ... 19m1s
+[2026-06-18 21:50:16] [ecu_lt_svc_p] 运行中 ... 19m1s
+[2026-06-18 21:50:16] [ecu_lt_svc_p] 运行中 ... 19m1s
+[2026-06-18 21:50:16] [ecu_eq_svc_p] 运行中 ... 19m1s
+[2026-06-18 21:50:16] [ecu_eq_svc_p] 运行中 ... 19m1s
+[2026-06-18 21:51:16] [ecu_gt_svc_p] 运行中 ... 20m1s
+[2026-06-18 21:51:16] [ecu_gt_svc_p] 运行中 ... 20m1s
+[2026-06-18 21:51:16] [ecu_lt_svc_p] 运行中 ... 20m1s
+[2026-06-18 21:51:16] [ecu_lt_svc_p] 运行中 ... 20m1s
+[2026-06-18 21:51:16] [ecu_eq_svc_p] 运行中 ... 20m1s
+[2026-06-18 21:51:16] [ecu_eq_svc_p] 运行中 ... 20m1s
+[2026-06-18 21:52:16] [ecu_gt_svc_p] 运行中 ... 21m1s
+[2026-06-18 21:52:16] [ecu_gt_svc_p] 运行中 ... 21m1s
+[2026-06-18 21:52:16] [ecu_lt_svc_p] 运行中 ... 21m1s
+[2026-06-18 21:52:16] [ecu_lt_svc_p] 运行中 ... 21m1s
+[2026-06-18 21:52:16] [ecu_eq_svc_p] 运行中 ... 21m1s
+[2026-06-18 21:52:16] [ecu_eq_svc_p] 运行中 ... 21m1s
+[2026-06-18 21:53:16] [ecu_gt_svc_p] 运行中 ... 22m1s
+[2026-06-18 21:53:16] [ecu_gt_svc_p] 运行中 ... 22m1s
+[2026-06-18 21:53:16] [ecu_lt_svc_p] 运行中 ... 22m1s
+[2026-06-18 21:53:16] [ecu_lt_svc_p] 运行中 ... 22m1s
+[2026-06-18 21:53:16] [ecu_eq_svc_p] 运行中 ... 22m1s
+[2026-06-18 21:53:16] [ecu_eq_svc_p] 运行中 ... 22m1s
+[2026-06-18 21:54:16] [ecu_gt_svc_p] 运行中 ... 23m1s
+[2026-06-18 21:54:16] [ecu_gt_svc_p] 运行中 ... 23m1s
+[2026-06-18 21:54:16] [ecu_lt_svc_p] 运行中 ... 23m1s
+[2026-06-18 21:54:16] [ecu_lt_svc_p] 运行中 ... 23m1s
+[2026-06-18 21:54:16] [ecu_eq_svc_p] 运行中 ... 23m1s
+[2026-06-18 21:54:16] [ecu_eq_svc_p] 运行中 ... 23m1s
+[2026-06-18 21:55:16] [ecu_gt_svc_p] 运行中 ... 24m1s
+[2026-06-18 21:55:16] [ecu_gt_svc_p] 运行中 ... 24m1s
+[2026-06-18 21:55:16] [ecu_lt_svc_p] 运行中 ... 24m1s
+[2026-06-18 21:55:16] [ecu_lt_svc_p] 运行中 ... 24m1s
+[2026-06-18 21:55:16] [ecu_eq_svc_p] 运行中 ... 24m1s
+[2026-06-18 21:55:16] [ecu_eq_svc_p] 运行中 ... 24m1s
+[2026-06-18 21:56:16] [ecu_lt_svc_p] 运行中 ... 25m1s
+[2026-06-18 21:56:16] [ecu_lt_svc_p] 运行中 ... 25m1s
+[2026-06-18 21:57:16] [ecu_lt_svc_p] 运行中 ... 26m1s
+[2026-06-18 21:57:16] [ecu_lt_svc_p] 运行中 ... 26m1s
+[2026-06-18 21:58:16] [ecu_lt_svc_p] 运行中 ... 27m1s
+[2026-06-18 21:58:16] [ecu_lt_svc_p] 运行中 ... 27m1s
+[2026-06-18 21:59:16] 
+[2026-06-18 21:59:16] 
+[2026-06-18 21:59:16] === 全部完成 ===
+[2026-06-18 21:59:16] === 全部完成 ===
+[2026-06-18 21:59:16] [ecu_gt_svc_p] [timer] main finished in 24m 53.5s [2026-06-18 21:56:09]
+[2026-06-18 21:59:16] [ecu_gt_svc_p] [timer] main finished in 24m 53.5s [2026-06-18 21:56:09]
+[2026-06-18 21:59:16] [ecu_lt_svc_p] [timer] main finished in 27m 9.2s [2026-06-18 21:58:25]
+[2026-06-18 21:59:16] [ecu_lt_svc_p] [timer] main finished in 27m 9.2s [2026-06-18 21:58:25]
+[2026-06-18 21:59:16] [ecu_eq_svc_p] [timer] main finished in 24m 2.1s [2026-06-18 21:55:17]
+[2026-06-18 21:59:16] [ecu_eq_svc_p] [timer] main finished in 24m 2.1s [2026-06-18 21:55:17]
+[2026-06-18 21:59:16] 总耗时: 28m1s
+[2026-06-18 21:59:16] 总耗时: 28m1s
+[2026-06-18 21:59:16] === 结束 ===
+[2026-06-18 21:59:16] === 结束 ===

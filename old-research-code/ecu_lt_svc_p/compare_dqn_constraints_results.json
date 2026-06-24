@@ -1,0 +1,90 @@
+[
+  {
+    "algo": "dqn",
+    "mode": "soft",
+    "elapsed_s": 178.1,
+    "n_test": 32,
+    "ar_mean": 0.6714433431625366,
+    "cap_viol_rate": 0.125,
+    "conflict_viol_rate": 1.03125,
+    "cap_viol_total": 4,
+    "conflict_viol_total": 33
+  },
+  {
+    "algo": "dqn",
+    "mode": "hard",
+    "elapsed_s": 196.0,
+    "n_test": 32,
+    "ar_mean": 0.6803900599479675,
+    "cap_viol_rate": 0.0,
+    "conflict_viol_rate": 0.71875,
+    "cap_viol_total": 0,
+    "conflict_viol_total": 23
+  },
+  {
+    "algo": "dqn",
+    "mode": "lagrange",
+    "elapsed_s": 175.0,
+    "n_test": 32,
+    "ar_mean": 0.6636182069778442,
+    "cap_viol_rate": 0.21875,
+    "conflict_viol_rate": 0.875,
+    "cap_viol_total": 7,
+    "conflict_viol_total": 28
+  },
+  {
+    "algo": "ddqn",
+    "mode": "soft",
+    "elapsed_s": 175.6,
+    "n_test": 32,
+    "ar_mean": 0.6737173795700073,
+    "cap_viol_rate": 0.0625,
+    "conflict_viol_rate": 1.375,
+    "cap_viol_total": 2,
+    "conflict_viol_total": 44
+  },
+  {
+    "algo": "ddqn",
+    "mode": "hard",
+    "elapsed_s": 187.4,
+    "n_test": 32,
+    "ar_mean": 0.6662339568138123,
+    "cap_viol_rate": 0.0,
+    "conflict_viol_rate": 0.75,
+    "cap_viol_total": 0,
+    "conflict_viol_total": 24
+  },
+  {
+    "algo": "ddqn",
+    "mode": "lagrange",
+    "elapsed_s": 177.8,
+    "n_test": 32,
+    "ar_mean": 0.6558958292007446,
+    "cap_viol_rate": 0.125,
+    "conflict_viol_rate": 0.8125,
+    "cap_viol_total": 4,
+    "conflict_viol_total": 26
+  },
+  {
+    "algo": "dqn",
+    "mode": "hard_heavyconflict",
+    "elapsed_s": 195.2,
+    "n_test": 32,
+    "ar_mean": 0.6625017523765564,
+    "cap_viol_rate": 0.0,
+    "conflict_viol_rate": 0.6875,
+    "cap_viol_total": 0,
+    "conflict_viol_total": 22
+  },
+  {
+    "algo": "ddqn",
+    "mode": "hard_heavyconflict",
+    "elapsed_s": 205.9,
+    "n_test": 32,
+    "ar_mean": 0.6709492802619934,
+    "cap_viol_rate": 0.125,
+    "conflict_viol_rate": 0.59375,
+    "cap_viol_total": 4,
+    "conflict_viol_total": 19
+  }
+]

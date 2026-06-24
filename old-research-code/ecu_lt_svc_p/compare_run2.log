@@ -1,0 +1,16 @@
+[device] cpu  total_timesteps=600,000
+
+=== DQN | constraint_mode=hard_heavyconflict ===
+  AR=0.6625  cap_viol/ep=0.00 conflict_viol/ep=0.69  (195.2s, n_test=32)
+
+=== DDQN | constraint_mode=hard_heavyconflict ===
+  AR=0.6709  cap_viol/ep=0.12 conflict_viol/ep=0.59  (205.9s, n_test=32)
+
+==========================================================================================
+  Algo   Mode       AR       CapViol/ep   ConflictViol/ep  Time(s)
+  ------ ---------- -------- ------------ ---------------- -------
+  dqn    hard_heavyconflict 0.6625   0.00         0.69             195.2
+  ddqn   hard_heavyconflict 0.6709   0.12         0.59             205.9
+==========================================================================================
+
+Saved -> /home/soar009/github/my_code/old-research-code/ecu_lt_svc_p/compare_dqn_constraints_results.json
