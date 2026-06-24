@@ -1,3 +1,0 @@
-method,ar_mean,ar_std,placed_mean,viol_rate,cap_viol_total,conflict_viol_total
-ILP (Optimal),0.73903,0.0,15,0.0,0,0
-"PPO (P6, best-fit)",0.679506,0.072841,12.53,0.0031,1,1
