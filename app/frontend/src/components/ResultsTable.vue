@@ -35,7 +35,7 @@ onUnmounted(() => clearInterval(timer));
     <tr>
       <th>Scenario</th><th>Algo</th><th>N/M</th><th>train/test count</th>
       <th>ILP AR</th><th>Test AR</th><th>Viol Rate (total)</th><th>Cap Violations</th><th>Conflict Violations</th>
-      <th>Train AR (last50)</th><th>Train steps</th><th>Plots</th><th>History</th><th>run</th>
+      <th>Train AR (last50)</th><th>Train steps</th><th>Plots</th><th>History</th><th>EXP_ID (hash)</th>
     </tr>
     <tr v-for="r in sortedRows" :key="r.scenario + r.algo">
       <td :class="`scenario-${r.scenario}`">{{ r.scenario }}</td>
@@ -62,7 +62,7 @@ onUnmounted(() => clearInterval(timer));
         <span class="thumb-link" @click="emit('show-image', r.scenario, r.algo, r.run, 'comparison.png')">compare</span>
       </td>
       <td><span class="hist-link" @click="emit('show-history', r.scenario, r.algo)">history</span></td>
-      <td style="font-size:0.75rem;color:#666">{{ r.run }}</td>
+      <td><span class="run-id">{{ r.run }}</span></td>
     </tr>
   </table>
 </template>

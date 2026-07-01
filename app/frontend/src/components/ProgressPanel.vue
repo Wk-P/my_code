@@ -39,6 +39,11 @@ onUnmounted(() => clearInterval(timer));
           · CPU {{ data[sc].cpu_percent?.toFixed(0) }}% · elapsed {{ secToHuman(data[sc].elapsed_seconds) }}
         </div>
         <template v-if="data[sc].latest_progress">
+          <div class="meta">
+            <span class="exp-id" :title="'This whole batch (all scenarios launched together) shares exp_id ' + data[sc].latest_progress.exp_id">
+              EXP_ID: {{ data[sc].latest_progress.exp_id ?? "pending" }}
+            </span>
+          </div>
           <div class="bar-bg">
             <div class="bar-fill" :class="sc" :style="{ width: data[sc].latest_progress.pct + '%', opacity: 0.6 }"></div>
           </div>

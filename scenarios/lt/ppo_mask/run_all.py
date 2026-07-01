@@ -47,7 +47,7 @@ from ppo_mask.env import P4Env
 from ilp.objects import ECU, SVC
 from sb3_contrib.common.wrappers import ActionMasker
 from shared.ilp_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
-from shared.paths import VERSION, new_run_id, write_progress
+from shared.paths import VERSION, resolve_exp_id, write_progress
 
 
 def _mask_fn(env) -> np.ndarray:
@@ -134,7 +134,7 @@ class P4Callback(BaseCallback):
             write_progress(
                 C.OUTDIR,
                 step=self.num_timesteps, total_steps=C.TOTAL_STEPS, pct=round(pct, 1),
-                episodes=eps, steps_per_sec=round(sps),
+                episodes=eps, steps_per_sec=round(sps), exp_id=C.EXP_ID,
             )
             self._next_progress_step += C.PROGRESS_LOG_EVERY_STEPS
         return True
@@ -319,11 +319,12 @@ def main():
 
     # 3. MaskablePPO training
     print(f"\n[3/4] MaskablePPO training ({C.TOTAL_STEPS:,} steps) ...")
+    exp_id = resolve_exp_id(C.OUTDIR)
+    C.EXP_ID = exp_id
     model, cb = train_maskppo(ecus, services, device)
-    run_id = new_run_id(C.OUTDIR)
-    run_dir = C.OUTDIR / run_id
+    run_dir = C.OUTDIR / exp_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    model_path = run_dir / f"model_{run_id}_v{VERSION}"
+    model_path = run_dir / f"model_{exp_id}_v{VERSION}"
     model.save(str(model_path))
     print(f"  Model saved -> {model_path}.zip")
 

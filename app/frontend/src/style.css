@@ -30,3 +30,5 @@ tr:hover { background: #22262f; }
 .log-tail { background: #0a0b0d; color: #9ca3af; font-size: 0.7rem; padding: 6px; border-radius: 4px; max-height: 110px; overflow-y: auto; white-space: pre-wrap; margin-top: 6px; }
 .stopped { color: #666; font-style: italic; }
 .ar-warn { color: #fbbf24; cursor: help; }
+.exp-id { font-family: ui-monospace, "SF Mono", Consolas, monospace; background: #1a1d24; color: #93c5fd; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; cursor: help; }
+.run-id { font-family: ui-monospace, "SF Mono", Consolas, monospace; background: #1a1d24; color: #93c5fd; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; }

@@ -31,12 +31,12 @@ watch(
         <h3 style="margin-top:0">{{ active.scenario }} / {{ active.algo }} history runs</h3>
         <table>
           <tr>
-            <th>run</th><th>Test AR</th><th>Viol Rate (total)</th><th>Cap Violations</th>
+            <th>EXP_ID (hash)</th><th>Test AR</th><th>Viol Rate (total)</th><th>Cap Violations</th>
             <th>Conflict Violations</th><th>Train AR (last50)</th><th>steps</th>
           </tr>
           <tr v-for="r in rows" :key="r.run">
             <td style="text-align:left">
-              <a class="thumb-link" :href="`#/run/${active.scenario}/${active.algo}/${r.run}`">{{ r.run }}</a>
+              <a class="thumb-link run-id" :href="`#/run/${active.scenario}/${active.algo}/${r.run}`">{{ r.run }}</a>
             </td>
             <td>{{ fmt(r.test_ar_mean) }} ± {{ fmt(r.test_ar_std, 3) }}</td>
             <td>{{ pct(r.test_viol_rate) }}</td>
