@@ -16,6 +16,20 @@ onMounted(() => {
   timer = setInterval(load, 5000);
 });
 onUnmounted(() => clearInterval(timer));
+
+function classifyLine(line) {
+  if (/\[train\]/.test(line)) return "train";
+  if (/^===/.test(line.trim())) return "phase";
+  if (/\[cache\]/.test(line)) return "cache";
+  if (/^\s*$/.test(line)) return "blank";
+  return "plain";
+}
+
+function displayLine(line) {
+  const trimmed = line.trim();
+  if (/^===/.test(trimmed)) return trimmed.replace(/^=+\s*/, "").replace(/\s*=+$/, "");
+  return line;
+}
 </script>
 
 <template>
@@ -54,7 +68,17 @@ onUnmounted(() => clearInterval(timer));
           </div>
         </template>
         <div v-else class="meta">Current model has not hit its first progress checkpoint yet</div>
-        <div class="log-tail">{{ (data[sc].log_tail || []).join("\n") }}</div>
+        <div class="log-tail">
+          <div class="log-tail-header">live log</div>
+          <div class="log-body">
+            <div
+              v-for="(line, i) in (data[sc].log_tail || [])"
+              :key="i"
+              class="log-line"
+              :class="`log-line--${classifyLine(line)}`"
+            >{{ displayLine(line) || " " }}</div>
+          </div>
+        </div>
       </template>
     </div>
   </div>
