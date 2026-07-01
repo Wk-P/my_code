@@ -1,20 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import ProgressPanel from "./components/ProgressPanel.vue";
-import ResultsTable from "./components/ResultsTable.vue";
-import HistoryModal from "./components/HistoryModal.vue";
-import ImageModal from "./components/ImageModal.vue";
+import ExperimentTree from "./components/ExperimentTree.vue";
 import RunDetail from "./components/RunDetail.vue";
-
-const activeHistory = ref(null); // { scenario, algo } | null
-const activeImage = ref(null);   // { scenario, algo, run, file } | null
-
-function openHistory(scenario, algo) {
-  activeHistory.value = { scenario, algo };
-}
-function openImage(scenario, algo, run, file) {
-  activeImage.value = { scenario, algo, run, file };
-}
 
 // #/run/<scenario>/<algo>/<run> routes to a standalone run detail page;
 // anything else (including "" and "#/") shows the normal dashboard.
@@ -42,9 +30,6 @@ const runRoute = computed(() => {
     <ProgressPanel />
 
     <h2>Results Summary</h2>
-    <ResultsTable @show-history="openHistory" @show-image="openImage" />
-
-    <ImageModal :active="activeImage" @close="activeImage = null" />
-    <HistoryModal :active="activeHistory" @close="activeHistory = null" />
+    <ExperimentTree />
   </template>
 </template>
