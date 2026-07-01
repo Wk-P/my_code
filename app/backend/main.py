@@ -66,6 +66,7 @@ def _row_from_run(scenario: str, algo: str, run_dir: Path) -> dict | None:
         "scenario":      scenario,
         "algo":          algo,
         "run":           run_dir.name,
+        "created_at":    data.get("created_at"),
         "N":             data.get("N"),
         "M":             data.get("M"),
         "train_count":   data.get("train_count"),
@@ -87,7 +88,7 @@ _TS_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$")
 
 def _sort_key(run_dir: Path) -> str:
     """Run dirs used to be named as timestamps (lexicographic == chronological);
-    now they're random 8-bit hash ids, so chronology has to come from
+    now they're random exp_id hashes, so chronology has to come from
     results.json's created_at field, with a fallback that normalizes old
     timestamp dir names into the same sortable ISO-ish shape."""
     try:

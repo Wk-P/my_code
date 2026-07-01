@@ -60,7 +60,8 @@ def _used_exp_ids() -> set[str]:
 
 
 def new_exp_id() -> str:
-    """8-bit exp_id (2 hex chars, 00-ff), unique across all of results/.
+    """Full 8-digit hex exp_id (32-bit, 4 random bytes), unique across all
+    of results/.
 
     One exp_id identifies one whole experiment *batch* — e.g. eq+gt+lt all
     launched together share the same id — not one per algo. The orchestrating
@@ -69,11 +70,11 @@ def new_exp_id() -> str:
     resolve_exp_id() instead of minting its own.
     """
     used = _used_exp_ids()
-    for _ in range(256):
-        exp_id = f"{secrets.randbelow(256):02x}"
+    for _ in range(4096):
+        exp_id = secrets.token_hex(4)
         if exp_id not in used:
             return exp_id
-    raise RuntimeError("exp id space (256 values) exhausted under results/")
+    raise RuntimeError("could not find a free exp id under results/ after 4096 tries")
 
 
 def resolve_exp_id(algo_dir: Path) -> str:
