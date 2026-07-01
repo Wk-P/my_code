@@ -31,6 +31,13 @@
 
 * { box-sizing: border-box; }
 
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
+
 body {
   font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
   margin: var(--space-5) auto;
