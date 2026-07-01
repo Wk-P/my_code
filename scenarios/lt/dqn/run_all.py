@@ -48,7 +48,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 import config as C
 from dqn.env import DQNEnv
 from ilp.objects import ECU, SVC
-from run_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
+from shared.ilp_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
 
 
 def _make_dqn_env(seed: int) -> Monitor:

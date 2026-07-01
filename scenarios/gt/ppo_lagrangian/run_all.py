@@ -53,7 +53,7 @@ import random
 import config as C
 from ppo_lagrangian.env import LagrangeEnv
 from ilp.objects import ECU, SVC
-from run_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
+from shared.ilp_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -369,7 +369,7 @@ def main():
     ecus, services, sc_name, prototype_name = load_scenario(C.YAML_CONFIG, C.SCENARIO_IDX, C.SCENARIOS)
     N, M = len(ecus), len(services)
 
-    from run_utils import check_scenario_feasibility
+    from shared.ilp_utils import check_scenario_feasibility
     print("\n[Feasibility Check]")
     train_feas = check_scenario_feasibility(C.TRAIN_SCENARIOS)
     test_feas  = check_scenario_feasibility(C.TEST_SCENARIOS)

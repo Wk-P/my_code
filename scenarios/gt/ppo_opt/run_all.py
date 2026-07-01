@@ -47,7 +47,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 import config as C
 from ppo_opt.env import P6Env
 from ilp.objects import ECU, SVC
-from run_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario, check_scenario_feasibility
+from shared.ilp_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario, check_scenario_feasibility
 
 
 def _make_p6_env(seed: int) -> Monitor:

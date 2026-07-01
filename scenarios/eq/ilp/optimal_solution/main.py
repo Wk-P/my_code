@@ -374,8 +374,9 @@ def main(**kwargs):
     config_data = read_config(config_path)
     
     # Create output directory with timestamp
-    output_base_dir = Path(__file__).parent.parent / 'results'
-    output_base_dir.mkdir(exist_ok=True)
+    from shared.paths import results_dir
+    output_base_dir = results_dir(Path(__file__).parent.parent.parent.name, "ilp")
+    output_base_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = output_base_dir / f'result_{timestamp}'
     output_dir.mkdir(exist_ok=True)

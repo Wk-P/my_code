@@ -49,7 +49,7 @@ TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train:]]
 
 DEVICE      = "auto"
 N_ENVS      = 12
-TORCH_NUM_THREADS = 8        # DummyVecEnv: more threads for CPU inference
+TORCH_NUM_THREADS = 5        # shared host: keep total concurrent demand ~30 cores
 PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── DQN hyperparameters ──────────────────────────────────────────────────────────────────
@@ -71,5 +71,6 @@ EVAL_EPS  = len(TEST_SCENARIOS)
 SMOOTH_W  = 1000
 
 # ── Paths ───────────────────────────────────────────────────────────────────────
-OUTDIR     = ROOT / "results"
+from shared.paths import results_dir
+OUTDIR     = results_dir(ROOT.parent.name, "dqn")
 MODEL_PATH = OUTDIR / "dqn_model"

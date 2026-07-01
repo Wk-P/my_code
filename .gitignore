@@ -19,6 +19,10 @@ reports/
 
 
 scripts/
+archive/
+app/frontend/node_modules/
+app/backend/static/assets/
+app/backend/static/index.html
 old-conference-data/
 old-research-code/
 logs/

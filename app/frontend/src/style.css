@@ -1,0 +1,32 @@
+body { font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif; margin: 2rem; background: #0f1115; color: #e6e6e6; }
+h1 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+h2 { font-size: 1rem; color: #aaa; margin: 2rem 0 0.6rem; border-bottom: 1px solid #2a2d35; padding-bottom: 4px; }
+.sub { color: #888; margin-bottom: 1rem; font-size: 0.85rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { border: 1px solid #333; padding: 6px 10px; text-align: right; }
+th { background: #1a1d24; position: sticky; top: 0; }
+td:nth-child(1), td:nth-child(2) { text-align: left; font-weight: 600; }
+tr:nth-child(even) { background: #16181e; }
+tr:hover { background: #22262f; }
+.scenario-eq { color: #7dd3fc; }
+.scenario-gt { color: #fca5a5; }
+.scenario-lt { color: #86efac; }
+.thumb-link, .hist-link { color: #60a5fa; cursor: pointer; text-decoration: underline; }
+#modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; z-index: 10; }
+#modal img { max-width: 90vw; max-height: 90vh; border: 1px solid #444; }
+#hist-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); align-items: flex-start; justify-content: center; z-index: 10; overflow: auto; }
+#hist-modal .box { background: #16181e; margin-top: 5vh; padding: 1.5rem; border-radius: 8px; max-width: 90vw; }
+.empty { color: #666; text-align: center; padding: 2rem; }
+
+.progress-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.progress-card { background: #16181e; border: 1px solid #2a2d35; border-radius: 8px; padding: 1rem; }
+.progress-card .title { font-weight: 700; font-size: 1rem; margin-bottom: 0.4rem; }
+.progress-card .meta { color: #999; font-size: 0.78rem; margin-bottom: 0.6rem; }
+.bar-bg { background: #2a2d35; border-radius: 4px; height: 10px; overflow: hidden; margin: 4px 0; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+.bar-fill.eq { background: #38bdf8; }
+.bar-fill.gt { background: #f87171; }
+.bar-fill.lt { background: #4ade80; }
+.log-tail { background: #0a0b0d; color: #9ca3af; font-size: 0.7rem; padding: 6px; border-radius: 4px; max-height: 110px; overflow-y: auto; white-space: pre-wrap; margin-top: 6px; }
+.stopped { color: #666; font-style: italic; }
+.ar-warn { color: #fbbf24; cursor: help; }

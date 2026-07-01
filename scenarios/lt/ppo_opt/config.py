@@ -54,8 +54,8 @@ TRAIN_SCENARIOS = [FEASIBLE_SCENARIOS[i] for i in _idxs[:_n_train]]
 TEST_SCENARIOS  = [FEASIBLE_SCENARIOS[i] for i in _idxs[_n_train:]]
 
 DEVICE      = "auto"    # "auto" -> use CUDA if available, else CPU
-N_ENVS      = 16
-TORCH_NUM_THREADS = 16       # 28 CPUs available; 16 threads for better BLAS throughput
+N_ENVS      = 40
+TORCH_NUM_THREADS = 10       # shared host: keep total concurrent demand ~30 cores
 PROGRESS_LOG_EVERY_STEPS = 200_000
 
 # ── PPO hyperparameters ───────────────────────────────────────────────────────
@@ -73,5 +73,6 @@ EVAL_EPS  = len(TEST_SCENARIOS)
 SMOOTH_W  = 1000
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-OUTDIR     = ROOT / "results"
+from shared.paths import results_dir
+OUTDIR     = results_dir(ROOT.parent.name, "ppo_opt")
 MODEL_PATH = OUTDIR / "ppo_p6_model"

@@ -1,8 +1,9 @@
 """
-Shared utilities for all problem run_all.py pipelines.
+Shared utilities for all scenario run_all.py pipelines (ppo, ppo_mask,
+ppo_lagrangian, ppo_opt, dqn, ddqn — across eq/gt/lt scenarios).
 
-Functions here are identical across problem3-6, dqn, ddqn and are extracted
-to avoid copy-paste duplication.
+Previously this lived as three near-identical copies under
+scenarios/{eq,gt,lt}/run_utils.py; consolidated here to avoid drift.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ import numpy as np
 import pulp
 import torch
 import yaml
+
+from shared.paths import results_dir
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -67,8 +70,9 @@ def load_scenario(yaml_config: Path, scenario_idx: int, scenarios: list):
 def solve_ilp(ecus, services, conflict_sets=None) -> dict:
     """Solve the assignment ILP via PuLP; return avg_utilization and allocation.
 
-    Design: N == M, multiple services may share one ECU (no uniqueness constraint).
-    conflict_sets: list of lists of service indices — at most one from each subset per ECU.
+    N and M may be in any relation; multiple services may share one ECU
+    (no uniqueness constraint). conflict_sets: list of lists of service
+    indices — at most one from each subset per ECU.
     AR = total_utilization / active_ecus  (average ECU utilization).
     """
     N, M = len(ecus), len(services)
@@ -126,7 +130,11 @@ def solve_ilp(ecus, services, conflict_sets=None) -> dict:
 
 def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
     """Return (mean_ar, per_scenario_results) for all scenarios.
-    Priority: 1) shared p2 cache  2) own local cache  3) compute from scratch.
+    Priority: 1) shared ILP cache for this scenario  2) own local cache  3) compute from scratch.
+
+    `outdir` is expected to be results/<scenario>/<algo>/ (see shared/paths.py);
+    the scenario name is derived from it to locate the shared cache at
+    results/<scenario>/ilp/ilp_cache.json.
     """
     from ilp.objects import ECU, SVC
 
@@ -145,15 +153,22 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
             json.dump(data, f)
         tmp.replace(path)
 
-    # ─ 1. Shared cache written by problem2_ilp/optimal_solution/main.py ─
-    shared_cache = yaml_config.parent.parent / "results" / "ilp_cache.json"
+    def _feasible_mean(results):
+        ars = [r["avg_utilization"] for r in results if r.get("status") == "Optimal"]
+        mean_ar = float(np.mean(ars)) if ars else 0.0
+        return mean_ar, len(ars)
+
+    # ─ 1. Shared cache written by ilp/optimal_solution/main.py ─
+    scenario_name = outdir.parent.name
+    shared_cache = results_dir(scenario_name, "ilp") / "ilp_cache.json"
     if shared_cache.exists():
         cache = _load_cache(shared_cache)
         if cache.get("key") == cache_key and len(cache.get("results", [])) == len(scenarios):
-            print("    [cache] Loaded ILP results from shared p2 cache")
             results = cache["results"]
-            ars = [r["avg_utilization"] for r in results]
-            return float(np.mean(ars)), results
+            mean_ar, n_feasible = _feasible_mean(results)
+            print("    [cache] Loaded ILP results from shared p2 cache")
+            print(f"    [cache] Feasible scenarios: {n_feasible}/{len(results)} — mean AR={mean_ar:.4f}")
+            return mean_ar, results
 
     # ─ 2. Own local incremental cache ─
     outdir.mkdir(parents=True, exist_ok=True)
@@ -164,9 +179,10 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
         if cache.get("key") == cache_key:
             results = cache.get("results", [])
             if len(results) == len(scenarios):
+                mean_ar, n_feasible = _feasible_mean(results)
                 print(f"    [cache] Loaded ILP results from {cache_path}")
-                ars = [r["avg_utilization"] for r in results]
-                return float(np.mean(ars)), results
+                print(f"    [cache] Feasible scenarios: {n_feasible}/{len(results)} — mean AR={mean_ar:.4f}")
+                return mean_ar, results
             print(f"    [cache] Resuming from scenario {len(results) + 1}")
 
     # ─ 3. Compute remaining, save after each ─
@@ -180,8 +196,9 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
         _save_cache(cache_path, {"key": cache_key, "results": results})
 
     print(f"    [cache] Saved to {cache_path}")
-    ars = [r["avg_utilization"] for r in results]
-    return float(np.mean(ars)), results
+    mean_ar, n_feasible = _feasible_mean(results)
+    print(f"    Feasible scenarios: {n_feasible}/{len(results)} — mean AR={mean_ar:.4f}")
+    return mean_ar, results
 
 
 # ── Feasibility checker ───────────────────────────────────────────────────────
