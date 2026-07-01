@@ -34,7 +34,7 @@
 body {
   font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
   margin: var(--space-5) auto;
-  max-width: 1200px;
+  max-width: min(1900px, 96vw);
   padding: 0 var(--space-4);
   background: var(--bg);
   color: var(--text);
@@ -144,3 +144,19 @@ a.run-id { text-decoration: none; }
 .scenario-group table { margin-top: var(--space-2); }
 
 .summary-meta { color: var(--text-faint); font-size: 0.78rem; font-weight: 400; margin-left: auto; }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .progress-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  body { margin: var(--space-3) auto; padding: 0 var(--space-3); }
+  h1 { font-size: 1.3rem; }
+  h2 { font-size: 0.72rem; margin: var(--space-4) 0 var(--space-2); }
+  .exp-group, .progress-card { padding: var(--space-3); }
+  .scenario-group { margin-left: var(--space-2); }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+  th, td { padding: var(--space-1) var(--space-2); font-size: 0.78rem; }
+  .summary-meta { display: none; }
+}
