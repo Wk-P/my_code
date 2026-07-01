@@ -383,7 +383,7 @@ def main(**kwargs):
     config_data = read_config(config_path)
     
     # Create output directory with timestamp
-    from shared.paths import results_dir
+    from shared.paths import content_hash, results_dir
     output_base_dir = results_dir(Path(__file__).parent.parent.parent.name, "ilp")
     output_base_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -400,8 +400,8 @@ def main(**kwargs):
         scenarios = [config_data]
 
     # ── Shared ILP cache (used by p3/p4/dqn/p5 to avoid recomputation) ──────
-    shared_cache_path = output_base_dir / "ilp_cache.json"
     cache_key = f"{config_path.name}__n{len(scenarios)}"
+    shared_cache_path = output_base_dir / f"{content_hash(cache_key)}.json"
 
     # Load partial or full cache if available
     results: list = []

@@ -35,7 +35,9 @@ watch(
             <th>Conflict Violations</th><th>Train AR (last50)</th><th>steps</th>
           </tr>
           <tr v-for="r in rows" :key="r.run">
-            <td style="text-align:left">{{ r.run }}</td>
+            <td style="text-align:left">
+              <a class="thumb-link" :href="`#/run/${active.scenario}/${active.algo}/${r.run}`">{{ r.run }}</a>
+            </td>
             <td>{{ fmt(r.test_ar_mean) }} ± {{ fmt(r.test_ar_std, 3) }}</td>
             <td>{{ pct(r.test_viol_rate) }}</td>
             <td>{{ r.test_cap_viol_total ?? "—" }}</td>

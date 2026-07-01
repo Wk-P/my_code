@@ -48,6 +48,7 @@ import config as C
 from dqn.env import DQNEnv
 from ilp.objects import ECU, SVC
 from shared.ilp_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
+from shared.paths import VERSION, new_run_id, write_progress
 
 
 def _make_dqn_env(seed: int) -> Monitor:
@@ -136,6 +137,11 @@ class DQNCallback(BaseCallback):
             print(
                 f"  [train] step={self.num_timesteps:,}/{C.TOTAL_STEPS:,} "
                 f"({pct:5.1f}%) | eps={eps} | steps/s={sps:,.0f}"
+            )
+            write_progress(
+                C.OUTDIR,
+                step=self.num_timesteps, total_steps=C.TOTAL_STEPS, pct=round(pct, 1),
+                episodes=eps, steps_per_sec=round(sps),
             )
             self._next_progress_step += C.PROGRESS_LOG_EVERY_STEPS
         return True
@@ -312,7 +318,8 @@ def main():
         C.TOTAL_STEPS = int(args.total_timesteps)
         print(f"[override] TOTAL_STEPS={C.TOTAL_STEPS:,}")
 
-    base_dir = C.OUTDIR / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = new_run_id(C.OUTDIR)
+    base_dir = C.OUTDIR / run_id
     base_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*60}")
@@ -341,7 +348,7 @@ def main():
     # 3. DQN training
     print(f"\n[2/3] DQN training ({C.TOTAL_STEPS:,} steps) ...")
     model, cb = train_dqn(ecus, services, device)
-    model_path = base_dir / "dqn_model"
+    model_path = base_dir / f"model_{run_id}_v{VERSION}"
     model.save(str(model_path))
     print(f"  Model saved -> {model_path}.zip")
 
@@ -371,6 +378,7 @@ def main():
 
     # Save JSON
     log = {
+        "created_at": datetime.datetime.now().isoformat(),
         "scenario": sc_name,
         "prototype_scenario": prototype_name,
         "scenario_count": len(C.SCENARIOS),

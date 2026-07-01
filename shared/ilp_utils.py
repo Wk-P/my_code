@@ -17,7 +17,7 @@ import pulp
 import torch
 import yaml
 
-from shared.paths import results_dir
+from shared.paths import content_hash, results_dir
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -129,12 +129,13 @@ def solve_ilp(ecus, services, conflict_sets=None) -> dict:
 
 
 def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
-    """Return (mean_ar, per_scenario_results) for all scenarios.
-    Priority: 1) shared ILP cache for this scenario  2) own local cache  3) compute from scratch.
+    """Return (mean_ar, per_scenario_results) for all scenarios, cached.
 
     `outdir` is expected to be results/<scenario>/<algo>/ (see shared/paths.py);
-    the scenario name is derived from it to locate the shared cache at
-    results/<scenario>/ilp/ilp_cache.json.
+    the scenario name is derived from it. The ILP result only depends on the
+    scenario config, not on which algo is asking, so every algo shares one
+    content-addressed cache file at results/<scenario>/ilp/<hash>.json
+    (hash = content_hash(cache_key)) instead of each algo keeping its own copy.
     """
     from ilp.objects import ECU, SVC
 
@@ -158,21 +159,11 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
         mean_ar = float(np.mean(ars)) if ars else 0.0
         return mean_ar, len(ars)
 
-    # ─ 1. Shared cache written by ilp/optimal_solution/main.py ─
     scenario_name = outdir.parent.name
-    shared_cache = results_dir(scenario_name, "ilp") / "ilp_cache.json"
-    if shared_cache.exists():
-        cache = _load_cache(shared_cache)
-        if cache.get("key") == cache_key and len(cache.get("results", [])) == len(scenarios):
-            results = cache["results"]
-            mean_ar, n_feasible = _feasible_mean(results)
-            print("    [cache] Loaded ILP results from shared p2 cache")
-            print(f"    [cache] Feasible scenarios: {n_feasible}/{len(results)} — mean AR={mean_ar:.4f}")
-            return mean_ar, results
+    ilp_dir = results_dir(scenario_name, "ilp")
+    ilp_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = ilp_dir / f"{content_hash(cache_key)}.json"
 
-    # ─ 2. Own local incremental cache ─
-    outdir.mkdir(parents=True, exist_ok=True)
-    cache_path = outdir / "ilp_cache.json"
     results: list = []
     if cache_path.exists():
         cache = _load_cache(cache_path)
@@ -185,7 +176,7 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
                 return mean_ar, results
             print(f"    [cache] Resuming from scenario {len(results) + 1}")
 
-    # ─ 3. Compute remaining, save after each ─
+    # Compute remaining, save after each
     for idx, sc in enumerate(scenarios[len(results):], start=len(results)):
         caps, reqs, conflict_sets = sc[0], sc[1], sc[2] if len(sc) > 2 else []
         ecus_sc = [ECU(f"ECU{i}", c) for i, c in enumerate(caps)]

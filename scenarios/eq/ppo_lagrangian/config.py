@@ -83,4 +83,3 @@ SMOOTH_W = 1000
 # ── Paths ─────────────────────────────────────────────────────────────────────
 from shared.paths import results_dir
 OUTDIR     = results_dir(ROOT.parent.name, "ppo_lagrangian")
-MODEL_PATH = OUTDIR / "lagrange_ppo_model"

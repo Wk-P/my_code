@@ -72,4 +72,3 @@ SMOOTH_W  = 1000
 # ── Paths ─────────────────────────────────────────────────────────────────────
 from shared.paths import results_dir
 OUTDIR     = results_dir(ROOT.parent.name, "ppo_opt")
-MODEL_PATH = OUTDIR / "ppo_p6_model"

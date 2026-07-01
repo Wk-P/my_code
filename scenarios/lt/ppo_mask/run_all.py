@@ -47,6 +47,7 @@ from ppo_mask.env import P4Env
 from ilp.objects import ECU, SVC
 from sb3_contrib.common.wrappers import ActionMasker
 from shared.ilp_utils import parse_args, resolve_device, moving_avg, solve_ilp, solve_ilp_all_scenarios, load_scenario
+from shared.paths import VERSION, new_run_id, write_progress
 
 
 def _mask_fn(env) -> np.ndarray:
@@ -129,6 +130,11 @@ class P4Callback(BaseCallback):
             print(
                 f"  [train] step={self.num_timesteps:,}/{C.TOTAL_STEPS:,} "
                 f"({pct:5.1f}%) | eps={eps} | steps/s={sps:,.0f}"
+            )
+            write_progress(
+                C.OUTDIR,
+                step=self.num_timesteps, total_steps=C.TOTAL_STEPS, pct=round(pct, 1),
+                episodes=eps, steps_per_sec=round(sps),
             )
             self._next_progress_step += C.PROGRESS_LOG_EVERY_STEPS
         return True
@@ -314,8 +320,12 @@ def main():
     # 3. MaskablePPO training
     print(f"\n[3/4] MaskablePPO training ({C.TOTAL_STEPS:,} steps) ...")
     model, cb = train_maskppo(ecus, services, device)
-    model.save(str(C.MODEL_PATH))
-    print(f"  Model saved -> {C.MODEL_PATH}.zip")
+    run_id = new_run_id(C.OUTDIR)
+    run_dir = C.OUTDIR / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    model_path = run_dir / f"model_{run_id}_v{VERSION}"
+    model.save(str(model_path))
+    print(f"  Model saved -> {model_path}.zip")
 
     # 5. MaskablePPO evaluation
     print(f"\n[4/4] MaskablePPO evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
@@ -340,6 +350,7 @@ def main():
 
     # Save JSON
     log = {
+        "created_at": datetime.datetime.now().isoformat(),
         "scenario": sc_name,
         "prototype_scenario": prototype_name,
         "scenario_count": len(C.SCENARIOS),
@@ -370,7 +381,7 @@ def main():
         },
     }
 
-    base_path = C.OUTDIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    base_path = run_dir
     base_path.mkdir(parents=True, exist_ok=True)
     log_path = base_path / "results.json"
     with open(log_path, "w") as f:

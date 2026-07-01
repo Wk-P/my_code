@@ -74,4 +74,3 @@ SMOOTH_W  = 1000
 # ── Paths ───────────────────────────────────────────────────────────────────────
 from shared.paths import results_dir
 OUTDIR     = results_dir(ROOT.parent.name, "ddqn")
-MODEL_PATH = OUTDIR / "ddqn_model"
