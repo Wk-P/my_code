@@ -127,9 +127,33 @@ def _collect_results() -> list[dict]:
     return rows
 
 
+def _collect_all_experiments() -> list[dict]:
+    """Every historical run across every scenario/algo, not just the latest
+    one per algo — powers the EXP_ID -> scenario -> algo tree, which needs
+    the full history to group by batch (exp_id)."""
+    rows = []
+    for scenario in SCENARIOS:
+        scenario_dir = RESULTS_ROOT / scenario
+        if not scenario_dir.is_dir():
+            continue
+        for algo_dir in sorted(scenario_dir.iterdir()):
+            if not algo_dir.is_dir() or algo_dir.name == "ilp":
+                continue
+            for run_dir in _run_dirs(algo_dir):
+                row = _row_from_run(scenario, algo_dir.name, run_dir)
+                if row:
+                    rows.append(row)
+    return rows
+
+
 @app.get("/api/results")
 def get_results():
     return _collect_results()
+
+
+@app.get("/api/experiments")
+def get_experiments():
+    return _collect_all_experiments()
 
 
 @app.get("/api/history/{scenario}/{algo}")
