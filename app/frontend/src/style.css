@@ -82,14 +82,28 @@ tr:hover td { background: var(--bg-card-hover); }
   font-family: var(--font-mono); background: var(--bg-elevated); color: #93c5fd;
   padding: 2px 7px; border-radius: var(--radius-sm); letter-spacing: 0.04em; font-size: 0.82em;
 }
-.exp-id { cursor: help; }
 a.run-id { text-decoration: none; }
 
-.ar-warn { color: var(--accent-warn); cursor: help; }
+.ar-warn { color: var(--accent-warn); }
 .stopped { color: var(--text-faint); font-style: italic; }
 
-.success-good { color: #4ade80; cursor: help; }
-.success-bad { color: var(--accent-warn); cursor: help; }
+.success-good { color: #4ade80; }
+.success-bad { color: var(--accent-warn); }
+
+.info-th { position: relative; }
+.info-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 4px; border-radius: 50%;
+  border: 1px solid var(--text-faint); background: transparent; color: var(--text-faint);
+  font-size: 0.72em; font-style: italic; font-family: serif; line-height: 1; cursor: pointer; padding: 0;
+}
+.info-btn:hover { border-color: var(--accent-link); color: var(--accent-link); }
+.info-popup {
+  position: absolute; top: 100%; right: 0; z-index: 10; margin-top: 6px;
+  width: 240px; padding: var(--space-3); border-radius: var(--radius-sm);
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary);
+  font-weight: normal; font-size: 0.85em; line-height: 1.4; text-align: left; white-space: normal;
+}
 
 /* ── Live progress panel ─────────────────────────────────────────────── */
 .progress-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }

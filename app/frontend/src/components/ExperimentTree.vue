@@ -46,13 +46,17 @@ const expGroups = computed(() => {
   return groups;
 });
 
-function hasViolation(r) {
-  return !!(r.test_cap_viol_total || r.test_conflict_viol_total);
-}
-
 function successClass(r) {
   if (r.test_success_rate == null) return "";
   return r.test_success_rate >= 0.999 ? "success-good" : "success-bad";
+}
+
+const openInfo = ref(null);
+const INFO_TEXT = {
+  success: "40 个测试场景里，有多少比例做到了：全部服务都放置成功，且零违反。",
+};
+function toggleInfo(key) {
+  openInfo.value = openInfo.value === key ? null : key;
 }
 </script>
 
@@ -75,8 +79,14 @@ function successClass(r) {
 
         <table>
           <tr>
-            <th>Algo</th><th>N/M</th><th>ILP AR</th><th>Test AR</th>
-            <th>Success Rate</th><th>Cap Viol Rate</th><th>Conflict Viol Rate</th><th>Train steps</th>
+            <th>Algo</th><th>N/M</th><th>ILP AR</th>
+            <th>Test AR</th>
+            <th class="info-th">
+              Success Rate
+              <button class="info-btn" @click="toggleInfo('success')">i</button>
+              <div v-if="openInfo === 'success'" class="info-popup">{{ INFO_TEXT.success }}</div>
+            </th>
+            <th>Cap Viol Rate</th><th>Conflict Viol Rate</th><th>Train steps</th>
           </tr>
           <tr v-for="r in sc.algoRows" :key="r.algo">
             <td style="text-align:left">
@@ -84,15 +94,10 @@ function successClass(r) {
             </td>
             <td>{{ r.N ?? "—" }}/{{ r.M ?? "—" }}</td>
             <td>{{ fmt(r.ilp_ar) }}</td>
-            <td>
-              <span v-if="hasViolation(r)" class="ar-warn" title="Capacity/conflict violations present — not directly comparable to ILP's constraint-respecting optimum">
-                {{ fmt(r.test_ar_mean) }} ± {{ fmt(r.test_ar_std, 3) }} ⚠
-              </span>
-              <span v-else>{{ fmt(r.test_ar_mean) }} ± {{ fmt(r.test_ar_std, 3) }}</span>
-            </td>
-            <td :class="successClass(r)" title="Share of the 40 test scenarios where all M services were placed with zero capacity/conflict violations">{{ pct(r.test_success_rate) }}</td>
-            <td>{{ pct(r.test_cap_viol_rate) }}</td>
-            <td>{{ pct(r.test_conflict_viol_rate) }}</td>
+            <td>{{ fmt(r.test_ar_mean) }} ± {{ fmt(r.test_ar_std, 3) }}</td>
+            <td :class="successClass(r)">{{ pct(r.test_success_rate) }}</td>
+            <td :class="r.test_cap_viol_rate ? 'ar-warn' : ''">{{ pct(r.test_cap_viol_rate) }}</td>
+            <td :class="r.test_conflict_viol_rate ? 'ar-warn' : ''">{{ pct(r.test_conflict_viol_rate) }}</td>
             <td>{{ r.train_steps ? r.train_steps.toLocaleString() : "—" }}</td>
           </tr>
         </table>
