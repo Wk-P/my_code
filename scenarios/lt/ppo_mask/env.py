@@ -54,9 +54,6 @@ class P4Env(gym.Env):
 
     metadata = {"render_modes": []}
 
-    # Weight on the potential-based feasibility-shaping term added in step().
-    _SHAPING_COEF = 0.5
-
     def __init__(self, ecus: list[ECU], services: list[SVC], scenarios=None):
         super().__init__()
         self._scenarios = scenarios
@@ -96,24 +93,6 @@ class P4Env(gym.Env):
         for subset in self.conflict_sets:
             if svc_idx in subset:
                 self.ecu_allowed[ecu_idx] -= (subset - {svc_idx})
-
-    # ── feasibility potential (for reward shaping) ─────────────────────────────
-    def _feasibility(self, indices: list[int]) -> float:
-        """Mean fraction of ECUs still legally usable, averaged over the given
-        (not-yet-placed) service indices, given the CURRENT remaining_vms/
-        ecu_allowed. Used as a potential function so an action that quietly
-        strands later services (capacity or conflict) gets charged for it
-        immediately instead of only via a diffuse, delayed terminal penalty."""
-        if not indices:
-            return 0.0
-        total = 0
-        for i in indices:
-            req = self.services[i].requirement
-            total += sum(
-                1 for j in range(self.N)
-                if self.remaining_vms[j] >= req and not self._has_conflict(j, i)
-            )
-        return total / (len(indices) * self.N)
 
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
@@ -248,14 +227,6 @@ class P4Env(gym.Env):
         violation_penalty = -2.0 if violated else 0.0
         ru = 0.0 if violated else svc.requirement / (self.initial_vms[action] + 1e-8)
 
-        # Feasibility-shaping potential, measured over the services still
-        # pending AFTER this one, before vs. after this action's effect on
-        # remaining_vms/ecu_allowed — charges the action immediately if it
-        # strands later services, instead of only via the delayed terminal
-        # bonus once the episode actually runs out of legal ECUs.
-        future_idx = list(range(self._step + 1, self.M))
-        phi_before = self._feasibility(future_idx)
-
         self.remaining_vms[action] -= svc.requirement
         _was_empty = not self.ecu_placements[action]
         self.ecu_placements[action].add(self._step)
@@ -266,10 +237,6 @@ class P4Env(gym.Env):
             self._total_ru += ru
         _active = self._n_active
         self.ar = self._total_ru / _active if _active > 0 else 0.0
-
-        phi_after = self._feasibility(future_idx)
-        shaping_reward = self._SHAPING_COEF * (phi_after - phi_before)
-
         self._step += 1
 
         done = self._step >= self.M
@@ -278,7 +245,7 @@ class P4Env(gym.Env):
         if done:
             terminal_bonus = self.ar if total_viol == 0 else 0.1 * self.ar
 
-        step_reward = ru / max(_active, 1) + shaping_reward
+        step_reward = ru / max(_active, 1)
         info = {
             "ar":                  self.ar,
             "step":                self._step,

@@ -21,7 +21,7 @@ EXP_ID_ENV_VAR = "EXP_ID"
 # Bump this on every tagged release (git tag vX.Y.Z) — embedded in saved
 # model filenames so a model file is self-describing even if it's copied
 # out of its results/<scenario>/<algo>/<exp_id>/ directory.
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 
 def results_dir(scenario: str, *parts: str) -> Path:
