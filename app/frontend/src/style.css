@@ -88,6 +88,9 @@ a.run-id { text-decoration: none; }
 .ar-warn { color: var(--accent-warn); cursor: help; }
 .stopped { color: var(--text-faint); font-style: italic; }
 
+.success-good { color: #4ade80; cursor: help; }
+.success-bad { color: var(--accent-warn); cursor: help; }
+
 /* ── Live progress panel ─────────────────────────────────────────────── */
 .progress-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
 .progress-card { padding: var(--space-4); }

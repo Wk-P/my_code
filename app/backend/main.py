@@ -41,18 +41,6 @@ def _algo_key(data: dict) -> str | None:
     return next((k for k in data.keys() if k not in reserved), None)
 
 
-def _viol_rate(algo_eval: dict, test_count) -> float | None:
-    """Violation-rate field naming isn't consistent across algorithms
-    (ppo: conflict_viol_rate_mean, ppo_mask: violations count that's
-    always 0 by design, dqn/ddqn: viol_rate) — try each in turn."""
-    for key in ("viol_rate", "viol_rate_mean", "conflict_viol_rate_mean"):
-        if key in algo_eval:
-            return algo_eval[key]
-    if "violations" in algo_eval and test_count:
-        return algo_eval["violations"] / test_count
-    return None
-
-
 def _row_from_run(scenario: str, algo: str, run_dir: Path) -> dict | None:
     try:
         data = json.loads((run_dir / "results.json").read_text())
@@ -74,7 +62,9 @@ def _row_from_run(scenario: str, algo: str, run_dir: Path) -> dict | None:
         "ilp_ar":        ilp.get("ar"),
         "test_ar_mean":  algo_eval.get("ar_mean"),
         "test_ar_std":   algo_eval.get("ar_std"),
-        "test_viol_rate":      _viol_rate(algo_eval, data.get("test_count")),
+        "test_success_rate":        algo_eval.get("success_rate"),
+        "test_cap_viol_rate":       algo_eval.get("cap_viol_rate"),
+        "test_conflict_viol_rate":  algo_eval.get("conflict_viol_rate"),
         "test_cap_viol_total":      algo_eval.get("cap_viol_total"),
         "test_conflict_viol_total": algo_eval.get("conflict_viol_total"),
         "train_ar_last50": training.get("ar_last50"),

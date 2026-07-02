@@ -73,9 +73,10 @@ def _make_p4_env(seed: int) -> Monitor:
 def run_episodes(ecus, services, policy_fn):
     """policy_fn(obs, mask) -> int"""
     ars, placed_list = [], []
-    valid_placed_list, ecus_used_list = [], []
+    valid_placed_list, ecus_used_list, success_list = [], [], []
     for scenario in C.TEST_SCENARIOS:
         caps, reqs, cs = scenario
+        M_sc = len(reqs)
         _ecus = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
         _svcs = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
         env = P4Env(_ecus, _svcs, scenarios=[scenario])
@@ -87,15 +88,21 @@ def run_episodes(ecus, services, policy_fn):
             if not np.any(mask):
                 break
             obs, _, done, _, info = env.step(policy_fn(obs, mask))
+        placed = info.get("services_placed", 0)
+        valid_placed = int(info.get("valid_placed", placed))
         ars.append(info.get("ar", 0.0))
-        placed_list.append(info.get("services_placed", 0))
-        valid_placed_list.append(int(info.get("valid_placed", info.get("services_placed", 0))))
+        placed_list.append(placed)
+        valid_placed_list.append(valid_placed)
         ecus_used_list.append(int(info.get("ecus_used", 0)))
+        # Action masking guarantees zero capacity/conflict violations; success
+        # therefore reduces to "all M services placed" (episode didn't break early).
+        success_list.append(bool(valid_placed == M_sc))
     return {
         "ars":         np.array(ars),
         "placed":      np.array(placed_list),
         "valid_placed": np.array(valid_placed_list),
         "ecus_used":    np.array(ecus_used_list),
+        "success":      np.array(success_list),
     }
 
 
@@ -337,6 +344,8 @@ def main():
     print(f"  PPO AR  mean={np.mean(ppo_res['ars']):.4f}  "
           f"std={np.std(ppo_res['ars']):.4f}")
     print(f"  Placed/ep  mean={np.mean(ppo_res['placed']):.1f}/{M}")
+    success_rate = float(np.mean(ppo_res["success"]))
+    print(f"  Success rate (all {M} placed, zero violations) = {success_rate:.2%}")
 
     # Summary
     print(f"\n{'='*66}")
@@ -370,6 +379,9 @@ def main():
             "placed_mean":        round(float(np.mean(ppo_res["placed"])), 2),
             "valid_placed_mean":  round(float(np.mean(ppo_res["valid_placed"])), 2),
             "ecus_used_mean":     round(float(np.mean(ppo_res["ecus_used"])), 2),
+            "success_rate":       round(success_rate, 6),
+            "cap_viol_rate":      0.0,
+            "conflict_viol_rate": 0.0,
             "violations":         0,
             "cap_viol_total":     0,
             "conflict_viol_total": 0,
@@ -393,8 +405,8 @@ def main():
     csv_path = base_path / "summary.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "valid_placed_mean", "ecus_used_mean", "viol_rate", "cap_viol_total", "conflict_viol_total"])
-        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, M, C.N, 0.0, 0, 0])
+        writer.writerow(["method", "ar_mean", "ar_std", "placed_mean", "valid_placed_mean", "ecus_used_mean", "success_rate", "cap_viol_rate", "conflict_viol_rate", "cap_viol_total", "conflict_viol_total"])
+        writer.writerow(["ILP (Optimal)", round(ilp_ar, 6), 0.0, M, M, C.N, 1.0, 0.0, 0.0, 0, 0])
         writer.writerow([
             "MaskablePPO (P4)",
             round(float(np.mean(ppo_res["ars"])), 6),
@@ -402,7 +414,7 @@ def main():
             round(float(np.mean(ppo_res["placed"])), 2),
             round(float(np.mean(ppo_res["valid_placed"])), 2),
             round(float(np.mean(ppo_res["ecus_used"])), 2),
-            0.0, 0, 0,
+            round(success_rate, 4), 0.0, 0.0, 0, 0,
         ])
     print(f"  CSV  saved -> {csv_path}")
 

@@ -33,9 +33,11 @@ watch(
       <tr><th>train/test count</th><td>{{ row.train_count ?? "—" }}/{{ row.test_count ?? "—" }}</td></tr>
       <tr><th>ILP AR</th><td>{{ fmt(row.ilp_ar) }}</td></tr>
       <tr><th>Test AR</th><td>{{ fmt(row.test_ar_mean) }} ± {{ fmt(row.test_ar_std, 3) }}</td></tr>
-      <tr><th>Viol Rate (total)</th><td>{{ pct(row.test_viol_rate) }}</td></tr>
-      <tr><th>Cap Violations</th><td>{{ row.test_cap_viol_total ?? "—" }}</td></tr>
-      <tr><th>Conflict Violations</th><td>{{ row.test_conflict_viol_total ?? "—" }}</td></tr>
+      <tr><th>Success Rate</th><td>{{ pct(row.test_success_rate) }}</td></tr>
+      <tr><th>Cap Viol Rate</th><td>{{ pct(row.test_cap_viol_rate) }}</td></tr>
+      <tr><th>Conflict Viol Rate</th><td>{{ pct(row.test_conflict_viol_rate) }}</td></tr>
+      <tr><th>Cap Violations (total)</th><td>{{ row.test_cap_viol_total ?? "—" }}</td></tr>
+      <tr><th>Conflict Violations (total)</th><td>{{ row.test_conflict_viol_total ?? "—" }}</td></tr>
       <tr><th>Train AR (last50)</th><td>{{ fmt(row.train_ar_last50) }}</td></tr>
       <tr><th>Train steps</th><td>{{ row.train_steps ? row.train_steps.toLocaleString() : "—" }}</td></tr>
     </table>
