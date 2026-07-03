@@ -1,32 +1,63 @@
 """
 paths.py — Single source of truth for where experiment artifacts live.
 
-All algorithms, in every scenario, write to results/<scenario>/<algo>/ under
-the project root. This keeps scenarios/ code-only; nothing under scenarios/
-should ever create a results/ directory of its own.
+All algorithms, in every scenario, write to
+results/<git-branch>/<scenario>/<algo>/ under the project root. This keeps
+scenarios/ code-only; nothing under scenarios/ should ever create a results/
+directory of its own.
+
+results/ is gitignored — checking out a different branch does not change
+what's on disk under it. The branch segment exists so that experiments run
+from different branches (e.g. a "pretrain" branch adding ILP behavior-cloning
+pipelines vs a "main" branch that doesn't have them) don't land in the same
+directory and get silently mixed together; each branch gets its own subtree,
+and the dashboard (app/backend) only ever reads the currently checked-out
+branch's subtree.
 """
 
 import hashlib
 import json
 import os
 import secrets
+import subprocess
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
-RESULTS_ROOT = PROJECT_ROOT / "results"
+
+
+def _git_current_branch() -> str:
+    """Current checked-out branch name; 'unknown' outside a git repo or on a
+    detached HEAD (kept literal so accidental detached-HEAD runs don't
+    silently share a directory with a real branch)."""
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=5,
+        )
+        branch = r.stdout.strip()
+        return branch if r.returncode == 0 and branch and branch != "HEAD" else "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+# Resolved once per process at import time — a single training run doesn't
+# switch branches mid-execution, so there's no need to re-shell-out per call.
+CURRENT_BRANCH = _git_current_branch()
+
+RESULTS_ROOT = PROJECT_ROOT / "results" / CURRENT_BRANCH
 
 PROGRESS_FILENAME = ".progress.json"
 EXP_ID_ENV_VAR = "EXP_ID"
 
 # Bump this on every tagged release (git tag vX.Y.Z) — embedded in saved
 # model filenames so a model file is self-describing even if it's copied
-# out of its results/<scenario>/<algo>/<exp_id>/ directory.
+# out of its results/<branch>/<scenario>/<algo>/<exp_id>/ directory.
 VERSION = "0.3.2"
 
 
 def results_dir(scenario: str, *parts: str) -> Path:
-    """results/<scenario>/<*parts>, e.g. results_dir("lt", "ppo_opt")."""
-    return PROJECT_ROOT.joinpath("results", scenario, *parts)
+    """results/<branch>/<scenario>/<*parts>, e.g. results_dir("lt", "ppo_opt")."""
+    return RESULTS_ROOT.joinpath(scenario, *parts)
 
 
 def write_progress(algo_dir: Path, **fields) -> None:

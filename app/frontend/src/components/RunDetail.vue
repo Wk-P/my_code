@@ -4,18 +4,19 @@ import { getHistory } from "../api.js";
 import { fmt, pct } from "../format.js";
 
 const props = defineProps({
+  branch:   { type: String, required: true },
   scenario: { type: String, required: true },
-  algo: { type: String, required: true },
-  run: { type: String, required: true },
+  algo:     { type: String, required: true },
+  run:      { type: String, required: true },
 });
 
 const row = ref(null);
 
 watch(
-  () => [props.scenario, props.algo, props.run],
-  async ([scenario, algo, run]) => {
+  () => [props.branch, props.scenario, props.algo, props.run],
+  async ([branch, scenario, algo, run]) => {
     row.value = null;
-    const rows = await getHistory(scenario, algo);
+    const rows = await getHistory(scenario, algo, branch);
     row.value = rows.find((r) => r.run === run) ?? null;
   },
   { immediate: true }
@@ -24,7 +25,7 @@ watch(
 
 <template>
   <a class="thumb-link" href="#/">&larr; back to dashboard</a>
-  <h1>{{ scenario }} / {{ algo }} / {{ run }}</h1>
+  <h1>{{ branch }} / {{ scenario }} / {{ row?.display_algo ?? algo }} / {{ run }}</h1>
 
   <div v-if="!row" class="empty">Run not found (or still loading).</div>
   <template v-else>
@@ -43,9 +44,9 @@ watch(
     </table>
 
     <h2>Training curve</h2>
-    <img :src="`/api/results/${scenario}/${algo}/${run}/training_curve.png`" style="max-width: 90vw; border: 1px solid #444">
+    <img :src="`/api/results/${scenario}/${algo}/${run}/training_curve.png?branch=${encodeURIComponent(branch)}`" style="max-width: 90vw; border: 1px solid #444">
 
     <h2>Comparison</h2>
-    <img :src="`/api/results/${scenario}/${algo}/${run}/comparison.png`" style="max-width: 90vw; border: 1px solid #444">
+    <img :src="`/api/results/${scenario}/${algo}/${run}/comparison.png?branch=${encodeURIComponent(branch)}`" style="max-width: 90vw; border: 1px solid #444">
   </template>
 </template>

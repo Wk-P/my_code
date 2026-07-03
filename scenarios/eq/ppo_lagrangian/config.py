@@ -76,6 +76,12 @@ LAMBDA_MAX           = 5.0
 LAMBDA_UPDATE_WINDOW = 200    # update λ every 200 episodes (≈5 eps/env with 40 envs)
 LAMBDA_WARMUP_EPISODES = 0
 
+
+# ── Behavior-cloning pretraining (ILP expert warm-start) ──────────────────────
+BC_EPOCHS     = 20
+BC_BATCH_SIZE = 256
+BC_LR         = 1e-3
+
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = len(TEST_SCENARIOS)
 SMOOTH_W = 1000

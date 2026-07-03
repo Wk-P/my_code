@@ -1,16 +1,34 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { getExperiments } from "../api.js";
 import { fmt, pct } from "../format.js";
 
+const props = defineProps({
+  // Current git branch + full branch list from /api/branch, forwarded by
+  // App.vue. One tab per real branch; each tab fetches that branch's own
+  // results/<branch>/ via ?branch=, not an is_bc filter on the current
+  // branch's data — a tab labeled "main" must show main's actual results,
+  // not an empty filter over whatever's currently checked out.
+  currentBranch: { type: String, default: "" },
+  branches: { type: Array, default: () => [] },
+});
+
 const SCENARIO_ORDER = ["eq", "gt", "lt"];
 const ALGO_ORDER = ["ppo", "ppo_mask", "ppo_lagrangian", "ppo_opt", "dqn", "ddqn"];
+
+const activeBranch = ref("");
+watch(
+  () => props.currentBranch,
+  (b) => { if (b && !activeBranch.value) activeBranch.value = b; },
+  { immediate: true }
+);
 
 const rows = ref([]);
 let timer = null;
 
 async function load() {
-  rows.value = await getExperiments();
+  if (!activeBranch.value) return;
+  rows.value = await getExperiments(activeBranch.value);
 }
 
 onMounted(() => {
@@ -18,6 +36,7 @@ onMounted(() => {
   timer = setInterval(load, 30000);
 });
 onUnmounted(() => clearInterval(timer));
+watch(activeBranch, load);
 
 function orderIndex(order, key) {
   const i = order.indexOf(key);
@@ -25,10 +44,15 @@ function orderIndex(order, key) {
 }
 
 const expGroups = computed(() => {
+  // Group by the real exp_id (one eq+gt+lt batch), not by run_dir.name —
+  // run_all_bc.py's run dir is "<exp_id>_bc", which would otherwise split
+  // a BC run off into its own fake batch instead of joining the baseline
+  // run it was compared against.
   const byExp = new Map();
   for (const r of rows.value) {
-    if (!byExp.has(r.run)) byExp.set(r.run, { expId: r.run, latest: r.created_at ?? "", byScenario: new Map() });
-    const g = byExp.get(r.run);
+    const key = r.exp_id ?? r.run;
+    if (!byExp.has(key)) byExp.set(key, { expId: key, latest: r.created_at ?? "", byScenario: new Map() });
+    const g = byExp.get(key);
     if ((r.created_at ?? "") > g.latest) g.latest = r.created_at ?? "";
     if (!g.byScenario.has(r.scenario)) g.byScenario.set(r.scenario, []);
     g.byScenario.get(r.scenario).push(r);
@@ -61,8 +85,21 @@ function toggleInfo(key) {
 </script>
 
 <template>
+  <div v-if="branches.length > 1" class="tab-bar">
+    <button
+      v-for="b in branches"
+      :key="b"
+      class="tab-btn"
+      :class="{ active: activeBranch === b }"
+      @click="activeBranch = b"
+    >
+      {{ b }}
+      <span v-if="b === currentBranch" class="tab-count" title="currently checked out">•</span>
+    </button>
+  </div>
+
   <div v-if="!expGroups.length" class="empty">
-    No results yet — the first results.json will show up here once training finishes.
+    No results yet on branch "{{ activeBranch }}" — the first results.json will show up here once training finishes.
   </div>
   <div v-else class="exp-tree">
     <details v-for="(g, i) in expGroups" :key="g.expId" class="card exp-group" :open="i === 0">
@@ -88,9 +125,12 @@ function toggleInfo(key) {
             </th>
             <th>Cap Viol Rate</th><th>Conflict Viol Rate</th><th>Train steps</th>
           </tr>
-          <tr v-for="r in sc.algoRows" :key="r.algo">
+          <tr v-for="r in sc.algoRows" :key="r.algo + r.run" :class="r.is_bc ? 'row-bc' : 'row-baseline'">
             <td style="text-align:left">
-              <a class="thumb-link" :href="`#/run/${r.scenario}/${r.algo}/${r.run}`">{{ r.algo }}</a>
+              <span class="variant-dot" :class="r.is_bc ? 'variant-bc' : 'variant-baseline'"></span>
+              <a class="thumb-link" :href="`#/run/${activeBranch}/${r.scenario}/${r.algo}/${r.run}`">{{ r.algo }}</a>
+              <span v-if="r.is_bc" class="variant-badge variant-badge--bc">BC 预训练</span>
+              <span v-else class="variant-badge variant-badge--baseline">baseline</span>
             </td>
             <td>{{ r.N ?? "—" }}/{{ r.M ?? "—" }}</td>
             <td>{{ fmt(r.ilp_ar) }}</td>

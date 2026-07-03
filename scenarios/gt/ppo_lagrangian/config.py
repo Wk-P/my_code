@@ -75,6 +75,12 @@ LAMBDA_MAX           = 5.0    # higher cap so λ can grow large enough to enforc
 LAMBDA_UPDATE_WINDOW = 20     # update λ every 20 episodes after warmup
 LAMBDA_WARMUP_EPISODES = 5000 # shorter warmup so constraint enforcement starts earlier
 
+
+# ── Behavior-cloning pretraining (ILP expert warm-start) ──────────────────────
+BC_EPOCHS     = 20
+BC_BATCH_SIZE = 256
+BC_LR         = 1e-3
+
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = len(TEST_SCENARIOS)
 SMOOTH_W = 1000

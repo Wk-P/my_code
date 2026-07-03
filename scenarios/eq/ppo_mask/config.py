@@ -64,6 +64,12 @@ PPO_ENT_COEF    = 0.005  # entropy regularisation prevents premature convergence
 # Separate larger VF network: value estimation benefits from more capacity
 PPO_NET_ARCH    = dict(pi=[256, 256], vf=[512, 512])
 
+
+# ── Behavior-cloning pretraining (ILP expert warm-start) ──────────────────────
+BC_EPOCHS     = 20
+BC_BATCH_SIZE = 256
+BC_LR         = 1e-3
+
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS  = len(TEST_SCENARIOS)
 SMOOTH_W  = 1000

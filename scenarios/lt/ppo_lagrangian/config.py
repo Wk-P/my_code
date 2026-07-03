@@ -79,6 +79,11 @@ LAMBDA_MAX           = 2.0    # keep penalty scale comparable to per-step utilis
 LAMBDA_UPDATE_WINDOW = 20     # update λ every 20 episodes after warmup
 LAMBDA_WARMUP_EPISODES = 20000 # longer unconstrained phase to learn high-AR structure first
 
+# ── Behavior-cloning pretraining (ILP expert warm-start) ──────────────────────
+BC_EPOCHS     = 20
+BC_BATCH_SIZE = 256
+BC_LR         = 1e-3
+
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = len(TEST_SCENARIOS)
 SMOOTH_W = 1000
