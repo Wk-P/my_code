@@ -107,7 +107,7 @@ scripts/start_experiment.sh                     同上（转发给 resume_scenar
 
 `results/` 整个目录被 gitignore，切换 git 分支不会自动改变磁盘上已有的数据。为了让"BC 预训练"实验和"main 分支纯 RL 训练"两条线不互相污染，`shared/paths.py` 的 `results_dir()` 显式在路径里加入当前分支名：
 
-```
+```js
 results/<git-branch>/<scenario>/<algo>/<run>/
 ```
 
@@ -119,10 +119,15 @@ results/<git-branch>/<scenario>/<algo>/<run>/
 
 `shared/paths.py` 的 `resolve_exp_id()` 设计里，一个 `exp_id` 代表"一整批实验"（如 eq+gt+lt 全部算法共用一个 id），通过 `$EXP_ID` 环境变量在多个脚本进程间共享；不设置则各自随机生成。`run_all_bc.py` 的输出目录是 `<exp_id>_bc`（区别于 baseline 的 `<exp_id>`），因此目录名和 batch 归属不再是同一件事——`run_all_bc.py` 额外把真实 `exp_id` 显式写入 `results.json` 的 `"exp_id"` 字段，看板按这个字段分组，不是按目录名。
 
-批量实验必须通过标准启动器共享 `EXP_ID`：
+批量实验必须通过标准启动器共享 `EXP_ID`（`scripts/start_experiment.sh` 内部会对 eq/gt/lt 三个场景各调用一次 `resume_scenario.sh`，共用同一个 `EXP_ID`）：
+
+```bash
+scripts/start_experiment.sh bc-compare
+```
+
+`bc-compare` 是脚本提供的便捷参数，等价于把 5 个支持 BC 的算法（`ppo_mask`/`ppo_lagrangian`/`ppo_opt`/`dqn`/`ddqn`）的 baseline 与 `_bc` 变体都列出来，再加上不参与 BC 对比的 `ppo`，三场景共 33 个模型；也可以手写 algo 列表只跑一部分，例如：
 
 ```bash
 scripts/start_experiment.sh ppo_mask ppo_mask_bc ppo_lagrangian ppo_lagrangian_bc dqn dqn_bc
 ```
 
-不能分别用 `nohup ... &` 手动起多个脚本——那样同一批对比实验的 baseline 和 BC 会各自拿到不同的随机 exp_id，看板里拆成互不相关的卡片。
