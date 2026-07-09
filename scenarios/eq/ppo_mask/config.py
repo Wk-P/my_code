@@ -60,7 +60,9 @@ PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.99
 PPO_GAE_LAMBDA  = 0.95
 PPO_CLIP_RANGE  = 0.2
-PPO_ENT_COEF    = 0.005  # entropy regularisation prevents premature convergence
+PPO_ENT_COEF_INIT  = float(os.environ.get("ENT_COEF_INIT", "0.005"))
+PPO_ENT_COEF_FINAL = float(os.environ.get("ENT_COEF_FINAL", "0.005"))
+ADV_PRUNE_WEIGHT   = float(os.environ.get("ADV_PRUNE_WEIGHT", "1.0"))
 # Separate larger VF network: value estimation benefits from more capacity
 PPO_NET_ARCH    = dict(pi=[256, 256], vf=[512, 512])
 

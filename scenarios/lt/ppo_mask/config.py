@@ -64,7 +64,16 @@ PPO_N_EPOCHS    = 10
 PPO_GAMMA       = 0.99
 PPO_GAE_LAMBDA  = 0.95
 PPO_CLIP_RANGE  = 0.2
-PPO_ENT_COEF    = 0.005  # entropy regularisation prevents premature policy collapse
+# v1.0.1: entropy schedule replaces the static PPO_ENT_COEF=0.005 constant —
+# PPO-CMA (Hamalainen et al. 2020) shows a fixed/small entropy coefficient lets
+# exploration collapse prematurely; anneal from high to low instead.
+# All three overridable via env vars so scripts/run_paper_verification.sh can
+# drive v1.0.1..v1.0.4 without editing this file per run.
+PPO_ENT_COEF_INIT  = float(os.environ.get("ENT_COEF_INIT", "0.005"))
+PPO_ENT_COEF_FINAL = float(os.environ.get("ENT_COEF_FINAL", "0.005"))
+# v1.0.3/v1.0.4: down-weight negative-advantage samples in the policy loss
+# (CMA-ES-style selection). 1.0 = vanilla PPO (no pruning).
+ADV_PRUNE_WEIGHT   = float(os.environ.get("ADV_PRUNE_WEIGHT", "1.0"))
 # Larger network to process richer observation space (3N+2 dims)
 PPO_NET_ARCH    = dict(pi=[256, 256], vf=[256, 256])
 

@@ -52,7 +52,9 @@ EXP_ID_ENV_VAR = "EXP_ID"
 # Bump this on every tagged release (git tag vX.Y.Z) — embedded in saved
 # model filenames so a model file is self-describing even if it's copied
 # out of its results/<branch>/<scenario>/<algo>/<exp_id>/ directory.
-VERSION = "0.3.2"
+# Overridable via $PAPER_VERSION so scripts/run_paper_verification.sh can tag
+# each of v1.0.1..v1.0.4 without editing this file per run.
+VERSION = os.environ.get("PAPER_VERSION", "0.3.2")
 
 
 def results_dir(scenario: str, *parts: str) -> Path:

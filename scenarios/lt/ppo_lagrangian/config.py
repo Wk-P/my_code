@@ -70,6 +70,14 @@ PPO_GAMMA      = 0.99
 PPO_GAE_LAMBDA = 0.95
 PPO_CLIP_RANGE = 0.2
 PPO_NET_ARCH   = dict(pi=[256, 256], vf=[512, 512])  # larger network for 43-dim obs
+# v1.0.1: was completely unset (SB3 default 0.0) — bug relative to ppo_mask
+# and eq/gt ppo_lagrangian, which already had ent_coef=0.005. Fix parity here,
+# then anneal (v1.0.2) and add advantage pruning (v1.0.3/v1.0.4). All three
+# overridable via env vars so scripts/run_paper_verification.sh can drive
+# v1.0.1..v1.0.4 without editing this file per run.
+PPO_ENT_COEF_INIT  = float(os.environ.get("ENT_COEF_INIT", "0.005"))
+PPO_ENT_COEF_FINAL = float(os.environ.get("ENT_COEF_FINAL", "0.005"))
+ADV_PRUNE_WEIGHT   = float(os.environ.get("ADV_PRUNE_WEIGHT", "1.0"))
 
 # ── Lagrangian multiplier (dual variable) ─────────────────────────────────────
 LAMBDA_INIT          = 0.0    # initial λ value

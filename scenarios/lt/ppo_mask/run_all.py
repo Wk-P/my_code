@@ -38,6 +38,7 @@ import torch
 import yaml
 import pulp
 from sb3_contrib import MaskablePPO
+from shared.adaptive_ppo import entropy_at, PrunedMaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -123,6 +124,9 @@ class P4Callback(BaseCallback):
         self._t_start = time.time()
 
     def _on_step(self) -> bool:
+        self.model.ent_coef = entropy_at(
+            self.num_timesteps, C.TOTAL_STEPS, C.PPO_ENT_COEF_INIT, C.PPO_ENT_COEF_FINAL
+        )
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self.episode_ars.append(float(info.get("ar", 0.0)))
@@ -158,7 +162,7 @@ def train_maskppo(ecus, services, device: str):
     print(f"  Using DummyVecEnv: n_envs={n_envs}")
 
     cb  = P4Callback()
-    model = MaskablePPO(
+    model = PrunedMaskablePPO(
         policy        = "MlpPolicy",
         env           = env,
         learning_rate = C.PPO_LR,
@@ -168,7 +172,8 @@ def train_maskppo(ecus, services, device: str):
         gamma         = C.PPO_GAMMA,
         gae_lambda    = C.PPO_GAE_LAMBDA,
         clip_range    = C.PPO_CLIP_RANGE,
-        ent_coef      = C.PPO_ENT_COEF,
+        ent_coef      = C.PPO_ENT_COEF_INIT,
+        adv_prune_weight = C.ADV_PRUNE_WEIGHT,
         policy_kwargs = dict(net_arch=C.PPO_NET_ARCH),
         device        = device,
         verbose       = 0,

@@ -6,6 +6,7 @@ __pycache__/**
 run_scripts/run_background.log
 run_scripts/run_background.pid
 .claude/
+.env.email
 
 # Experiment results, images, and intermediate data — not tracked in git
 **/results/
