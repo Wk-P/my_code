@@ -34,7 +34,7 @@
 
 ### 目标算法的选择
 
-PPO baseline（无约束处理机制）不是优化目标，因为它本身没有 violation constraint，谈不上"预训练改善约束满足"。真正要做 BC 预训练对比的是五个**带约束处理机制**的算法，覆盖三类不同的约束处理哲学：
+PPO baseline（无约束处理机制）不是优化目标，因为它本身没有 violation constraint，谈不上"预训练改善约束满足"。真正要做 BC pre-train对比的是五个**带约束处理机制**的算法，覆盖三类不同的约束处理哲学：
 
 - 硬约束（action masking）：`ppo_mask`
 - 软约束（自适应 λ 惩罚）：`ppo_lagrangian`
@@ -45,7 +45,7 @@ PPO baseline（无约束处理机制）不是优化目标，因为它本身没�
 
 ### 下一步待验证方向
 
-1. 扩大 BC 专家数据的场景覆盖，观察是否能缓解"BC 预训练可能让策略过拟合到贪心分配模式"的问题。
+1. 扩大 BC 专家数据的场景覆盖，观察是否能缓解"BC pre-train可能让策略过拟合到贪心分配模式"的问题。
 2. 尝试调整 BC epoch 数 / PPO fine-tune 步数比例。
 3. 重新设计方案 B（reward shaping，结合 v0.3.1 失败经验），与方案 A 对比。
 
@@ -65,7 +65,7 @@ PPO baseline（无约束处理机制）不是优化目标，因为它本身没�
 
 ### 每个算法目录下的 `run_all_bc.py`
 
-复用对应 `run_all.py` 里的环境工厂 / 回调 / 评估 / 画图函数（`import run_all as RA`），只在 `model.learn()` 前插入 BC 预训练步骤，其余流程（ILP 求解、评估、画图、JSON/CSV 输出）与 baseline 完全一致，保证两者可比。
+复用对应 `run_all.py` 里的环境工厂 / 回调 / 评估 / 画图函数（`import run_all as RA`），只在 `model.learn()` 前插入 BC pre-train步骤，其余流程（ILP 求解、评估、画图、JSON/CSV 输出）与 baseline 完全一致，保证两者可比。
 
 每个 `config.py` 新增：
 ```python
@@ -96,7 +96,7 @@ BC_MARGIN     = 0.8   # 仅 DQN/DDQN
 
 ```
 shared/bc_pretrain.py                          共享 BC 逻辑
-scenarios/<eq|gt|lt>/<algo>/run_all_bc.py       每个算法的 BC 预训练+微调入口（15 个）
+scenarios/<eq|gt|lt>/<algo>/run_all_bc.py       每个算法的 BC pre-train+微调入口（15 个）
 scripts/resume_scenario.sh                      扩展支持 <algo>_bc 后缀
 scripts/start_experiment.sh                     同上（转发给 resume_scenario.sh）
 ```
@@ -105,7 +105,7 @@ scripts/start_experiment.sh                     同上（转发给 resume_scenar
 
 ### 结果数据按分支物理隔离
 
-`results/` 整个目录被 gitignore，切换 git 分支不会自动改变磁盘上已有的数据。为了让"BC 预训练"实验和"main 分支纯 RL 训练"两条线不互相污染，`shared/paths.py` 的 `results_dir()` 显式在路径里加入当前分支名：
+`results/` 整个目录被 gitignore，切换 git 分支不会自动改变磁盘上已有的数据。为了让"BC pre-train"实验和"main 分支纯 RL 训练"两条线不互相污染，`shared/paths.py` 的 `results_dir()` 显式在路径里加入当前分支名：
 
 ```js
 results/<git-branch>/<scenario>/<algo>/<run>/

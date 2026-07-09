@@ -77,7 +77,7 @@ function successClass(r) {
 
 const openInfo = ref(null);
 const INFO_TEXT = {
-  success: "40 个测试场景里，有多少比例做到了：全部服务都放置成功，且零违反。",
+  success: "Of the 40 test scenarios, the fraction where all services were placed successfully with zero violations.",
 };
 function toggleInfo(key) {
   openInfo.value = openInfo.value === key ? null : key;
@@ -129,7 +129,7 @@ function toggleInfo(key) {
             <td style="text-align:left">
               <span class="variant-dot" :class="r.is_bc ? 'variant-bc' : 'variant-baseline'"></span>
               <a class="thumb-link" :href="`#/run/${activeBranch}/${r.scenario}/${r.algo}/${r.run}`">{{ r.algo }}</a>
-              <span v-if="r.is_bc" class="variant-badge variant-badge--bc">BC 预训练</span>
+              <span v-if="r.is_bc" class="variant-badge variant-badge--bc">BC pre-train</span>
               <span v-else class="variant-badge variant-badge--baseline">baseline</span>
             </td>
             <td>{{ r.N ?? "—" }}/{{ r.M ?? "—" }}</td>
