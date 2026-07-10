@@ -203,10 +203,11 @@ class P3Env(gym.Env):
 
         done = self._step >= self.M
         match_gain = float(ru)  # no capacity penalty (mask ensures valid placement)
-        terminal_bonus = self.ar if done else 0.0  # conflict violations not penalized in P3
-        reward = float(match_gain + terminal_bonus)
-
         total_viol = self.capacity_violations + self.conflict_violations
+        if done:
+            reward = float(self.M) if total_viol == 0 else -float(self.M)
+        else:
+            reward = 0.0
         info = {
             "ar":                  self.ar,
             "step":                self._step,

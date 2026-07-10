@@ -248,13 +248,12 @@ class LagrangeEnv(gym.Env):
         self._step += 1
 
         done = self._step >= self.M
-        terminal_bonus = 0.0
-        if done:
-            terminal_bonus = self.ar if self.episode_violations == 0 else -self.ar
-
         step_reward = match_gain / max(_active, 1)
         violated = cap_violated or conflict_violated
-        reward = float(step_reward + lagrange_penalty + forced_overflow_penalty + terminal_bonus)
+        if done:
+            reward = float(self.M) if self.episode_violations == 0 else -float(self.M)
+        else:
+            reward = 0.0
         return self._obs(), reward, done, False, {
             "ar":                  self.ar,
             "violated":            violated,

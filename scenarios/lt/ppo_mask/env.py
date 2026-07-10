@@ -241,9 +241,10 @@ class P4Env(gym.Env):
 
         done = self._step >= self.M
         total_viol = self.capacity_violations + self.conflict_violations
-        terminal_bonus = 0.0
         if done:
-            terminal_bonus = self.ar if total_viol == 0 else 0.1 * self.ar
+            reward = float(self.M) if total_viol == 0 else -float(self.M)
+        else:
+            reward = 0.0
 
         step_reward = ru / max(_active, 1)
         info = {
@@ -259,7 +260,7 @@ class P4Env(gym.Env):
             "episode_has_cap_violation":      self.episode_has_cap_violation,
             "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
-        return self._obs(), float(step_reward + violation_penalty + terminal_bonus), done, False, info
+        return self._obs(), reward, done, False, info
 
     # ── render ────────────────────────────────────────────────────────────────
     def render(self):

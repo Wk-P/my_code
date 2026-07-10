@@ -54,7 +54,7 @@ EXP_ID_ENV_VAR = "EXP_ID"
 # out of its results/<branch>/<scenario>/<algo>/<exp_id>/ directory.
 # Overridable via $PAPER_VERSION so scripts/run_paper_verification.sh can tag
 # each of v1.0.1..v1.0.4 without editing this file per run.
-VERSION = os.environ.get("PAPER_VERSION", "0.3.2")
+VERSION = os.environ.get("PAPER_VERSION", "1.1.0")
 
 
 def results_dir(scenario: str, *parts: str) -> Path:

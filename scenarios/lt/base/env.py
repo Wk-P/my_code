@@ -90,18 +90,13 @@ class my_env(gym.Env):
             self._current_step += 1
 
             last_step = (self._current_step >= self.M)
-            # Reward: +1 if AR improved, -1 if AR dropped, 0 if unchanged.
-            if self.ar > prev_ar:
-                reward = 1.0
-            elif self.ar < prev_ar:
-                reward = -1.0
-            else:
-                reward = 0.0
+            # Sparse terminal reward: +M on full successful episode, 0 otherwise.
+            reward = float(self.M) if last_step else 0.0
             done   = last_step
         else:
-            # Insufficient capacity -> penalty and terminate
+            # Insufficient capacity -> terminal failure, sparse penalty
             self._current_step += 1
-            reward = -1.0
+            reward = -float(self.M)
             done   = True
 
         obs = self._get_obs()

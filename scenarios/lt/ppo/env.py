@@ -224,11 +224,12 @@ class P3Env(gym.Env):
         self._step += 1
 
         done = self._step >= self.M
-        terminal_bonus = self.ar if done else 0.0
-
         step_reward = ru / max(_active, 1)
         total_viol = self.capacity_violations + self.conflict_violations
-        reward = float(step_reward + terminal_bonus)
+        if done:
+            reward = float(self.M) if total_viol == 0 else -float(self.M)
+        else:
+            reward = 0.0
         info = {
             "ar":                  self.ar,
             "step":                self._step,

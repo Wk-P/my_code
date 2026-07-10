@@ -247,10 +247,10 @@ class LagrangeEnv(gym.Env):
         step_reward = ru / max(_active, 1)
         cap_penalty    = -2.0 if cap_violated else 0.0
         base_penalty   = 0.2
-        terminal_bonus = self.ar if (done and self.episode_violations == 0) else 0.0
-        reward = float(step_reward + cap_penalty
-                       - (self.lambda_val + base_penalty) * c_t
-                       + terminal_bonus)
+        if done:
+            reward = float(self.M) if self.episode_violations == 0 else -float(self.M)
+        else:
+            reward = 0.0
 
         return self._obs(), reward, done, False, {
             "ar":                             self.ar,

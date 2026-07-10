@@ -202,9 +202,7 @@ class P6Env(gym.Env):
                     self.episode_has_cap_violation = True
                 if conflict_violated:
                     self.episode_has_conflict_violation = True
-                unplaced_demand = sum(self.services[i].requirement for i in range(self._step, self.M))
-                penalty = -float(unplaced_demand) / (np.sum(self.initial_vms) + 1e-8)
-                return self._obs(), penalty, True, False, {
+                return self._obs(), -float(self.M), True, False, {
                     "ar":                self.ar,
                     "step":              self._step,
                     "services_placed":   self._step,
@@ -242,12 +240,12 @@ class P6Env(gym.Env):
         self.valid_placed += 1
 
         done = self._step >= self.M
-        terminal_bonus = 0.0
         if done:
-            repair_rate = self.repairs / max(self.M, 1)
-            terminal_bonus = self.ar * max(0.0, 1.0 - repair_rate)
-
-        return self._obs(), float(ru + repair_penalty + terminal_bonus), done, False, {
+            success = not (self.episode_has_cap_violation or self.episode_has_conflict_violation)
+            reward = float(self.M) if success else -float(self.M)
+        else:
+            reward = 0.0
+        return self._obs(), reward, done, False, {
             "ar":                  self.ar,
             "step":                self._step,
             "services_placed":     self._step,

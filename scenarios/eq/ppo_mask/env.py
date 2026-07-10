@@ -251,7 +251,10 @@ class P4Env(gym.Env):
 
         # Δar > 0 iff AR improved: rewards packing, penalizes dilution from new ECUs.
         step_reward = ru / max(_active, 1)
-        terminal_bonus = self.ar if (done and total_viol == 0) else 0.0
+        if done:
+            reward = float(self.M) if total_viol == 0 else -float(self.M)
+        else:
+            reward = 0.0
 
         info = {
             "ar":                  self.ar,
@@ -266,7 +269,7 @@ class P4Env(gym.Env):
             "episode_has_cap_violation":      self.episode_has_cap_violation,
             "episode_has_conflict_violation": self.episode_has_conflict_violation,
         }
-        return self._obs(), float(step_reward + terminal_bonus), done, False, info
+        return self._obs(), reward, done, False, info
 
     # ── render ────────────────────────────────────────────────────────────────
     def render(self):
