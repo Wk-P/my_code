@@ -19,6 +19,7 @@ Serves:
 """
 
 import json
+import os
 import re
 import subprocess
 import time
@@ -291,6 +292,21 @@ def _load_log_sources() -> dict:
         return {}
 
 
+def _proc_stdout_log_path(pid: int) -> str | None:
+    """Resolve the regular file a running process's stdout (fd 1) is
+    redirected to, straight from /proc — independent of log_sources.json.
+    Returns None if fd 1 isn't a regular file (TTY, pipe, closed, or the
+    process/permission lookup fails), so callers can fall back to the
+    static log_sources.json pointer for historical/no-longer-running runs."""
+    try:
+        target = os.readlink(f"/proc/{pid}/fd/1")
+    except OSError:
+        return None
+    if not target.startswith("/") or not Path(target).is_file():
+        return None
+    return target
+
+
 def _tail_log_progress(path_str: str) -> dict:
     path = Path(path_str)
     if not path.is_file():
@@ -375,7 +391,12 @@ def get_progress():
         proc = next((p for p in procs if _match_scenario_algo(p["cmd"], p["pid"])[0] == scenario), None)
         entry = {"scenario": scenario, "running": proc is not None}
 
-        log_info = _tail_log_progress(log_sources.get(scenario, ""))
+        # Prefer the actually-running process's own stdout target (works no
+        # matter how it was launched) over the log_sources.json pointer,
+        # which only gets updated by resume_scenario.sh/start_experiment.sh
+        # and otherwise goes stale — showing a previous run's log forever.
+        live_log_path = _proc_stdout_log_path(proc["pid"]) if proc else None
+        log_info = _tail_log_progress(live_log_path or log_sources.get(scenario, ""))
         completed_algos = log_info.pop("completed_algos", [])
         entry["completed_algos"] = completed_algos
         entry["log_tail"] = log_info.get("log_tail", [])
