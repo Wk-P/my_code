@@ -49,12 +49,14 @@ RESULTS_ROOT = PROJECT_ROOT / "results" / CURRENT_BRANCH
 PROGRESS_FILENAME = ".progress.json"
 EXP_ID_ENV_VAR = "EXP_ID"
 
-# Bump this on every tagged release (git tag vX.Y.Z) — embedded in saved
-# model filenames so a model file is self-describing even if it's copied
-# out of its results/<branch>/<scenario>/<algo>/<exp_id>/ directory.
-# Overridable via $PAPER_VERSION so scripts/run_paper_verification.sh can tag
-# each of v1.0.1..v1.0.4 without editing this file per run.
-VERSION = os.environ.get("PAPER_VERSION", "1.2.0")
+# Bump shared/version_config.py's CURRENT_VERSION on every tagged release
+# (git tag vX.Y.Z) — embedded in saved model filenames so a model file is
+# self-describing even if it's copied out of its
+# results/<branch>/<scenario>/<algo>/<exp_id>/ directory.
+# Overridable via $PAPER_VERSION so ad-hoc/historical runs (e.g. replaying
+# v1.0.1..v1.0.4) can tag differently without editing version_config.py.
+from shared.version_config import CURRENT_VERSION
+VERSION = os.environ.get("PAPER_VERSION", CURRENT_VERSION)
 
 
 def results_dir(scenario: str, *parts: str) -> Path:
