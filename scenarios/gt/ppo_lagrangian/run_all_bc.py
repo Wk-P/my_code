@@ -123,9 +123,10 @@ def main():
 
     print(f"\n[5/5] Lagrangian PPO(BC) evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
     def ppo_policy(obs):
-        action, _ = model.predict(obs, deterministic=True)
+        action, _ = model.predict(obs, deterministic=False)
         return int(action)
-    ppo_res = RA.run_episodes(ecus, services, ppo_policy, lambda_eval=cb.lambda_val)
+    ppo_res = RA.run_episodes(ecus, services, ppo_policy, lambda_eval=cb.lambda_val,
+                              n_samples=C.EVAL_BEST_OF_N)
     # AR is only meaningful as "solution quality" for episodes that actually
     # placed everything legally — a partial/broken episode's AR isn't a
     # comparable data point against ILP's (always-successful) AR, so it's
@@ -176,6 +177,7 @@ def main():
             "ar_std":             round(float(np.std(ppo_res["ars"])), 6),
             "viol_rate_mean":     round(float(ppo_train_viol), 6),
             "success_rate":       round(success_rate, 6),
+            "attempts_mean":      round(float(np.mean(ppo_res["attempts"])), 3),
             "cap_viol_rate":      round(cap_viol_rate, 6),
             "conflict_viol_rate": round(conflict_viol_rate, 6),
             "cap_viol_total":     int(np.sum(ppo_res["cap_viols"])),

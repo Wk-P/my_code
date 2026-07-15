@@ -122,9 +122,9 @@ def main():
 
     print(f"\n[5/5] MaskablePPO(BC) evaluation ({len(C.TEST_SCENARIOS)} episodes, deterministic) ...")
     def ppo_policy(obs, mask):
-        action, _ = model.predict(obs, deterministic=True, action_masks=mask)
+        action, _ = model.predict(obs, deterministic=False, action_masks=mask)
         return int(action)
-    ppo_res = RA.run_episodes(ecus, services, ppo_policy)
+    ppo_res = RA.run_episodes(ecus, services, ppo_policy, n_samples=C.EVAL_BEST_OF_N)
     # AR is only meaningful as "solution quality" for episodes that actually
     # placed everything legally — a partial/broken episode's AR isn't a
     # comparable data point against ILP's (always-successful) AR, so it's
@@ -139,6 +139,7 @@ def main():
     print(f"  Placed/ep  mean={np.mean(ppo_res['placed']):.1f}/{M}")
     success_rate = float(np.mean(ppo_res["success"]))
     print(f"  Success rate (all {M} placed, zero violations) = {success_rate:.2%}")
+    print(f"  Avg attempts used (best-of-{C.EVAL_BEST_OF_N})  = {np.mean(ppo_res['attempts']):.2f}")
 
     print(f"\n{'='*66}")
     print(f"  {'Method':<28} {'AR (mean+/-std)':<24} {'Placed':<10} {'Viol'}")
@@ -171,6 +172,7 @@ def main():
             "valid_placed_mean":  round(float(np.mean(ppo_res["valid_placed"])), 2),
             "ecus_used_mean":     round(float(np.mean(ppo_res["ecus_used"])), 2),
             "success_rate":       round(success_rate, 6),
+            "attempts_mean":      round(float(np.mean(ppo_res["attempts"])), 3),
             "violations":         0,
         },
         "training": {

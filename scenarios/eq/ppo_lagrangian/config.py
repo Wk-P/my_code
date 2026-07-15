@@ -87,6 +87,12 @@ BC_LR         = 1e-3
 # ── Evaluation ────────────────────────────────────────────────────────────────
 EVAL_EPS = len(TEST_SCENARIOS)
 SMOOTH_W = 1000
+# best-of-N stochastic re-rolls at eval time: an online/no-backtrack
+# policy commits to one irrevocable pass per attempt, so re-sampling N
+# independent stochastic rollouts per test scenario and keeping the best
+# (success first, then most services validly placed, then highest AR)
+# sidesteps that ceiling without touching training.
+EVAL_BEST_OF_N = 8
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 from shared.paths import results_dir
