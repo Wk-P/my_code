@@ -123,6 +123,16 @@ def main():
         action, _ = model.predict(obs, deterministic=True)
         return int(action)
     ppo_res = RA.run_episodes(ecus, services, ppo_policy, lambda_eval=cb.lambda_val)
+    # AR is only meaningful as "solution quality" for episodes that actually
+    # placed everything legally — a partial/broken episode's AR isn't a
+    # comparable data point against ILP's (always-successful) AR, so it's
+    # excluded from ar_mean/ar_std/box-plot rather than averaged in.
+    success_mask = ppo_res["success"]
+    if success_mask.any():
+        ppo_res["ars"] = ppo_res["ars"][success_mask]
+    else:
+        print("  [warn] no successful episodes -- ar_mean/ar_std computed over 0 samples (NaN)")
+        ppo_res["ars"] = ppo_res["ars"][:0]
     print(f"  PPO(BC) AR mean={np.mean(ppo_res['ars']):.4f}  "
           f"Eval viol={np.mean(ppo_res['viol_rates']):.2%}")
 
