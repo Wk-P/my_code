@@ -6,7 +6,7 @@ Edit this file when you want to change the default TOTAL_STEPS used by each algo
 Command-line overrides such as ``--total-timesteps`` still take precedence at runtime.
 """
 
-GLOBAL_TOTAL_STEPS = 5_000_000
+GLOBAL_TOTAL_STEPS = 2_000_000
 
 # Optional per-algorithm overrides. If a key is absent, GLOBAL_TOTAL_STEPS is used.
 PROBLEM_TOTAL_STEPS: dict[str, int] = {
@@ -14,8 +14,8 @@ PROBLEM_TOTAL_STEPS: dict[str, int] = {
     "ppo_mask": GLOBAL_TOTAL_STEPS,
     "ppo_lagrangian": GLOBAL_TOTAL_STEPS,
     "ppo_opt": GLOBAL_TOTAL_STEPS,
-    "dqn": 3_000_000,
-    "ddqn": 3_000_000,
+    "dqn": 2_000_000,
+    "ddqn": 2_000_000,
 }
 
 

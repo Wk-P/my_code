@@ -115,6 +115,7 @@ class P4Callback(BaseCallback):
         super().__init__()
         self.episode_ars:     list[float] = []
         self.episode_placed:  list[int]   = []
+        self.episode_valid_placed: list[int] = []
         self.timesteps_at_ep: list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
@@ -130,6 +131,7 @@ class P4Callback(BaseCallback):
             if "episode" in info:
                 self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
+                self.episode_valid_placed.append(int(info.get("valid_placed", 0)))
                 self.timesteps_at_ep.append(self.num_timesteps)
 
         if self.num_timesteps >= self._next_progress_step:
@@ -186,8 +188,10 @@ def train_maskppo(ecus, services, device: str):
     n_ep   = len(cb.episode_ars)
     last50 = np.mean(cb.episode_ars[-50:]) if n_ep >= 50 else np.mean(cb.episode_ars)
     last50_p = np.mean(cb.episode_placed[-50:]) if n_ep >= 50 else np.mean(cb.episode_placed)
+    last50_vp = np.mean(cb.episode_valid_placed[-50:]) if n_ep >= 50 else np.mean(cb.episode_valid_placed)
     print(f"  Training done  {elapsed:.1f}s | {n_ep} eps "
-          f"| AR(last50)={last50:.4f} | placed(last50)={last50_p:.1f}/{C.M}")
+          f"| AR(last50)={last50:.4f} | placed(last50)={last50_p:.1f}/{C.M} "
+          f"| valid_placed(last50)={last50_vp:.1f}/{C.M}")
     return model, cb
 
 
@@ -223,7 +227,12 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     sm_p, off_p = moving_avg(cb.episode_placed, C.SMOOTH_W)
     ax3.plot(ts, cb.episode_placed, color="royalblue", alpha=0.2, linewidth=0.8)
     ax3.plot(ts[off_p:off_p+len(sm_p)], sm_p, color="royalblue", linewidth=2,
-             label="services placed/ep")
+             label="services placed/ep (incl. forced-overflow fallback)")
+
+    sm_vp, off_vp = moving_avg(cb.episode_valid_placed, C.SMOOTH_W)
+    ax3.plot(ts, cb.episode_valid_placed, color="darkviolet", alpha=0.15, linewidth=0.8)
+    ax3.plot(ts[off_vp:off_vp+len(sm_vp)], sm_vp, color="darkviolet", linewidth=2,
+             label="valid placed/ep (no forced-overflow)")
     ax3.axhline(C.M, color="red", linestyle="--", alpha=0.5, label=f"M={C.M}")
     ax3.set_ylabel("Services Placed", fontsize=11)
     ax3.set_xlabel("Training steps", fontsize=11)

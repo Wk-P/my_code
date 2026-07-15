@@ -59,7 +59,7 @@ def train_maskppo_bc(ecus, services, device: str):
         gamma         = C.PPO_GAMMA,
         gae_lambda    = C.PPO_GAE_LAMBDA,
         clip_range    = C.PPO_CLIP_RANGE,
-        ent_coef      = C.PPO_ENT_COEF,
+        ent_coef      = C.PPO_ENT_COEF_INIT,
         policy_kwargs = dict(net_arch=C.PPO_NET_ARCH),
         device        = device,
         verbose       = 0,
@@ -83,8 +83,10 @@ def train_maskppo_bc(ecus, services, device: str):
     n_ep = len(cb.episode_ars)
     last50 = np.mean(cb.episode_ars[-50:]) if n_ep >= 50 else np.mean(cb.episode_ars)
     last50_p = np.mean(cb.episode_placed[-50:]) if n_ep >= 50 else np.mean(cb.episode_placed)
+    last50_vp = np.mean(cb.episode_valid_placed[-50:]) if n_ep >= 50 else np.mean(cb.episode_valid_placed)
     print(f"  PPO fine-tune done  {elapsed:.1f}s | {n_ep} eps "
-          f"| AR(last50)={last50:.4f} | placed(last50)={last50_p:.1f}/{C.M}")
+          f"| AR(last50)={last50:.4f} | placed(last50)={last50_p:.1f}/{C.M} "
+          f"| valid_placed(last50)={last50_vp:.1f}/{C.M}")
     return model, cb
 
 
