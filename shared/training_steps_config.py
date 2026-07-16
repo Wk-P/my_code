@@ -18,6 +18,19 @@ PROBLEM_TOTAL_STEPS: dict[str, int] = {
     "ddqn": 2_000_000,
 }
 
+# Per-(scenario, algorithm) overrides — takes precedence over PROBLEM_TOTAL_STEPS.
+# lt's training curve (valid_placed/ep, added in v1.2.0) shows it hadn't
+# plateaued yet at 2M steps -- still trending up when training cut off,
+# unlike the Episode AR curve which plateaus early and misleadingly looks
+# "done". eq/gt already hit 100% success_rate at 2M, so only lt needs the
+# longer budget back.
+SCENARIO_TOTAL_STEPS: dict[tuple[str, str], int] = {
+    ("lt", "ppo_mask"): 5_000_000,
+    ("lt", "ppo_lagrangian"): 5_000_000,
+}
 
-def get_total_steps(problem_name: str) -> int:
+
+def get_total_steps(problem_name: str, scenario: str | None = None) -> int:
+    if scenario is not None and (scenario, problem_name) in SCENARIO_TOTAL_STEPS:
+        return int(SCENARIO_TOTAL_STEPS[(scenario, problem_name)])
     return int(PROBLEM_TOTAL_STEPS.get(problem_name, GLOBAL_TOTAL_STEPS))
