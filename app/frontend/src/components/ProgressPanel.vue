@@ -63,14 +63,17 @@ function displayLine(line) {
             <span class="exp-id" :title="'This whole batch (all scenarios launched together) shares exp_id ' + data[sc].latest_progress.exp_id">
               EXP_ID: {{ data[sc].latest_progress.exp_id ?? "pending" }}
             </span>
+            <span v-if="data[sc].latest_progress.phase"> · phase: {{ data[sc].latest_progress.phase }}</span>
+            <span v-if="data[sc].latest_progress.round !== undefined"> · round {{ data[sc].latest_progress.round }}/{{ data[sc].latest_progress.total_rounds }}</span>
+            <span v-if="data[sc].latest_progress.eval_label"> · eval {{ data[sc].latest_progress.eval_label }} ({{ data[sc].latest_progress.eval_step }}/{{ data[sc].latest_progress.eval_total }})</span>
           </div>
           <div class="bar-bg">
-            <div class="bar-fill" :class="sc" :style="{ width: data[sc].latest_progress.pct + '%', opacity: 0.6 }"></div>
+            <div class="bar-fill" :class="sc" :style="{ width: (data[sc].latest_progress.pct ?? 0) + '%', opacity: 0.6 }"></div>
           </div>
-          <div class="meta">
-            Current model step {{ data[sc].latest_progress.step.toLocaleString() }}/{{ data[sc].latest_progress.total_steps.toLocaleString() }}
+          <div v-if="data[sc].latest_progress.step !== undefined" class="meta">
+            Current model step {{ data[sc].latest_progress.step.toLocaleString() }}/{{ (data[sc].latest_progress.total_steps ?? 0).toLocaleString() }}
             ({{ data[sc].latest_progress.pct }}%) · {{ data[sc].latest_progress.episodes }} episodes
-            · {{ data[sc].latest_progress.steps_per_sec.toLocaleString() }} steps/s
+            · {{ (data[sc].latest_progress.steps_per_sec ?? 0).toLocaleString() }} steps/s
           </div>
         </template>
         <div v-else class="meta">Current model has not hit its first progress checkpoint yet</div>
