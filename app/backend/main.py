@@ -469,6 +469,16 @@ def _match_scenario_algo(cmd: str, pid: int | None = None):
         scenario, algo, is_bc = m.group(1), m.group(2), m.group(3)
         return (scenario, f"{algo}+bc" if is_bc else algo)
 
+    # scripts/self_imitation_finetune_v2.py (see version/v2.1.0.md) is a
+    # lt/ppo_mask-only side experiment, not part of the standard run_all(_bc)
+    # pipeline — hardcoded scenario/algo since the script itself is
+    # hardcoded to lt/ppo_mask (imports scenarios/lt/ppo_mask/config.py).
+    # Writes its own results/<branch>/lt/ppo_mask_selfimit/.progress.json,
+    # distinct from lt/ppo_mask's, so it can't collide with the real
+    # training run's progress display.
+    if re.search(r"self_imitation_finetune_v2\.py", cmd):
+        return ("lt", "ppo_mask_selfimit")
+
     m = re.search(r"(?:^|[\s/])(\w+)/run_all(_bc)?\.py", cmd)
     if not m or pid is None:
         return (None, None)
