@@ -27,6 +27,7 @@
 | v1.2.2 | 2026-07-15 | 评估阶段加best-of-N随机重采样（N=8），缓解在线不可回溯策略的成功率上限；lt/ppo_mask验证 success_rate 42.5%→65.0% | [v1.2.2.md](v1.2.2.md) |
 | v1.2.3 | 2026-07-16 | 训练步数改为按(场景,算法)覆盖；lt场景valid_placed曲线2M步未收敛，恢复5M步，eq/gt维持2M | [v1.2.3.md](v1.2.3.md) |
 | v1.2.4 | 2026-07-21 | 新增实验进程看门狗；lt/ppo_mask多seed(42/1/2/3/4)诊断实验，success_rate均值≈0.640(区间0.575~0.675)，系统性瓶颈非seed方差；修复lt/ppo/ppo_opt/dqn/ddqn的TOTAL_STEPS未传scenario参数，SCENARIO_TOTAL_STEPS覆盖表对齐 | [v1.2.4.md](v1.2.4.md) |
+| v2.0.0 | 2026-08-07 | **重大发现**：best-of-N的N=8从未调过参，N敏感性扫描显示success_rate随N持续大幅提升(N=8→128: 52.5%→85%)，推翻此前"lt success_rate系统性瓶颈≈65%"的结论，该结论实际是N=8太小导致 | [v2.0.0.md](v2.0.0.md) |
 
 ## v1.0.x / v1.1.0 系列实验结果对比（lt/eq/gt × ppo_mask/ppo_lagrangian）
 

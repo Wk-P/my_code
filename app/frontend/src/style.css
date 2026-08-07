@@ -54,6 +54,8 @@ h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 var(--space-1); letter-spa
   color: var(--accent-link); background: var(--bg-card); border: 1px solid var(--border);
   border-radius: 999px; padding: 2px 10px; vertical-align: middle; letter-spacing: 0;
 }
+a.branch-badge--link { text-decoration: none; cursor: pointer; }
+a.branch-badge--link:hover { background: var(--bg-card-hover); border-color: var(--accent-link); }
 h2 {
   font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-dim); margin: var(--space-5) 0 var(--space-3);
@@ -217,10 +219,12 @@ tr.row-bc { background: rgba(96, 165, 250, 0.04); }
 .version-history { padding: var(--space-2) var(--space-4); }
 .version-row { border-bottom: 1px solid var(--border-soft); }
 .version-row:last-child { border-bottom: none; }
+.version-row--link { display: block; text-decoration: none; color: inherit; }
 .version-row-head {
   display: flex; align-items: center; gap: var(--space-3);
   padding: var(--space-2) 0; cursor: pointer; font-size: 0.85rem;
 }
+.version-summary-full { margin: var(--space-3) 0; }
 .version-row-head:hover .version-summary { color: var(--text); }
 .version-date { color: var(--text-faint); font-family: var(--font-mono); font-size: 0.78rem; flex-shrink: 0; }
 .version-summary { color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
