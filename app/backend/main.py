@@ -444,7 +444,7 @@ def _ps_snapshot() -> list[dict]:
         if len(parts) < 5:
             continue
         pid, psr, etimes, pcpu, cmd = parts
-        if re.search(r"(?:^|[\s/])\w+/run_all(_bc)?\.py", cmd):
+        if re.search(r"(?:^|[\s/])\w+/run_all(_bc)?\.py", cmd) or "self_imitation_finetune_v2.py" in cmd:
             procs.append({"pid": int(pid), "psr": int(psr), "etimes": int(etimes),
                           "pcpu": float(pcpu), "cmd": cmd})
     return procs
