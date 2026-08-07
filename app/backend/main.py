@@ -230,6 +230,91 @@ def get_experiments(branch: str | None = None):
     return _collect_all_experiments(branch)
 
 
+def _git_tag_dates() -> dict[str, str]:
+    try:
+        r = subprocess.run(
+            ["git", "for-each-ref", "--sort=-creatordate",
+             "--format=%(refname:short)|%(creatordate:short)", "refs/tags"],
+            cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=5,
+        )
+        out = {}
+        if r.returncode == 0:
+            for line in r.stdout.splitlines():
+                if "|" in line:
+                    tag, date = line.split("|", 1)
+                    out[tag] = date
+        return out
+    except (OSError, subprocess.SubprocessError):
+        return {}
+
+
+# VERSION.md table rows look like: "| v1.2.3 | 2026-07-16 | 摘要文字 | [doc.md](doc.md) |"
+_VERSION_TABLE_ROW = re.compile(
+    r"^\|\s*(v[\d.]+)\s*\|\s*([\d-]+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*$"
+)
+
+
+def _parse_version_md() -> dict[str, dict]:
+    """Reads version/VERSION.md's index table for a one-line summary (and,
+    if present, a linked vX.Y.Z.md doc) per tag — this is the single source
+    both this endpoint and humans editing the changelog read from, so the
+    dashboard never drifts out of sync with what's written there."""
+    path = PROJECT_ROOT / "version" / "VERSION.md"
+    out: dict[str, dict] = {}
+    if not path.is_file():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = _VERSION_TABLE_ROW.match(line)
+        if not m:
+            continue
+        tag, date, summary, doc_cell = m.groups()
+        if tag == "版本":  # header row
+            continue
+        doc_m = re.search(r"\(([^)]+\.md)\)", doc_cell)
+        out[tag] = {
+            "date": date,
+            "summary": summary,
+            "doc_file": doc_m.group(1) if doc_m else None,
+        }
+    return out
+
+
+@app.get("/api/tags")
+def get_tags():
+    """All git tags with a description for the frontend: VERSION.md's summary
+    line, plus whether a standalone version/vX.Y.Z.md doc exists (fetch its
+    body via /api/tags/{tag}/doc). Doesn't require a `git checkout` — reads
+    tag metadata and the changelog file as committed on the current branch."""
+    dates = _git_tag_dates()
+    parsed = _parse_version_md()
+    docs_dir = PROJECT_ROOT / "version"
+    tags = []
+    for tag in sorted(dates, key=lambda t: [int(x) for x in t.lstrip("v").split(".")], reverse=True):
+        info = parsed.get(tag, {})
+        doc_file = info.get("doc_file") or f"{tag}.md"
+        has_doc = (docs_dir / doc_file).is_file() if doc_file else False
+        tags.append({
+            "tag":       tag,
+            "date":      info.get("date") or dates.get(tag),
+            "summary":   info.get("summary") or "",
+            "has_doc":   has_doc,
+            "doc_file":  doc_file if has_doc else None,
+        })
+    return tags
+
+
+@app.get("/api/tags/{tag}/doc")
+def get_tag_doc(tag: str):
+    info = _parse_version_md().get(tag)
+    doc_file = (info or {}).get("doc_file") or f"{tag}.md"
+    path = PROJECT_ROOT / "version" / doc_file
+    # version/ is a fixed, non-user-supplied directory and doc_file must
+    # resolve inside it — reject anything that would climb out via "..".
+    if ".." in Path(doc_file).parts or not path.is_file():
+        raise HTTPException(404)
+    return {"tag": tag, "doc_file": doc_file, "content": path.read_text(encoding="utf-8")}
+
+
 @app.get("/api/history/{scenario}/{algo}")
 def get_history(scenario: str, algo: str, branch: str | None = None):
     algo_dir = _results_root(branch) / scenario / algo
@@ -247,6 +332,22 @@ def get_result_file(scenario: str, algo: str, run: str, filename: str, branch: s
     if not path.is_file():
         raise HTTPException(404)
     return FileResponse(path)
+
+
+MONITOR_STATE_PATH = APP_DIR / "monitor_state.json"
+
+
+def _read_monitor_state() -> dict:
+    """Written by app/backend/monitor.py (a separate long-running watchdog
+    process, typically under systemd — see my-code-monitor.service) every
+    ~30s. Missing file just means the watchdog isn't running yet; callers
+    treat that the same as "no stuck/idle info available" rather than
+    erroring, so /api/progress keeps working even before the watchdog is
+    installed."""
+    try:
+        return json.loads(MONITOR_STATE_PATH.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
 
 
 LOG_SOURCES_PATH = APP_DIR / "log_sources.json"
@@ -386,6 +487,7 @@ def _match_scenario_algo(cmd: str, pid: int | None = None):
 def get_progress():
     procs = _ps_snapshot()
     log_sources = _load_log_sources()
+    monitor_state = _read_monitor_state()
     result = {}
     for scenario in SCENARIOS:
         proc = next((p for p in procs if _match_scenario_algo(p["cmd"], p["pid"])[0] == scenario), None)
@@ -421,6 +523,14 @@ def get_progress():
         entry["models_done"]  = done
         entry["models_total"] = total
         entry["overall_pct"]  = round(min(100.0, (done + within_current) / total * 100), 1)
+
+        # "running": true just means a matching process exists — it says
+        # nothing about whether it's actually making progress. monitor.py
+        # tracks step-count movement across polls (this endpoint is
+        # stateless per-request, so it can't) and flags stalls itself.
+        mon = monitor_state.get(scenario)
+        entry["monitor_status"]  = (mon or {}).get("status", "unknown")
+        entry["stalled_seconds"] = (mon or {}).get("stalled_seconds")
 
         result[scenario] = entry
     return result

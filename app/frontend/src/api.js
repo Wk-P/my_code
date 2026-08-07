@@ -26,3 +26,14 @@ export async function getBranch() {
   const res = await fetch("/api/branch");
   return res.json();
 }
+
+export async function getTags() {
+  const res = await fetch("/api/tags");
+  return res.json();
+}
+
+export async function getTagDoc(tag) {
+  const res = await fetch(`/api/tags/${encodeURIComponent(tag)}/doc`);
+  if (!res.ok) return null;
+  return res.json();
+}

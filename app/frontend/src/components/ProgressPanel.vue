@@ -43,6 +43,12 @@ function displayLine(line) {
         <div class="title" :class="`scenario-${sc}`">
           {{ sc }} — overall progress {{ data[sc].models_done ?? 0 }}/{{ data[sc].models_total ?? 6 }}
           ({{ data[sc].overall_pct ?? 0 }}%)
+          <span v-if="data[sc].monitor_status === 'stuck'" class="status-badge status-badge--stuck">
+            stuck {{ secToHuman(data[sc].stalled_seconds) }}
+          </span>
+          <span v-else-if="data[sc].monitor_status === 'unknown'" class="status-badge status-badge--unknown">
+            watchdog not running
+          </span>
         </div>
         <div class="bar-bg">
           <div class="bar-fill" :class="sc" :style="{ width: (data[sc].overall_pct ?? 0) + '%' }"></div>

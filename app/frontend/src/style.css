@@ -116,6 +116,12 @@ a.run-id { text-decoration: none; }
 .progress-card { padding: var(--space-4); }
 .progress-card .title { font-weight: 700; font-size: 0.95rem; margin-bottom: var(--space-2); }
 .progress-card .meta { color: var(--text-dim); font-size: 0.78rem; margin-bottom: var(--space-2); }
+.status-badge {
+  display: inline-block; margin-left: var(--space-2); padding: 1px 8px;
+  border-radius: 999px; font-size: 0.7rem; font-weight: 600; vertical-align: middle;
+}
+.status-badge--stuck { background: #5c1f1f; color: #ff9a9a; }
+.status-badge--unknown { background: var(--bg-elevated); color: var(--text-faint); }
 .bar-bg { background: var(--bg-elevated); border-radius: 4px; height: 8px; overflow: hidden; margin: var(--space-1) 0; }
 .bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
 .bar-fill.eq { background: var(--accent-eq); }
@@ -206,6 +212,32 @@ tr.row-bc { background: rgba(96, 165, 250, 0.04); }
 .scenario-group table { margin-top: var(--space-2); }
 
 .summary-meta { color: var(--text-faint); font-size: 0.78rem; font-weight: 400; margin-left: auto; }
+
+/* ── Version history ──────────────────────────────────────────────────── */
+.version-history { padding: var(--space-2) var(--space-4); }
+.version-row { border-bottom: 1px solid var(--border-soft); }
+.version-row:last-child { border-bottom: none; }
+.version-row-head {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) 0; cursor: pointer; font-size: 0.85rem;
+}
+.version-row-head:hover .version-summary { color: var(--text); }
+.version-date { color: var(--text-faint); font-family: var(--font-mono); font-size: 0.78rem; flex-shrink: 0; }
+.version-summary { color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version-doc-badge {
+  font-size: 0.65rem; font-weight: 700; color: var(--accent-link);
+  background: rgba(96, 165, 250, 0.12); border: 1px solid var(--accent-link);
+  border-radius: 999px; padding: 1px 8px; flex-shrink: 0;
+}
+.version-toggle { color: var(--text-faint); flex-shrink: 0; width: 1em; text-align: center; }
+.version-detail { padding: 0 0 var(--space-3) 0; }
+.version-doc-body {
+  background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--radius-md);
+  padding: var(--space-3); font-size: 0.82rem; line-height: 1.6; color: var(--text-dim);
+  white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+}
+.version-doc-body--none { font-style: italic; color: var(--text-faint); }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 900px) {

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import ProgressPanel from "./components/ProgressPanel.vue";
 import ExperimentTree from "./components/ExperimentTree.vue";
 import RunDetail from "./components/RunDetail.vue";
+import VersionHistory from "./components/VersionHistory.vue";
 import { getBranch } from "./api.js";
 
 // #/run/<branch>/<scenario>/<algo>/<run> routes to a standalone run detail
@@ -54,5 +55,8 @@ onUnmounted(() => clearInterval(branchTimer));
 
     <h2>Results Summary</h2>
     <ExperimentTree :current-branch="branch.current" :branches="branch.branches" />
+
+    <h2>Version History</h2>
+    <VersionHistory />
   </template>
 </template>

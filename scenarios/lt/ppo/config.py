@@ -42,7 +42,7 @@ with open(YAML_CONFIG) as f:
     REQ_POOL = SCENARIOS[SCENARIO_IDX][1]
 
 # ── Training ──────────────────────────────────────────────────────────────────
-TOTAL_STEPS = get_total_steps("ppo")
+TOTAL_STEPS = get_total_steps("ppo", scenario=ROOT.parent.name)
 SEED        = int(os.environ.get("TRAIN_SEED", "42"))
 # ── Train / Test split (80/20 of feasible scenarios, deterministic) ──────────
 import random as _random

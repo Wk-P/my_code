@@ -26,6 +26,7 @@
 | v1.2.1 | 2026-07-15 | AR指标排除失败episode，只在success episode上算ar_mean/ar_std（此前混合成功失败平均，与ILP的AR不是同一统计量） | [v1.2.1.md](v1.2.1.md) |
 | v1.2.2 | 2026-07-15 | 评估阶段加best-of-N随机重采样（N=8），缓解在线不可回溯策略的成功率上限；lt/ppo_mask验证 success_rate 42.5%→65.0% | [v1.2.2.md](v1.2.2.md) |
 | v1.2.3 | 2026-07-16 | 训练步数改为按(场景,算法)覆盖；lt场景valid_placed曲线2M步未收敛，恢复5M步，eq/gt维持2M | [v1.2.3.md](v1.2.3.md) |
+| v1.2.4 | 2026-07-21 | 新增实验进程看门狗；lt/ppo_mask多seed(42/1/2/3/4)诊断实验，success_rate均值≈0.640(区间0.575~0.675)，系统性瓶颈非seed方差；修复lt/ppo/ppo_opt/dqn/ddqn的TOTAL_STEPS未传scenario参数，SCENARIO_TOTAL_STEPS覆盖表对齐 | [v1.2.4.md](v1.2.4.md) |
 
 ## v1.0.x / v1.1.0 系列实验结果对比（lt/eq/gt × ppo_mask/ppo_lagrangian）
 
