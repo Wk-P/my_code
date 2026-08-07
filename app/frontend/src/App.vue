@@ -68,8 +68,8 @@ onUnmounted(() => clearInterval(branchTimer));
       <span v-if="branch.current" class="branch-badge" :title="'Other branches: ' + (branch.branches.filter(b => b !== branch.current).join(', ') || 'none')">
         {{ branch.current }}
       </span>
-      <a href="#/versions" class="branch-badge branch-badge--link">version history</a>
     </h1>
+    <a href="#/versions" class="version-history-btn">📜 Version History &rsaquo;</a>
     <div class="sub">Read-only view, does not affect any training process · auto-scanned from results/&lt;branch&gt;/&lt;scenario&gt;/&lt;algo&gt;/ · badge above tracks the checked-out branch, tabs below can browse any branch</div>
 
     <h2>Live Training Progress</h2>

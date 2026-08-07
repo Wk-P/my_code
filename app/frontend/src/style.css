@@ -56,6 +56,15 @@ h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 var(--space-1); letter-spa
 }
 a.branch-badge--link { text-decoration: none; cursor: pointer; }
 a.branch-badge--link:hover { background: var(--bg-card-hover); border-color: var(--accent-link); }
+
+.version-history-btn {
+  display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  border: 1px solid var(--accent-link); background: rgba(96, 165, 250, 0.1);
+  color: var(--accent-link); font-size: 0.82rem; font-weight: 600;
+  text-decoration: none; cursor: pointer;
+}
+.version-history-btn:hover { background: rgba(96, 165, 250, 0.2); }
 h2 {
   font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-dim); margin: var(--space-5) 0 var(--space-3);
