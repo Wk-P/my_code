@@ -242,7 +242,16 @@ class P4Env(gym.Env):
         done = self._step >= self.M
         total_viol = self.capacity_violations + self.conflict_violations
         if done:
-            reward = float(self.M) if total_viol == 0 else -float(self.M)
+            # AR is now the thing being optimized, not just observed: a
+            # zero-violation episode scores M*AR (quality-proportional)
+            # instead of a flat +M, so PPO's gradient actually distinguishes
+            # a 0.55-AR success from a 0.90-AR success — previously both
+            # scored the same +M and the policy had no signal to prefer one
+            # over the other. Violations remain a hard constraint: -M is
+            # strictly worse than any success (M*AR <= M since AR in (0,1]),
+            # so the ordering "any valid placement beats any violation" is
+            # preserved regardless of how low that placement's AR is.
+            reward = float(self.M) * self.ar if total_viol == 0 else -float(self.M)
         else:
             reward = 0.0
 
