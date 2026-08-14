@@ -174,7 +174,7 @@ class P4Env(gym.Env):
 
         svc_valid_ecus = np.zeros(self.M, dtype=np.float32)
         n_remaining = max(self.M - self._step, 1)
-        n_bottleneck = 0
+        risk_sum = 0.0
         for i in range(self._step, self.M):
             n_valid = sum(
                 1 for j in range(self.N)
@@ -182,9 +182,11 @@ class P4Env(gym.Env):
                 and not self._has_conflict(j, i)
             )
             svc_valid_ecus[i] = n_valid / self.N
-            if n_valid <= 1:
-                n_bottleneck += 1
-        bottleneck_risk = np.float32(n_bottleneck / n_remaining if self._step < self.M else 0.0)
+            risk_sum += 1.0 / (n_valid + 1)
+        # Continuous dead-end-proximity signal (mean of 1/(valid_ecu_count+1)
+        # over remaining services) -- see lt/ppo_mask/env.py::_bottleneck_risk
+        # for why this replaced the earlier discrete "<=1 valid ECU" count.
+        bottleneck_risk = np.float32(risk_sum / n_remaining if self._step < self.M else 0.0)
 
         return np.concatenate([
             [service_demand_norm],

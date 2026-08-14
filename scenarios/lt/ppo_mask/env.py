@@ -38,10 +38,11 @@ class P4Env(gym.Env):
         [3]          sum of remaining service demand (normalised)
         [4]          fraction of ECUs with sufficient capacity for current service
         [5]          fraction of services remaining
-        [6]          bottleneck risk: fraction of remaining services (incl. current)
-                     with <=1 currently-valid ECU -- an aggregate dead-end-proximity
-                     signal the policy previously had to infer itself from the raw
-                     per-service valid-ECU counts below.
+        [6]          bottleneck risk: mean of 1/(valid_ecu_count+1) over remaining
+                     services (incl. current) -- a continuous aggregate dead-end-
+                     proximity signal (see P4Env._bottleneck_risk()) the policy
+                     previously had to infer itself from the raw per-service
+                     valid-ECU counts below.
         [7:7+N]      initial capacity fraction per ECU
         [7+N:7+2N]   remaining capacity fraction per ECU
         [7+2N:7+3N]  conflict flag per ECU (1 = placing current svc here violates a conflict set)
@@ -116,24 +117,33 @@ class P4Env(gym.Env):
                 self.ecu_allowed[ecu_idx] -= (subset - {svc_idx})
 
     def _bottleneck_risk(self) -> float:
-        """Fraction of not-yet-placed services (self._step onward) that
-        currently have <=1 valid ECU -- same aggregate dead-end-proximity
-        signal exposed in the observation (see _obs()), factored out so
-        step()'s potential-based shaping can evaluate it before AND after
-        a transition without duplicating the loop inline."""
+        """Aggregate dead-end-proximity signal over not-yet-placed services
+        (self._step onward): mean of 1/(valid_ecu_count+1) across them.
+
+        v2.4.0 originally used "fraction of remaining services with <=1
+        valid ECU" -- a hard threshold that jumps discontinuously the moment
+        a service's valid_ecu_count crosses from 2 to 1, which likely
+        contributed to the noisy/negative potential-shaping ablation results
+        (fixed beta=2.0 and annealed both underperformed beta=0.0). This
+        continuous version changes smoothly as any remaining service's
+        option count changes by 1 (1/(n+1) term shrinks smoothly as n grows:
+        1.0 at n=0 "dead", 0.5 at n=1, ~0.09 at n=10), instead of only
+        registering something once a service is already down to its last
+        option. Still 0.0 exactly at/after termination (self._step>=self.M),
+        preserving Ng et al. 1999's "absorbing-state potential = 0"
+        requirement for the shaping's policy-invariance guarantee."""
         if self._step >= self.M:
             return 0.0
         n_remaining = max(self.M - self._step, 1)
-        n_bottleneck = 0
+        risk_sum = 0.0
         for i in range(self._step, self.M):
             n_valid = sum(
                 1 for j in range(self.N)
                 if self.remaining_vms[j] >= self.services[i].requirement
                 and not self._has_conflict(j, i)
             )
-            if n_valid <= 1:
-                n_bottleneck += 1
-        return n_bottleneck / n_remaining
+            risk_sum += 1.0 / (n_valid + 1)
+        return risk_sum / n_remaining
 
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
@@ -223,8 +233,6 @@ class P4Env(gym.Env):
         )
 
         svc_valid_ecus = np.zeros(self.M, dtype=np.float32)
-        n_remaining = max(self.M - self._step, 1)
-        n_bottleneck = 0
         for i in range(self._step, self.M):
             n_valid = sum(
                 1 for j in range(self.N)
@@ -232,9 +240,10 @@ class P4Env(gym.Env):
                 and not self._has_conflict(j, i)
             )
             svc_valid_ecus[i] = n_valid / self.N
-            if n_valid <= 1:
-                n_bottleneck += 1
-        bottleneck_risk = np.float32(n_bottleneck / n_remaining if self._step < self.M else 0.0)
+        # Delegates to _bottleneck_risk() rather than re-deriving inline, so
+        # the observation feature and step()'s shaping potential can never
+        # drift apart (they did briefly during v2.4.0 development).
+        bottleneck_risk = np.float32(self._bottleneck_risk())
 
         return np.concatenate([
             [service_demand_norm],
