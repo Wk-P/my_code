@@ -75,10 +75,13 @@ PPO_ENT_COEF_FINAL = float(os.environ.get("ENT_COEF_FINAL", "0.005"))
 # (CMA-ES-style selection). 1.0 = vanilla PPO (no pruning).
 ADV_PRUNE_WEIGHT   = float(os.environ.get("ADV_PRUNE_WEIGHT", "1.0"))
 # v2.4.0 (add_states): potential-based shaping weight on the bottleneck_risk
-# state feature (see P4Env docstring) -- 0.0 is an exact no-op (default,
-# preserves pre-v2.4.0 behaviour); >0.0 gives PPO a per-step hint about
-# dead-end risk instead of only finding out at the terminal -M/M*ar reward.
-BOTTLENECK_SHAPING_WEIGHT = float(os.environ.get("BOTTLENECK_SHAPING_WEIGHT", "0.0"))
+# state feature (see P4Env docstring / shared/adaptive_ppo.py::beta_at).
+# Linearly annealed init->final over training like the entropy schedule,
+# but decaying (not rising) -- see beta_at()'s docstring for why a constant
+# beta measured worse than beta=0.0 in an ablation. Both 0.0 by default
+# (exact no-op, preserves pre-v2.4.0 behaviour).
+BOTTLENECK_SHAPING_WEIGHT_INIT  = float(os.environ.get("BOTTLENECK_SHAPING_WEIGHT_INIT", "0.0"))
+BOTTLENECK_SHAPING_WEIGHT_FINAL = float(os.environ.get("BOTTLENECK_SHAPING_WEIGHT_FINAL", "0.0"))
 # Larger network to process richer observation space (3N+2 dims)
 PPO_NET_ARCH    = dict(pi=[256, 256], vf=[256, 256])
 

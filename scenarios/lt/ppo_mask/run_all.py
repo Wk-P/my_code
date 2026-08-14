@@ -38,7 +38,7 @@ import torch
 import yaml
 import pulp
 from sb3_contrib import MaskablePPO
-from shared.adaptive_ppo import entropy_at, PrunedMaskablePPO
+from shared.adaptive_ppo import entropy_at, beta_at, PrunedMaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -64,7 +64,9 @@ def _make_p4_env(seed: int) -> Monitor:
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
     env = P4Env(
         ecus, services, scenarios=C.TRAIN_SCENARIOS,
-        bottleneck_shaping_weight=C.BOTTLENECK_SHAPING_WEIGHT, gamma=C.PPO_GAMMA,
+        # Starting value only -- P4Callback._on_step() overwrites this every
+        # step via beta_at() once training actually begins.
+        bottleneck_shaping_weight=C.BOTTLENECK_SHAPING_WEIGHT_INIT, gamma=C.PPO_GAMMA,
     )
     env = ActionMasker(env, _mask_fn)
     return Monitor(env)
@@ -157,6 +159,18 @@ class P4Callback(BaseCallback):
         self.model.ent_coef = entropy_at(
             self.num_timesteps, C.TOTAL_STEPS, C.PPO_ENT_COEF_INIT, C.PPO_ENT_COEF_FINAL
         )
+        # Anneal each parallel env's bottleneck_risk shaping weight in lockstep
+        # with training progress (see beta_at()'s docstring for why it decays
+        # instead of rising like entropy). .unwrapped walks past the
+        # Monitor/ActionMasker wrappers each DummyVecEnv slot was built with
+        # in _make_p4_env() down to the underlying P4Env instance.
+        current_beta = beta_at(
+            self.num_timesteps, C.TOTAL_STEPS,
+            C.BOTTLENECK_SHAPING_WEIGHT_INIT, C.BOTTLENECK_SHAPING_WEIGHT_FINAL,
+        )
+        for env in self.training_env.envs:
+            env.unwrapped._shaping_beta = current_beta
+
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self.episode_ars.append(float(info.get("ar", 0.0)))

@@ -32,12 +32,41 @@ from stable_baselines3.common.utils import explained_variance
 from sb3_contrib import MaskablePPO
 
 
-def entropy_at(step: int, total_steps: int, init: float, final: float) -> float:
+def _linear_anneal(step: int, total_steps: int, init: float, final: float) -> float:
     """Linear anneal from `init` (at step=0) to `final` (at step>=total_steps)."""
     if total_steps <= 0:
         return final
     progress = min(1.0, max(0.0, step / total_steps))
     return init + (final - init) * progress
+
+
+def entropy_at(step: int, total_steps: int, init: float, final: float) -> float:
+    """Linear anneal from `init` (at step=0) to `final` (at step>=total_steps)."""
+    return _linear_anneal(step, total_steps, init, final)
+
+
+def beta_at(step: int, total_steps: int, init: float, final: float) -> float:
+    """Linear anneal for the bottleneck_risk potential-shaping weight
+    (P4Env's `bottleneck_shaping_weight`), same schedule shape as
+    entropy_at() but decaying (init high, final low/zero) instead of
+    annealing down like entropy.
+
+    Why decay it at all, given potential-based shaping is provably
+    policy-invariant at ANY fixed beta>=0 (Ng, Harada & Russell 1999): that
+    guarantee is an asymptotic/exact-optimization result. Mid-training, with
+    a finite sample budget, a large fixed beta adds real variance to the
+    per-step reward the value function has to fit, and the shaping/task-
+    reward now have to be correctly disentangled every gradient step instead
+    of just once at convergence -- a plain constant beta=2.0 measured worse
+    on both success_rate and AR than beta=0.0 in an ablation (500k steps),
+    consistent with the shaping term acting as an under-fit distraction
+    rather than a helpful prior this early. Annealing beta -> 0 over
+    training gets the early-training guidance (when the policy is closest
+    to uniform-random and most likely to wander into dead ends) while
+    letting the back half of training converge on the pure M*ar/-M signal,
+    so the final policy isn't fit against a residual shaping term at all.
+    """
+    return _linear_anneal(step, total_steps, init, final)
 
 
 def _adv_weights(advantages: th.Tensor, prune_weight: float) -> th.Tensor:
