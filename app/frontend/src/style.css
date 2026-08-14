@@ -123,6 +123,15 @@ a.run-id { text-decoration: none; }
 }
 
 /* ── Live progress panel ─────────────────────────────────────────────── */
+.progress-branch-banner {
+  margin-bottom: var(--space-3); font-size: 0.85rem; color: var(--text-primary);
+}
+.progress-branch-hint { color: var(--text-faint); font-size: 0.78em; margin-left: var(--space-2); }
+.branch-tag {
+  font-family: var(--font-mono); background: var(--bg-elevated); color: #fbbf24;
+  padding: 2px 7px; border-radius: var(--radius-sm); letter-spacing: 0.04em; font-size: 0.82em;
+  margin-left: var(--space-2);
+}
 .progress-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
 .progress-card { padding: var(--space-4); }
 .progress-card .title { font-weight: 700; font-size: 0.95rem; margin-bottom: var(--space-2); }

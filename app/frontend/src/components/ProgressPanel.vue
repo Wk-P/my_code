@@ -1,14 +1,21 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
-import { getProgress } from "../api.js";
+import { getProgress, getBranch } from "../api.js";
 import { secToHuman } from "../format.js";
 
 const SCENARIOS = ["eq", "gt", "lt"];
 const data = ref({});
+const branchInfo = ref(null);
 let timer = null;
 
 async function load() {
-  data.value = await getProgress();
+  // The dashboard server resolves "current branch" fresh on every
+  // /api/progress call (see app/backend/main.py's _results_root docstring),
+  // so a live process's progress is only found under results/<branch>/...
+  // for whichever branch is checked out *right now* — re-fetch alongside
+  // progress on every poll instead of once at mount, so a `git checkout` in
+  // another terminal is reflected here without reloading the page.
+  [data.value, branchInfo.value] = await Promise.all([getProgress(), getBranch()]);
 }
 
 onMounted(() => {
@@ -33,6 +40,12 @@ function displayLine(line) {
 </script>
 
 <template>
+  <div class="progress-branch-banner" v-if="branchInfo">
+    Tracking branch: <strong>{{ branchInfo.current ?? "unknown" }}</strong>
+    <span class="progress-branch-hint">
+      (results/{{ branchInfo.current ?? "unknown" }}/&lt;scenario&gt;/&lt;algo&gt;/ — progress below is scoped to this branch's on-disk results)
+    </span>
+  </div>
   <div class="progress-grid">
     <div v-for="sc in SCENARIOS" :key="sc" class="progress-card">
       <template v-if="!data[sc]?.running">
@@ -62,6 +75,9 @@ function displayLine(line) {
           <div class="meta">
             <span class="exp-id" :title="'This whole batch (all scenarios launched together) shares exp_id ' + data[sc].latest_progress.exp_id">
               EXP_ID: {{ data[sc].latest_progress.exp_id ?? "pending" }}
+            </span>
+            <span class="branch-tag" :title="'Code running for this experiment is from branch ' + (branchInfo?.current ?? 'unknown')">
+              branch: {{ branchInfo?.current ?? "unknown" }}
             </span>
             <span v-if="data[sc].latest_progress.phase"> · phase: {{ data[sc].latest_progress.phase }}</span>
             <span v-if="data[sc].latest_progress.round !== undefined"> · round {{ data[sc].latest_progress.round }}/{{ data[sc].latest_progress.total_rounds }}</span>
