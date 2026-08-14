@@ -62,7 +62,10 @@ def _make_p4_env(seed: int) -> Monitor:
     caps, reqs, _ = C.SCENARIOS[C.SCENARIO_IDX]
     ecus     = [ECU(f"ECU{i}", cap) for i, cap in enumerate(caps)]
     services = [SVC(f"SVC{i}", req) for i, req in enumerate(reqs)]
-    env = P4Env(ecus, services, scenarios=C.TRAIN_SCENARIOS)
+    env = P4Env(
+        ecus, services, scenarios=C.TRAIN_SCENARIOS,
+        bottleneck_shaping_weight=C.BOTTLENECK_SHAPING_WEIGHT, gamma=C.PPO_GAMMA,
+    )
     env = ActionMasker(env, _mask_fn)
     return Monitor(env)
 

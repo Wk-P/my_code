@@ -51,20 +51,37 @@ class P4Env(gym.Env):
         [7+5N+M:7+5N+2M] valid ECU count per remaining service (normalised by N; 0 for placed)
 
     Reward:
-        +ru            valid assignment
-        -2.0           forced-overflow penalty (capacity or conflict violated via fallback)
-        terminal_bonus: +ar (zero violations) or +0.1*ar (some violations)
+        terminal: M*ar (zero violations) or -M (any violation), v2.2.0-style
+        + potential-based shaping F(s,a,s') = gamma*Phi(s') - Phi(s) every
+          step (incl. terminal), Phi(s) = -bottleneck_shaping_weight *
+          bottleneck_risk(s). Provably does not change the optimal policy
+          for any bottleneck_shaping_weight >= 0 (Ng, Harada & Russell 1999);
+          weight=0.0 (the default) makes shaping an exact no-op.
     """
 
     metadata = {"render_modes": []}
 
-    def __init__(self, ecus: list[ECU], services: list[SVC], scenarios=None):
+    def __init__(
+        self, ecus: list[ECU], services: list[SVC], scenarios=None,
+        bottleneck_shaping_weight: float = 0.0, gamma: float = 0.99,
+    ):
         super().__init__()
         self._scenarios = scenarios
         self.ecus     = ecus
         self.services = services
         self.N = len(ecus)
         self.M = len(services)
+        # Potential-based reward shaping (Ng, Harada & Russell 1999):
+        # F(s,a,s') = gamma*Phi(s') - Phi(s), Phi(s) = -beta*bottleneck_risk(s).
+        # Guaranteed not to change the optimal policy for ANY beta>=0 (unlike
+        # ad-hoc dense shaping, which is why v1.1.0 dropped dense reward in
+        # favour of pure sparse) -- it only redistributes the terminal -M/M*ar
+        # signal earlier, giving PPO a per-step hint about whether the action
+        # just taken made a future dead-end more or less likely, instead of
+        # only finding out M-minus-however-many steps later. beta=0.0 is a
+        # strict no-op (F=0 identically), so existing callers are unaffected.
+        self._shaping_beta = float(bottleneck_shaping_weight)
+        self._shaping_gamma = float(gamma)
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
@@ -97,6 +114,26 @@ class P4Env(gym.Env):
         for subset in self.conflict_sets:
             if svc_idx in subset:
                 self.ecu_allowed[ecu_idx] -= (subset - {svc_idx})
+
+    def _bottleneck_risk(self) -> float:
+        """Fraction of not-yet-placed services (self._step onward) that
+        currently have <=1 valid ECU -- same aggregate dead-end-proximity
+        signal exposed in the observation (see _obs()), factored out so
+        step()'s potential-based shaping can evaluate it before AND after
+        a transition without duplicating the loop inline."""
+        if self._step >= self.M:
+            return 0.0
+        n_remaining = max(self.M - self._step, 1)
+        n_bottleneck = 0
+        for i in range(self._step, self.M):
+            n_valid = sum(
+                1 for j in range(self.N)
+                if self.remaining_vms[j] >= self.services[i].requirement
+                and not self._has_conflict(j, i)
+            )
+            if n_valid <= 1:
+                n_bottleneck += 1
+        return n_bottleneck / n_remaining
 
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
@@ -238,6 +275,10 @@ class P4Env(gym.Env):
         violation_penalty = -2.0 if violated else 0.0
         ru = 0.0 if violated else svc.requirement / (self.initial_vms[action] + 1e-8)
 
+        # Phi(s) BEFORE this transition's mutations -- see step()'s tail for
+        # Phi(s') and the shaping term itself.
+        phi_s = -self._shaping_beta * self._bottleneck_risk()
+
         self.remaining_vms[action] -= svc.requirement
         _was_empty = not self.ecu_placements[action]
         self.ecu_placements[action].add(self._step)
@@ -265,6 +306,18 @@ class P4Env(gym.Env):
             reward = float(self.M) * self.ar if total_viol == 0 else -float(self.M)
         else:
             reward = 0.0
+
+        # Potential-based shaping F(s,a,s') = gamma*Phi(s') - Phi(s), added on
+        # top of the terminal/zero reward above. beta=0.0 makes phi_s and
+        # phi_s_next both identically 0.0, so shaping is an exact no-op --
+        # this line is always safe to leave in regardless of _shaping_beta.
+        # Phi(terminal) = -beta*_bottleneck_risk() = -beta*0.0 = 0.0
+        # (the self._step >= self.M branch), satisfying the Ng et al. 1999
+        # requirement that the absorbing state's potential be zero, so the
+        # optimal-policy-invariance guarantee holds exactly at any beta>=0.
+        phi_s_next = -self._shaping_beta * self._bottleneck_risk()
+        shaping = self._shaping_gamma * phi_s_next - phi_s
+        reward += shaping
 
         step_reward = ru / max(_active, 1)
         info = {

@@ -74,6 +74,11 @@ PPO_ENT_COEF_FINAL = float(os.environ.get("ENT_COEF_FINAL", "0.005"))
 # v1.0.3/v1.0.4: down-weight negative-advantage samples in the policy loss
 # (CMA-ES-style selection). 1.0 = vanilla PPO (no pruning).
 ADV_PRUNE_WEIGHT   = float(os.environ.get("ADV_PRUNE_WEIGHT", "1.0"))
+# v2.4.0 (add_states): potential-based shaping weight on the bottleneck_risk
+# state feature (see P4Env docstring) -- 0.0 is an exact no-op (default,
+# preserves pre-v2.4.0 behaviour); >0.0 gives PPO a per-step hint about
+# dead-end risk instead of only finding out at the terminal -M/M*ar reward.
+BOTTLENECK_SHAPING_WEIGHT = float(os.environ.get("BOTTLENECK_SHAPING_WEIGHT", "0.0"))
 # Larger network to process richer observation space (3N+2 dims)
 PPO_NET_ARCH    = dict(pi=[256, 256], vf=[256, 256])
 
