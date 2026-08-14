@@ -31,20 +31,24 @@ class P4Env(gym.Env):
     and conflict constraints.  If no such ECU exists, the fallback ECU
     with maximum remaining capacity is used (heavy penalty applied).
 
-    Observation (shape: 5N+6+2M):
+    Observation (shape: 5N+7+2M):
         [0]          current service demand (normalised)
         [1]          current cumulative AR
         [2]          sum of remaining ECU capacity (normalised, clipped ≥ 0)
         [3]          sum of remaining service demand (normalised)
         [4]          fraction of ECUs with sufficient capacity for current service
         [5]          fraction of services remaining
-        [6:6+N]      initial capacity fraction per ECU
-        [6+N:6+2N]   remaining capacity fraction per ECU
-        [6+2N:6+3N]  conflict flag per ECU (1 = placing current svc here violates a conflict set)
-        [6+3N:6+4N]  ECU allowed fraction (fraction of SVCs still placeable without conflict)
-        [6+4N:6+5N]  valid-action flags (1 = capacity OK AND no conflict)
-        [6+5N:6+5N+M] remaining service demands (sorted descending)
-        [6+5N+M:6+5N+2M] valid ECU count per remaining service (normalised by N; 0 for placed)
+        [6]          bottleneck risk: fraction of remaining services (incl. current)
+                     with <=1 currently-valid ECU -- an aggregate dead-end-proximity
+                     signal the policy previously had to infer itself from the raw
+                     per-service valid-ECU counts below.
+        [7:7+N]      initial capacity fraction per ECU
+        [7+N:7+2N]   remaining capacity fraction per ECU
+        [7+2N:7+3N]  conflict flag per ECU (1 = placing current svc here violates a conflict set)
+        [7+3N:7+4N]  ECU allowed fraction (fraction of SVCs still placeable without conflict)
+        [7+4N:7+5N]  valid-action flags (1 = capacity OK AND no conflict)
+        [7+5N:7+5N+M] remaining service demands (sorted descending)
+        [7+5N+M:7+5N+2M] valid ECU count per remaining service (normalised by N; 0 for placed)
 
     Reward:
         +ru            valid assignment
@@ -64,7 +68,7 @@ class P4Env(gym.Env):
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
-            low=-1.0, high=1.0, shape=(5 * self.N + 6 + 2 * self.M,), dtype=np.float32,
+            low=-1.0, high=1.0, shape=(5 * self.N + 7 + 2 * self.M,), dtype=np.float32,
         )
 
         self.initial_vms = np.array([e.capacity for e in ecus], dtype=np.float32)
@@ -182,12 +186,18 @@ class P4Env(gym.Env):
         )
 
         svc_valid_ecus = np.zeros(self.M, dtype=np.float32)
+        n_remaining = max(self.M - self._step, 1)
+        n_bottleneck = 0
         for i in range(self._step, self.M):
-            svc_valid_ecus[i] = sum(
+            n_valid = sum(
                 1 for j in range(self.N)
                 if self.remaining_vms[j] >= self.services[i].requirement
                 and not self._has_conflict(j, i)
-            ) / self.N
+            )
+            svc_valid_ecus[i] = n_valid / self.N
+            if n_valid <= 1:
+                n_bottleneck += 1
+        bottleneck_risk = np.float32(n_bottleneck / n_remaining if self._step < self.M else 0.0)
 
         return np.concatenate([
             [service_demand_norm],
@@ -196,6 +206,7 @@ class P4Env(gym.Env):
             np.array([remaining_service_demand_sum], dtype=np.float32),
             np.array([remaining_usable_ecu_count], dtype=np.float32),
             np.array([remaining_services_count], dtype=np.float32),
+            np.array([bottleneck_risk], dtype=np.float32),
             initial_cap_pct,
             remaining_abs_norm,
             conflict_flag,
@@ -298,7 +309,7 @@ if __name__ == "__main__":
 
     env = P4Env(ecus, services)
     obs, _ = env.reset()
-    print(f"\nObs shape : {obs.shape}  (expected {5 * N + 6 + 2 * M})")
+    print(f"\nObs shape : {obs.shape}  (expected {5 * N + 7 + 2 * M})")
 
     print("\n── Valid action policy run ──")
     done = False
