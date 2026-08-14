@@ -8,4 +8,4 @@ $PAPER_VERSION still overrides it for ad-hoc/historical runs (e.g. replaying
 an old ablation tag) without editing this file.
 """
 
-CURRENT_VERSION = "2.3.0"
+CURRENT_VERSION = "2.4.0"

@@ -31,6 +31,7 @@
 | v2.1.0 | 2026-08-07 | Self-Imitation/Expert Iteration微调（纯BC + BC+RL恢复两版）：核心假设不成立，6轮下来N=1单次成功率始终低于基线，负结果 | [v2.1.0.md](v2.1.0.md) |
 | v2.2.0 | 2026-08-09 | **AR正式成为优化目标**：终局reward从二元(±M)改为零违反时M*AR、违反时-M，让梯度真正区分成功放置的质量高低；违规仍是硬约束，数学上保证"任何成功优于任何违规"；需要完整重训5M步，结果待补 | [v2.2.0.md](v2.2.0.md) |
 | v2.3.0 | 2026-08-14 | **BC预训练永久停用**：隔离实验发现lt/ppo_mask去掉BC后success_rate 47.5%→70.0%(+22.5pp,同样5M步)，是目前发现的最大单一负面因素；state设计(bottleneck_risk特征)贡献较小(+5pp,仅500k步单次验证)，仍需继续研究，另开`add_states`分支跟进 | [v2.3.0.md](v2.3.0.md) |
+| v2.4.0 | 2026-08-14 | `add_states`分支：bottleneck_risk特征推广到eq/gt/lt；发现eq/gt仍用v1.1.0旧二元reward(从未获得AR梯度信号)，移植v2.2.0的M*AR reward后AR gap从0.03~0.17压到0.004~0.05——目前影响最大的单一改动；同时发现一次"lt 5M步无特征对照"因stash/sleep时序问题被污染，需重新验证 | [v2.4.0.md](v2.4.0.md) |
 
 ## v1.0.x / v1.1.0 系列实验结果对比（lt/eq/gt × ppo_mask/ppo_lagrangian）
 
