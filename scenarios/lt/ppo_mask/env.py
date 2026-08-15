@@ -317,7 +317,21 @@ class P4Env(gym.Env):
             # violation contrast. "Any success beats any violation" still
             # holds: M*(2*ar-1) > -M for any ar>0, with equality only at
             # the unreachable ar=0 (any successful placement has ru>0).
-            reward = float(self.M) * (2.0 * self.ar - 1.0) if total_viol == 0 else -float(self.M)
+            #
+            # Graded failure penalty: previously every violated episode
+            # scored a flat -M regardless of whether it failed on step 2 or
+            # step 14 -- like a 0/1 loss, giving PPO zero gradient about
+            # "how close" a failing trajectory got. valid_placed/M (fraction
+            # of steps placed without violation before/around the failure)
+            # grades it instead: failing almost-complete costs close to -M,
+            # failing immediately costs close to -2M. Still strictly worse
+            # than any success -- valid_placed < M whenever total_viol > 0
+            # (a violated step never increments valid_placed), so this
+            # branch tops out at -M*(1+1/M) < -M, below any ar>0 success.
+            if total_viol == 0:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (2.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
 

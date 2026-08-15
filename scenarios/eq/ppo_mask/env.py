@@ -274,7 +274,15 @@ class P4Env(gym.Env):
             # AR-quality gradient. See lt/ppo_mask/env.py::step() for the
             # full rationale. "Any success beats any violation" still holds
             # (M*(2*ar-1) > -M for any ar>0).
-            reward = float(self.M) * (2.0 * self.ar - 1.0) if total_viol == 0 else -float(self.M)
+            # Graded failure penalty (see lt/ppo_mask/env.py::step() for
+            # full rationale): flat -M regardless of how far the episode got
+            # gives PPO zero gradient about "how close" a failing trajectory
+            # was. valid_placed/M grades it -- still strictly worse than any
+            # success since valid_placed < M whenever total_viol > 0.
+            if total_viol == 0:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (2.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
 
