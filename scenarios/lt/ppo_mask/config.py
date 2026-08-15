@@ -69,8 +69,20 @@ PPO_CLIP_RANGE  = 0.2
 # exploration collapse prematurely; anneal from high to low instead.
 # All three overridable via env vars so scripts/run_paper_verification.sh can
 # drive v1.0.1..v1.0.4 without editing this file per run.
-PPO_ENT_COEF_INIT  = float(os.environ.get("ENT_COEF_INIT", "0.005"))
-PPO_ENT_COEF_FINAL = float(os.environ.get("ENT_COEF_FINAL", "0.005"))
+#
+# v1.0.1..v2.3.x default was INIT=FINAL=0.005 -- i.e. entropy_at() was a
+# no-op the whole time, NOT actually annealing despite the mechanism being
+# wired up. v1.0.2 DID test a real schedule (0.02->0.002) but under the old
+# pre-v2.2.0 binary +-M reward (AR wasn't part of the objective yet), came
+# out slightly worse on AR, and the no-op default was kept ever since.
+# v2.4.0 (add_states): AR is now reward-central (v2.2.0's M*ar, and the
+# M*(2*ar-1) rescale that gives it equal weight to the violation penalty),
+# so premature exploration collapse matters differently than it did in
+# v1.0.2's test -- reusing v1.0.2's validated 0.02->0.002 values as the
+# default here to test the schedule under the current reward for the first
+# time, not repeating the old (differently-scoped) experiment.
+PPO_ENT_COEF_INIT  = float(os.environ.get("ENT_COEF_INIT", "0.02"))
+PPO_ENT_COEF_FINAL = float(os.environ.get("ENT_COEF_FINAL", "0.002"))
 # v1.0.3/v1.0.4: down-weight negative-advantage samples in the policy loss
 # (CMA-ES-style selection). 1.0 = vanilla PPO (no pruning).
 ADV_PRUNE_WEIGHT   = float(os.environ.get("ADV_PRUNE_WEIGHT", "1.0"))

@@ -268,7 +268,13 @@ class P4Env(gym.Env):
             # means valid_placed hits M from the very first episodes).
             # M*AR <= M for AR in (0,1], so "any success beats any
             # violation" still holds unconditionally.
-            reward = float(self.M) * self.ar if total_viol == 0 else -float(self.M)
+            # v2.4.0: rescaled from M*ar to M*(2*ar-1) -- gives AR the
+            # full [-M,M] reward budget (same magnitude as the
+            # success/violation gap) instead of just (0,M], doubling the
+            # AR-quality gradient. See lt/ppo_mask/env.py::step() for the
+            # full rationale. "Any success beats any violation" still holds
+            # (M*(2*ar-1) > -M for any ar>0).
+            reward = float(self.M) * (2.0 * self.ar - 1.0) if total_viol == 0 else -float(self.M)
         else:
             reward = 0.0
 

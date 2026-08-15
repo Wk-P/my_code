@@ -303,16 +303,21 @@ class P4Env(gym.Env):
         done = self._step >= self.M
         total_viol = self.capacity_violations + self.conflict_violations
         if done:
-            # AR is now the thing being optimized, not just observed: a
-            # zero-violation episode scores M*AR (quality-proportional)
-            # instead of a flat +M, so PPO's gradient actually distinguishes
-            # a 0.55-AR success from a 0.90-AR success — previously both
-            # scored the same +M and the policy had no signal to prefer one
-            # over the other. Violations remain a hard constraint: -M is
-            # strictly worse than any success (M*AR <= M since AR in (0,1]),
-            # so the ordering "any valid placement beats any violation" is
-            # preserved regardless of how low that placement's AR is.
-            reward = float(self.M) * self.ar if total_viol == 0 else -float(self.M)
+            # v2.4.0: rescaled from M*ar (range (0,M]) to M*(2*ar-1) (range
+            # (-M,M]) so the AR-quality signal spans the SAME magnitude as
+            # the success/violation gap instead of being ~6x weaker. Under
+            # the old M*ar scheme, "success vs violation" spans ~M*(1+ar)
+            # (~2M), while "AR=0.55 success vs AR=0.90 success" only spans
+            # M*0.35 -- a sharp, easy-to-learn signal next to a soft, diluted
+            # one, which is the likely reason training curves showed
+            # valid_placed creeping up while episode AR stayed flat (PPO
+            # learns the strong signal first and the weak one barely moves
+            # in a finite step budget). M*(2*ar-1) doubles the AR gradient
+            # and gives it the full [-M,M] budget, on par with the
+            # violation contrast. "Any success beats any violation" still
+            # holds: M*(2*ar-1) > -M for any ar>0, with equality only at
+            # the unreachable ar=0 (any successful placement has ru>0).
+            reward = float(self.M) * (2.0 * self.ar - 1.0) if total_viol == 0 else -float(self.M)
         else:
             reward = 0.0
 
