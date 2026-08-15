@@ -1,5 +1,6 @@
-export async function getResults() {
-  const res = await fetch("/api/results");
+export async function getResults(branch) {
+  const url = branch ? `/api/results?branch=${encodeURIComponent(branch)}` : "/api/results";
+  const res = await fetch(url);
   return res.json();
 }
 

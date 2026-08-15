@@ -5,6 +5,7 @@ import ExperimentTree from "./components/ExperimentTree.vue";
 import RunDetail from "./components/RunDetail.vue";
 import VersionList from "./components/VersionList.vue";
 import VersionDetail from "./components/VersionDetail.vue";
+import PaperDraft from "./components/PaperDraft.vue";
 import { getBranch } from "./api.js";
 
 // #/run/<branch>/<scenario>/<algo>/<run> routes to a standalone run detail
@@ -34,6 +35,12 @@ const versionTagRoute = computed(() => {
 });
 const isVersionsIndexRoute = computed(() => hash.value === "#/versions");
 
+// #/paper is a single standalone page (no sub-routes) -- a paper-draft-style
+// writeup of the add_states branch's reward-engineering findings, kept
+// separate from the raw version/vX.Y.Z.md dump in #/versions so it can read
+// as a coherent narrative instead of one changelog entry per tag.
+const isPaperRoute = computed(() => hash.value === "#/paper");
+
 // Auto-detects the checked-out git branch and re-polls so a manual
 // `git checkout` elsewhere shows up here without reloading the page.
 const branch = ref({ current: null, branches: [], bc_supported: false });
@@ -53,6 +60,8 @@ onUnmounted(() => clearInterval(branchTimer));
 
   <VersionDetail v-else-if="versionTagRoute" :tag="versionTagRoute" />
 
+  <PaperDraft v-else-if="isPaperRoute" />
+
   <template v-else-if="isVersionsIndexRoute">
     <h1>
       Version History
@@ -70,6 +79,7 @@ onUnmounted(() => clearInterval(branchTimer));
       </span>
     </h1>
     <a href="#/versions" class="version-history-btn">📜 Version History &rsaquo;</a>
+    <a href="#/paper" class="version-history-btn">📄 Paper Draft &rsaquo;</a>
     <div class="sub">Read-only view, does not affect any training process · auto-scanned from results/&lt;branch&gt;/&lt;scenario&gt;/&lt;algo&gt;/ · badge above tracks the checked-out branch, tabs below can browse any branch</div>
 
     <h2>Live Training Progress</h2>

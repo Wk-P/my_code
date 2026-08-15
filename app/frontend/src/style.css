@@ -122,6 +122,45 @@ a.run-id { text-decoration: none; }
   font-weight: normal; font-size: 0.85em; line-height: 1.4; text-align: left; white-space: normal;
 }
 
+/* ── Paper draft ──────────────────────────────────────────────────────── */
+.paper {
+  --paper-bg: #f7f4ec;
+  --paper-ink: #2a2620;
+  --paper-ink-dim: #6b6558;
+  --paper-rule: #d8d2c0;
+  --paper-accent: #8a3324;
+  max-width: 780px;
+  margin: var(--space-4) auto var(--space-5);
+  padding: var(--space-5) calc(var(--space-5) + var(--space-2));
+  background: var(--paper-bg);
+  color: var(--paper-ink);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  font-family: "Georgia", "Songti SC", "STSong", serif;
+  line-height: 1.7;
+}
+.paper-header { text-align: center; border-bottom: 2px solid var(--paper-ink); padding-bottom: var(--space-4); margin-bottom: var(--space-4); }
+.paper-kicker { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-accent); margin-bottom: var(--space-2); }
+.paper-title { font-size: 1.5rem; line-height: 1.4; font-weight: 700; color: var(--paper-ink); margin: 0 0 var(--space-2); letter-spacing: 0; }
+.paper-meta { font-size: 0.85rem; color: var(--paper-ink-dim); font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif; }
+.paper-abstract { background: rgba(138, 51, 36, 0.05); border-left: 3px solid var(--paper-accent); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.paper-abstract-label { font-size: 0.8rem !important; text-transform: uppercase; letter-spacing: 0.08em; color: var(--paper-accent) !important; margin: 0 0 var(--space-2) !important; border: none !important; padding: 0 !important; }
+.paper-abstract p { margin: 0; font-size: 0.92rem; }
+.paper-toc { font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif; font-size: 0.85rem; background: rgba(0,0,0,0.03); border: 1px solid var(--paper-rule); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-5); }
+.paper-toc ol { margin: var(--space-2) 0 0; padding-left: 1.2em; }
+.paper-toc a, .paper-footer a { color: var(--paper-accent); }
+.paper h2 { font-size: 1.05rem !important; text-transform: none !important; letter-spacing: 0 !important; color: var(--paper-ink) !important; border-bottom: 1px solid var(--paper-rule) !important; margin: var(--space-5) 0 var(--space-3) !important; padding-bottom: var(--space-2) !important; font-weight: 700; }
+.paper h3 { font-size: 0.95rem; color: var(--paper-ink); margin: var(--space-4) 0 var(--space-2); font-weight: 700; }
+.paper p { margin: 0 0 var(--space-3); text-align: justify; }
+.paper code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+.paper-note { font-size: 0.85rem; color: var(--paper-ink-dim); font-style: italic; }
+.paper-table { margin: var(--space-3) 0; font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif; font-size: 0.82rem; }
+.paper-table th, .paper-table td { border: 1px solid var(--paper-rule); color: var(--paper-ink); }
+.paper-table th { background: rgba(0,0,0,0.04); color: var(--paper-ink-dim); }
+.paper-table tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+.paper-table tr:hover td { background: rgba(138, 51, 36, 0.06); }
+.paper-footer { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--paper-rule); font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif; font-size: 0.82rem; color: var(--paper-ink-dim); }
+
 /* ── Live progress panel ─────────────────────────────────────────────── */
 .progress-branch-banner {
   margin-bottom: var(--space-3); font-size: 0.85rem; color: var(--text-primary);
