@@ -145,6 +145,51 @@ class P4Env(gym.Env):
             risk_sum += 1.0 / (n_valid + 1)
         return risk_sum / n_remaining
 
+    def _ffd_feasibility(self) -> float:
+        """Greedy First-Fit-Decreasing simulation over not-yet-placed
+        services (self._step onward; already sorted descending by
+        requirement since reset()) on a COPY of remaining_vms/ecu_allowed --
+        greedily place each into whichever legal ECU currently has the most
+        spare capacity, and report the fraction FFD manages to place before
+        getting stuck. 1.0 = FFD found a complete packing (the remaining
+        problem IS feasible, by construction); <1.0 = FFD failed partway.
+
+        Unlike _bottleneck_risk()/_lethal_after(), which only ever look at
+        ONE service in isolation, this simulates the WHOLE remaining
+        sub-problem jointly, so it catches "each service individually still
+        has options, but they collectively contend for the same scarce
+        capacity" cases that a per-service check can't see. It's a
+        SUFFICIENT, not exact, feasibility signal (a real solver -- e.g.
+        shared/ilp_utils.py::solve_ilp -- would be exact but is far too
+        expensive to call every step of every parallel env during PPO
+        training): FFD success proves feasibility; FFD failure doesn't
+        prove infeasibility (a different placement order might still work),
+        it's only a heuristic risk signal. Still O(M*N) per call, same
+        order as _bottleneck_risk(), so safe to call every step during
+        training. Used only for reward shaping (see step()), never to mask
+        actions -- RL still has to learn how to respond to this signal
+        itself, nothing is structurally guaranteed by it."""
+        if self._step >= self.M:
+            return 1.0
+        sim_vms = self.remaining_vms.copy()
+        sim_allowed = [s.copy() for s in self.ecu_allowed]
+        placed = 0
+        n_remaining = self.M - self._step
+        for i in range(self._step, self.M):
+            req = self.services[i].requirement
+            best_j, best_cap = -1, -1.0
+            for j in range(self.N):
+                if sim_vms[j] >= req and i in sim_allowed[j] and sim_vms[j] > best_cap:
+                    best_j, best_cap = j, sim_vms[j]
+            if best_j == -1:
+                break
+            sim_vms[best_j] -= req
+            for subset in self.conflict_sets:
+                if i in subset:
+                    sim_allowed[best_j] -= (subset - {i})
+            placed += 1
+        return placed / n_remaining
+
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -179,16 +224,63 @@ class P4Env(gym.Env):
         return self._obs(), {}
 
     # ── action mask (capacity AND conflict) ──────────────────────────────────
+    def _lethal_after(self, action: int) -> bool:
+        """True iff hypothetically placing the current service on ECU
+        `action` would leave some future (not-yet-placed) service with ZERO
+        legal ECUs -- a guaranteed future failure, not a soft risk estimate
+        like _bottleneck_risk(). Pure lookahead probe, does not mutate
+        state. Only catches the single-service-starvation failure mode (a
+        remaining service left with no valid ECU at all); it does NOT
+        detect subtler joint infeasibility where multiple remaining
+        services individually still have >=1 option but collectively
+        contend for the same one -- that would need a real matching/Hall's-
+        theorem check, not this O(N*M) necessary-condition probe."""
+        svc = self.services[self._step]
+        hyp_remaining_action = self.remaining_vms[action] - svc.requirement
+        hyp_allowed_action = self.ecu_allowed[action].copy()
+        for subset in self.conflict_sets:
+            if self._step in subset:
+                hyp_allowed_action -= (subset - {self._step})
+
+        for i in range(self._step + 1, self.M):
+            req = self.services[i].requirement
+            has_valid = False
+            for j in range(self.N):
+                if j == action:
+                    cap_ok, conflict_ok = hyp_remaining_action >= req, i in hyp_allowed_action
+                else:
+                    cap_ok, conflict_ok = self.remaining_vms[j] >= req, not self._has_conflict(j, i)
+                if cap_ok and conflict_ok:
+                    has_valid = True
+                    break
+            if not has_valid:
+                return True
+        return False
+
     def action_masks(self) -> np.ndarray:
         if self._step >= self.M:
             return np.zeros(self.N, dtype=bool)
         svc = self.services[self._step]
-        mask = np.array(
+        base_mask = np.array(
             [(self.remaining_vms[j] >= svc.requirement) and (not self._has_conflict(j, self._step))
              for j in range(self.N)],
             dtype=bool,
         )
-        return mask
+        # One-step feasibility lookahead: among the currently-legal ECUs,
+        # additionally exclude any that are PROVABLY lethal (guarantee some
+        # future service gets stranded) -- same hard-constraint principle as
+        # the capacity/conflict masking above, just extended one step
+        # further. Falls back to base_mask (not to all-False) if every
+        # currently-legal option turns out lethal, since presenting an
+        # empty mask right now would force an immediate violation that's
+        # strictly worse than keeping a "maybe still recoverable" option
+        # this narrow lookahead can't see past.
+        if not np.any(base_mask):
+            return base_mask
+        refined_mask = np.array(
+            [base_mask[j] and not self._lethal_after(j) for j in range(self.N)], dtype=bool
+        )
+        return refined_mask if np.any(refined_mask) else base_mask
 
     # ── observation ──────────────────────────────────────────────────────────
     def _obs(self) -> np.ndarray:
@@ -285,8 +377,13 @@ class P4Env(gym.Env):
         ru = 0.0 if violated else svc.requirement / (self.initial_vms[action] + 1e-8)
 
         # Phi(s) BEFORE this transition's mutations -- see step()'s tail for
-        # Phi(s') and the shaping term itself.
-        phi_s = -self._shaping_beta * self._bottleneck_risk()
+        # Phi(s') and the shaping term itself. v2.4.0 (2nd attempt): Phi
+        # swapped from _bottleneck_risk() (myopic, per-service, found to be
+        # a null-effect shaping signal across a 10-seed ablation) to
+        # 1-_ffd_feasibility() -- a joint, whole-remaining-subproblem risk
+        # estimate that catches cases the per-service check structurally
+        # cannot (see _ffd_feasibility()'s docstring).
+        phi_s = -self._shaping_beta * (1.0 - self._ffd_feasibility())
 
         self.remaining_vms[action] -= svc.requirement
         _was_empty = not self.ecu_placements[action]
@@ -339,11 +436,11 @@ class P4Env(gym.Env):
         # top of the terminal/zero reward above. beta=0.0 makes phi_s and
         # phi_s_next both identically 0.0, so shaping is an exact no-op --
         # this line is always safe to leave in regardless of _shaping_beta.
-        # Phi(terminal) = -beta*_bottleneck_risk() = -beta*0.0 = 0.0
+        # Phi(terminal) = -beta*(1-_ffd_feasibility()) = -beta*(1-1.0) = 0.0
         # (the self._step >= self.M branch), satisfying the Ng et al. 1999
         # requirement that the absorbing state's potential be zero, so the
         # optimal-policy-invariance guarantee holds exactly at any beta>=0.
-        phi_s_next = -self._shaping_beta * self._bottleneck_risk()
+        phi_s_next = -self._shaping_beta * (1.0 - self._ffd_feasibility())
         shaping = self._shaping_gamma * phi_s_next - phi_s
         reward += shaping
 
