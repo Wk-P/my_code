@@ -28,7 +28,7 @@ watch(
 </script>
 
 <template>
-  <a class="thumb-link" href="#/versions">&larr; back to version history</a>
+  <a class="back-btn" href="#/versions">&larr; Back to version history</a>
   <h1>{{ tag }}</h1>
 
   <div v-if="loading" class="empty">loading…</div>

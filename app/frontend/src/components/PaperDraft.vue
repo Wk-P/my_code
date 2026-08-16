@@ -28,7 +28,7 @@ function fmtGap(ilp, rl) {
 </script>
 
 <template>
-  <a class="thumb-link" href="#/">&larr; back to dashboard</a>
+  <a class="back-btn" href="#/">&larr; Back to dashboard</a>
 
   <article class="paper">
     <header class="paper-header">

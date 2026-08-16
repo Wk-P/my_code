@@ -63,10 +63,8 @@ onUnmounted(() => clearInterval(branchTimer));
   <PaperDraft v-else-if="isPaperRoute" />
 
   <template v-else-if="isVersionsIndexRoute">
-    <h1>
-      Version History
-      <a href="#/" class="branch-badge">&larr; back to dashboard</a>
-    </h1>
+    <a class="back-btn" href="#/">&larr; Back to dashboard</a>
+    <h1>Version History</h1>
     <div class="sub">Every git tag, newest first · summary from version/VERSION.md · click a row for the full version/vX.Y.Z.md doc when one exists</div>
     <VersionList />
   </template>
@@ -78,9 +76,23 @@ onUnmounted(() => clearInterval(branchTimer));
         {{ branch.current }}
       </span>
     </h1>
-    <a href="#/versions" class="version-history-btn">📜 Version History &rsaquo;</a>
-    <a href="#/paper" class="version-history-btn">📄 Paper Draft &rsaquo;</a>
     <div class="sub">Read-only view, does not affect any training process · auto-scanned from results/&lt;branch&gt;/&lt;scenario&gt;/&lt;algo&gt;/ · badge above tracks the checked-out branch, tabs below can browse any branch</div>
+
+    <div class="intro-card">
+      <h3>What am I looking at?</h3>
+      <p>
+        This is a read-only dashboard over <code>results/&lt;branch&gt;/&lt;scenario&gt;/&lt;algo&gt;/</code> —
+        it never starts, stops, or otherwise touches any training run. "Live Training Progress" below shows
+        any <code>run_all*.py</code> process currently running on this machine; "Results Summary" shows the
+        latest saved result per scenario/algo, click any row to drill into its full history and training
+        curve. Everything is scoped to the branch badge above — switch branches on disk (<code>git checkout</code>)
+        and this page picks it up automatically within a few seconds, no reload needed.
+      </p>
+      <div class="intro-nav">
+        <a href="#/versions">📜 Version History — every git tag's changelog</a>
+        <a href="#/paper">📄 Paper Draft — narrative writeup of the add_states findings</a>
+      </div>
+    </div>
 
     <h2>Live Training Progress</h2>
     <ProgressPanel />

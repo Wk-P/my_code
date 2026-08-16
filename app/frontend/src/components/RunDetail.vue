@@ -24,7 +24,7 @@ watch(
 </script>
 
 <template>
-  <a class="thumb-link" href="#/">&larr; back to dashboard</a>
+  <a class="back-btn" href="#/">&larr; Back to dashboard</a>
   <h1>{{ branch }} / {{ scenario }} / {{ row?.display_algo ?? algo }} / {{ run }}</h1>
 
   <div v-if="!row" class="empty">Run not found (or still loading).</div>
