@@ -142,6 +142,7 @@ class P4Callback(BaseCallback):
         self.episode_ars:     list[float] = []
         self.episode_placed:  list[int]   = []
         self.episode_valid_placed: list[int] = []
+        self.episode_success: list[bool]  = []
         self.timesteps_at_ep: list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
@@ -158,6 +159,7 @@ class P4Callback(BaseCallback):
                 self.episode_ars.append(float(info.get("ar", 0.0)))
                 self.episode_placed.append(int(info.get("services_placed", 0)))
                 self.episode_valid_placed.append(int(info.get("valid_placed", 0)))
+                self.episode_success.append(int(info.get("valid_placed", 0)) == C.M)
                 self.timesteps_at_ep.append(self.num_timesteps)
 
         if self.num_timesteps >= self._next_progress_step:
@@ -243,9 +245,17 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     ax1.grid(alpha=0.3)
 
     zero_viol = np.zeros_like(ts, dtype=float)
-    ax2.plot(ts, zero_viol, color="tomato",    alpha=0.6, linewidth=1.5, label="Cap viol rate (always 0 with masking)")
-    ax2.plot(ts, zero_viol, color="darkorange", alpha=0.6, linewidth=1.5, linestyle="--", label="Conflict viol rate (always 0 with masking)")
-    ax2.set_ylabel("Violation Rate", fontsize=11)
+    ax2.plot(ts, zero_viol, color="tomato",    alpha=0.4, linewidth=1.0, label="Cap viol rate (always 0 with masking)")
+    ax2.plot(ts, zero_viol, color="darkorange", alpha=0.4, linewidth=1.0, linestyle="--", label="Conflict viol rate (always 0 with masking)")
+    # Episode-level success rate (valid_placed==M, a bool, not the
+    # continuous valid_placed MEAN plotted in ax3 below) -- a mean close to
+    # M can hide a meaningful tail of episodes that fall short by a few, so
+    # this is the metric that actually answers "is training success_rate
+    # improving", not a proxy for it.
+    sm_s, off_s = moving_avg([float(s) for s in cb.episode_success], C.SMOOTH_W)
+    ax2.plot(ts[off_s:off_s+len(sm_s)], sm_s, color="mediumseagreen", linewidth=2,
+             label=f"episode success rate (smoothed w={C.SMOOTH_W})")
+    ax2.set_ylabel("Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3)
