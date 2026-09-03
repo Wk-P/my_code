@@ -282,7 +282,11 @@ class P4Env(gym.Env):
             if total_viol == 0:
                 reward = float(self.M) * (2.0 * self.ar - 1.0)
             else:
-                reward = -float(self.M) * (2.0 - self.valid_placed / float(self.M))
+                # v2.6.0: failure rescaled from [-2M,-M) to (-M,0] so it
+                # shares the same M-scale budget as success (-M,M] instead
+                # of dominating it 2x -- see scenarios/lt/ppo_mask/env.py's
+                # step() for the full rationale.
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
 

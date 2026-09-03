@@ -38,7 +38,7 @@ import torch
 import yaml
 import pulp
 from sb3_contrib import MaskablePPO
-from shared.adaptive_ppo import entropy_at, beta_at, PrunedMaskablePPO
+from shared.adaptive_ppo import entropy_at, beta_at, ar_weight_at, PrunedMaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -169,8 +169,17 @@ class P4Callback(BaseCallback):
             self.num_timesteps, C.TOTAL_STEPS,
             C.BOTTLENECK_SHAPING_WEIGHT_INIT, C.BOTTLENECK_SHAPING_WEIGHT_FINAL,
         )
+        # v2.7.0: anneal the AR-quality weight in the success-branch reward
+        # UP (0 -> 1) as training progresses -- opposite direction from
+        # beta's decay, see ar_weight_at()'s docstring.
+        ar_weight_ramp_steps = max(1, int(C.TOTAL_STEPS * C.AR_WEIGHT_RAMP_FRACTION))
+        current_ar_weight = ar_weight_at(
+            self.num_timesteps, ar_weight_ramp_steps,
+            C.AR_WEIGHT_INIT, C.AR_WEIGHT_FINAL,
+        )
         for env in self.training_env.envs:
             env.unwrapped._shaping_beta = current_beta
+            env.unwrapped._ar_weight = current_ar_weight
 
         for info in self.locals.get("infos", []):
             if "episode" in info:
@@ -244,6 +253,27 @@ def train_maskppo(ecus, services, device: str):
 # ══════════════════════════════════════════════════════════════════════════════
 #  Plotting
 # ══════════════════════════════════════════════════════════════════════════════
+
+def save_training_curve_csv(cb, outdir):
+    """Dump the raw per-episode training trajectory (not just the PNG) so the
+    curve's SHAPE can be checked quantitatively later -- e.g. is the
+    success-rate gain per training-progress decile shrinking (a converging,
+    diminishing-returns curve) or still roughly constant/growing (still
+    learning, or noise), instead of eyeballing head-vs-tail numbers only."""
+    path = outdir / "training_curve.csv"
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["timestep", "episode_ar", "episode_success", "episode_valid_placed", "episode_placed"])
+        for i in range(len(cb.timesteps_at_ep)):
+            writer.writerow([
+                cb.timesteps_at_ep[i],
+                round(cb.episode_ars[i], 6),
+                int(cb.episode_success[i]),
+                cb.episode_valid_placed[i],
+                cb.episode_placed[i],
+            ])
+    print(f"  Saved -> {path}")
+
 
 def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
@@ -502,6 +532,7 @@ def main():
     print(f"  CSV  saved -> {csv_path}")
 
     # Plots
+    save_training_curve_csv(cb, base_path)
     plot_training_curve(cb, ilp_ar, base_path, sc_name)
     plot_comparison(ilp_ar, ppo_res, 0.0, base_path, sc_name)
 

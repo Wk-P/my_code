@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import ProgressPanel from "./components/ProgressPanel.vue";
+import BatchProgressPanel from "./components/BatchProgressPanel.vue";
 import ExperimentTree from "./components/ExperimentTree.vue";
 import RunDetail from "./components/RunDetail.vue";
 import VersionList from "./components/VersionList.vue";
 import VersionDetail from "./components/VersionDetail.vue";
 import PaperDraft from "./components/PaperDraft.vue";
-import { getBranch } from "./api.js";
+import { getBranch, getBatches } from "./api.js";
 
 // #/run/<branch>/<scenario>/<algo>/<run> routes to a standalone run detail
 // page; anything else (including "" and "#/") shows the normal dashboard.
@@ -53,6 +54,23 @@ onMounted(() => {
   branchTimer = setInterval(loadBranch, 10000);
 });
 onUnmounted(() => clearInterval(branchTimer));
+
+// Auto-discovers every ad-hoc parallel batch under scripts/logs/ (see
+// app/backend/main.py's /api/batches) instead of hardcoding batch names
+// here — a new batch script (like scripts/gt_full_5M_rerun) shows up on its
+// own without a frontend change. Re-polled on the same cadence as branch
+// detection since a new batch can start at any time.
+const batchNames = ref([]);
+let batchesTimer = null;
+async function loadBatches() {
+  const { batches } = await getBatches();
+  batchNames.value = batches.map((b) => b.batch_name);
+}
+onMounted(() => {
+  loadBatches();
+  batchesTimer = setInterval(loadBatches, 10000);
+});
+onUnmounted(() => clearInterval(batchesTimer));
 </script>
 
 <template>
@@ -95,6 +113,7 @@ onUnmounted(() => clearInterval(branchTimer));
     </div>
 
     <h2>Live Training Progress</h2>
+    <BatchProgressPanel v-for="name in batchNames" :key="name" :batch-name="name" />
     <ProgressPanel />
 
     <h2>Results Summary</h2>

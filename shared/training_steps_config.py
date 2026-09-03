@@ -19,14 +19,34 @@ PROBLEM_TOTAL_STEPS: dict[str, int] = {
 }
 
 # Per-(scenario, algorithm) overrides — takes precedence over PROBLEM_TOTAL_STEPS.
-# lt's training curve (valid_placed/ep, added in v1.2.0) shows it hadn't
-# plateaued yet at 2M steps -- still trending up when training cut off,
-# unlike the Episode AR curve which plateaus early and misleadingly looks
-# "done". eq/gt already hit 100% success_rate at 2M, so only lt needs the
-# longer budget back.
+#
+# IMPORTANT: steps must stay uniform ACROSS ALGORITHMS WITHIN one scenario --
+# a controlled cross-algorithm comparison table is meaningless if some
+# algorithms in it got more training budget than others (you can no longer
+# tell whether a gap is the algorithm or the step count). lt is 5M for every
+# algorithm listed below AND for ppo/ppo_opt/dqn/ddqn via explicit
+# `--total-timesteps 5000000` in scripts/lt_other_algos_5seed.sh -- this dict
+# only shows ppo_mask/ppo_lagrangian because those two are launched through
+# run_all.py's own default (no CLI override), not because the other four run
+# at a different budget.
+#
+# 2026-09-04: gt/dqn and gt/ddqn's eq_gt_migration_5seed batch showed they
+# hadn't converged at 2M (Episode AR still trending up, conflict violation
+# rate still trending down at the cutoff), unlike gt/ppo and
+# gt/ppo_lagrangian which plateau by ~500k. Per the uniform-budget rule
+# above, the fix is to move ALL of gt's algorithms to 5M together, not just
+# the two that individually looked unconverged -- mirrors how lt did it.
+# eq is left at 2M: all five of its algorithms are confirmed converged
+# there, so there's no unconverged outlier forcing eq's budget up.
 SCENARIO_TOTAL_STEPS: dict[tuple[str, str], int] = {
     ("lt", "ppo_mask"): 5_000_000,
     ("lt", "ppo_lagrangian"): 5_000_000,
+    ("gt", "ppo_mask"): 5_000_000,
+    ("gt", "ppo_lagrangian"): 5_000_000,
+    ("gt", "ppo"): 5_000_000,
+    ("gt", "ppo_opt"): 5_000_000,
+    ("gt", "dqn"): 5_000_000,
+    ("gt", "ddqn"): 5_000_000,
 }
 
 

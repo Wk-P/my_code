@@ -205,7 +205,10 @@ class DDQNEnv(gym.Env):
         total_viol = self.capacity_violations + self.conflict_violations
         step_reward = ru / max(_active, 1)
         if done:
-            reward = float(self.M) if total_viol == 0 else -float(self.M)
+            if total_viol == 0:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
         return self._obs(), reward, done, False, {

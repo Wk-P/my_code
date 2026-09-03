@@ -126,6 +126,7 @@ class P3Callback(BaseCallback):
         self.episode_cap_viol_rates  : list[float] = []
         self.episode_conf_viol_rates : list[float] = []
         self.episode_placed          : list[int]   = []
+        self.episode_success         : list[bool]  = []
         self.timesteps_at_ep         : list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
@@ -141,6 +142,11 @@ class P3Callback(BaseCallback):
                 self.episode_cap_viol_rates.append(info.get("capacity_violations", 0) / C.M)
                 self.episode_conf_viol_rates.append(info.get("conflict_violations", 0) / C.M)
                 self.episode_placed.append(int(info.get("services_placed", 0)))
+                self.episode_success.append(bool(
+                    int(info.get("valid_placed", 0)) == C.M
+                    and int(info.get("capacity_violations", 0)) == 0
+                    and int(info.get("conflict_violations", 0)) == 0
+                ))
                 self.timesteps_at_ep.append(self.num_timesteps)
 
         if self.num_timesteps >= self._next_progress_step:
@@ -201,6 +207,23 @@ def train_ppo(ecus, services, device: str) -> tuple[PPO, P3Callback]:
 #  Plotting
 # ══════════════════════════════════════════════════════════════════════════════
 
+def save_training_curve_csv(cb: P3Callback, outdir: Path):
+    """Dump the raw per-episode training trajectory (not just the PNG) so the
+    curve's SHAPE can be checked quantitatively later."""
+    path = outdir / "training_curve.csv"
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["timestep", "episode_ar", "episode_success", "episode_placed"])
+        for i in range(len(cb.timesteps_at_ep)):
+            writer.writerow([
+                cb.timesteps_at_ep[i],
+                round(cb.episode_ars[i], 6),
+                int(cb.episode_success[i]),
+                cb.episode_placed[i],
+            ])
+    print(f"  Saved -> {path}")
+
+
 def plot_training_curve(cb: P3Callback, ilp_ar: float, outdir: Path, scenario_name: str):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     ts = np.array(cb.timesteps_at_ep)
@@ -223,7 +246,10 @@ def plot_training_curve(cb: P3Callback, ilp_ar: float, outdir: Path, scenario_na
     ax2.plot(ts, cb.episode_conf_viol_rates, color="darkorange", alpha=0.15, linewidth=0.6)
     ax2.plot(ts[off_cap:off_cap+len(sm_cap)],   sm_cap,  color="tomato",    linewidth=2, label="Cap viol rate (smoothed)")
     ax2.plot(ts[off_conf:off_conf+len(sm_conf)], sm_conf, color="darkorange", linewidth=2, label="Conflict viol rate (smoothed)")
-    ax2.set_ylabel("Violation Rate", fontsize=11)
+    sm_s, off_s = moving_avg([float(s) for s in cb.episode_success], C.SMOOTH_W)
+    ax2.plot(ts[off_s:off_s+len(sm_s)], sm_s, color="mediumseagreen", linewidth=2,
+             label=f"episode success rate (smoothed w={C.SMOOTH_W})")
+    ax2.set_ylabel("Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.05)
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3)
@@ -450,6 +476,7 @@ def main():
             int(np.sum(ppo_res["conflict_viols"])),
         ])
     print(f"  CSV  saved → {csv_path}")
+    save_training_curve_csv(cb, run_dir)
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
     plot_comparison(ilp_ar, ppo_res, p_v, p_v_std, run_dir, sc_name)
 

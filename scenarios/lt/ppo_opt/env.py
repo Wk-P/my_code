@@ -260,7 +260,13 @@ class P6Env(gym.Env):
         step_reward = ru / max(_active, 1)
         if done:
             success = not (self.episode_has_cap_violation or self.episode_has_conflict_violation)
-            reward = float(self.M) if success else -float(self.M)
+            # Ported from scenarios/lt/ppo_mask/env.py (v2.6.0): graded
+            # AR-quality success reward + graded-by-completion failure
+            # penalty, instead of flat +M/-M.
+            if success:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
         info = {

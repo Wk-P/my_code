@@ -116,6 +116,7 @@ class DQNCallback(BaseCallback):
         self.episode_violated:     list[int]   = []
         self.episode_cap_violated:  list[int]  = []
         self.episode_conf_violated: list[int]  = []
+        self.episode_success:      list[bool]  = []
         self.timesteps_at_ep:      list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
         self._t_start = 0.0
@@ -134,6 +135,11 @@ class DQNCallback(BaseCallback):
                 self.episode_violated.append(1 if (cap_viols + conf_viols) > 0 else 0)
                 self.episode_cap_violated.append(1 if cap_viols > 0 else 0)
                 self.episode_conf_violated.append(1 if conf_viols > 0 else 0)
+                self.episode_success.append(bool(
+                    int(info.get("valid_placed", 0)) == C.M
+                    and cap_viols == 0
+                    and conf_viols == 0
+                ))
                 self.timesteps_at_ep.append(self.num_timesteps)
 
         if self.num_timesteps >= self._next_progress_step:
@@ -202,6 +208,23 @@ def train_dqn(ecus, services, device: str):
 #  Plotting
 # ══════════════════════════════════════════════════════════════════════════════
 
+def save_training_curve_csv(cb, outdir):
+    """Dump the raw per-episode training trajectory (not just the PNG) so the
+    curve's SHAPE can be checked quantitatively later."""
+    path = outdir / "training_curve.csv"
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["timestep", "episode_ar", "episode_success", "episode_placed"])
+        for i in range(len(cb.timesteps_at_ep)):
+            writer.writerow([
+                cb.timesteps_at_ep[i],
+                round(cb.episode_ars[i], 6),
+                int(cb.episode_success[i]),
+                cb.episode_placed[i],
+            ])
+    print(f"  Saved -> {path}")
+
+
 def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     ts = np.array(cb.timesteps_at_ep)
@@ -226,6 +249,9 @@ def plot_training_curve(cb, ilp_ar, outdir, scenario_name):
     ax2.plot(ts, conf_rate, color="darkorange", alpha=0.15, linewidth=0.6)
     ax2.plot(ts[off_cap:off_cap+len(sm_cap)],   sm_cap,  color="tomato",    linewidth=2, label="Cap viol rate (smoothed)")
     ax2.plot(ts[off_conf:off_conf+len(sm_conf)], sm_conf, color="darkorange", linewidth=2, label="Conflict viol rate (smoothed)")
+    sm_s, off_s = moving_avg([float(s) for s in cb.episode_success], C.SMOOTH_W)
+    ax2.plot(ts[off_s:off_s+len(sm_s)], sm_s, color="mediumseagreen", linewidth=2,
+             label=f"episode success rate (smoothed w={C.SMOOTH_W})")
     ax2.set_ylabel("Violation Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.1)
     ax2.legend(fontsize=9)
@@ -454,6 +480,7 @@ def main():
             int(np.sum(dqn_res["conflict_viols"])),
         ])
     print(f"  CSV  saved -> {csv_path}")
+    save_training_curve_csv(cb, base_dir)
 
     plot_training_curve(cb, ilp_ar, base_dir, sc_name)
     plot_comparison(ilp_ar, dqn_res, dqn_train_v, dqn_train_v_std, base_dir, sc_name)

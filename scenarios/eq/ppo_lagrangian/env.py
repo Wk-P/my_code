@@ -248,7 +248,10 @@ class LagrangeEnv(gym.Env):
         cap_penalty    = -2.0 if cap_violated else 0.0
         base_penalty   = 0.2
         if done:
-            reward = float(self.M) if self.episode_violations == 0 else -float(self.M)
+            if self.episode_violations == 0:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
 

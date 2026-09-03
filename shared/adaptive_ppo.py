@@ -45,6 +45,29 @@ def entropy_at(step: int, total_steps: int, init: float, final: float) -> float:
     return _linear_anneal(step, total_steps, init, final)
 
 
+def ar_weight_at(step: int, total_steps: int, init: float, final: float) -> float:
+    """Linear anneal for how much of the success-branch reward depends on AR
+    quality vs. a flat completion bonus (P4Env's step(), success branch).
+
+    reward_success = M * [ (1-w)*1.0 + w*(2*ar-1) ], w = ar_weight_at(...)
+
+    At w=0: reward_success = M flat -- any valid completion scores the same
+    regardless of packing efficiency, so early training (policy near-random,
+    most likely to dead-end) gets a pure "learn to not fail" signal with
+    zero AR-quality noise mixed in. At w=1: reward_success = M*(2*ar-1), the
+    original v2.4.0/v2.6.0 formula -- once the policy reliably completes
+    placements, the AR-quality gradient reactivates and rewards squeezing
+    more utilization out of an already-successful placement.
+
+    Same anneal-in-not-anneal-out direction as entropy_at (init low, final
+    high) rather than beta_at's decay, because unlike bottleneck shaping
+    (a distraction to phase out), the AR term is the actual secondary
+    objective we want fully active by the end of training, not a scaffold
+    to remove.
+    """
+    return _linear_anneal(step, total_steps, init, final)
+
+
 def beta_at(step: int, total_steps: int, init: float, final: float) -> float:
     """Linear anneal for the bottleneck_risk potential-shaping weight
     (P4Env's `bottleneck_shaping_weight`), same schedule shape as

@@ -227,7 +227,17 @@ class P3Env(gym.Env):
         step_reward = ru / max(_active, 1)
         total_viol = self.capacity_violations + self.conflict_violations
         if done:
-            reward = float(self.M) if total_viol == 0 else -float(self.M)
+            # Ported from scenarios/lt/ppo_mask/env.py (v2.6.0): graded
+            # AR-quality success reward + graded-by-completion failure
+            # penalty, instead of flat +M/-M. P3 has no action masking, so
+            # violations aren't structurally prevented here the way they are
+            # in P4 -- this alone won't fix success_rate staying near 0
+            # (see project memory: v1.1.0 sparse reward), it just carries
+            # the same graded-reward idea over for a fair comparison.
+            if total_viol == 0:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
         info = {

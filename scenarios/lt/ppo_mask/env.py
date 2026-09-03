@@ -83,6 +83,12 @@ class P4Env(gym.Env):
         # strict no-op (F=0 identically), so existing callers are unaffected.
         self._shaping_beta = float(bottleneck_shaping_weight)
         self._shaping_gamma = float(gamma)
+        # v2.7.0: how much of the success-branch reward depends on AR quality
+        # vs. a flat completion bonus, annealed by the training callback via
+        # shared.adaptive_ppo.ar_weight_at() (see step()'s success branch).
+        # Defaults to 1.0 (= the plain M*(2*ar-1) formula) so any caller that
+        # doesn't touch this attribute (eval, older scripts) is unaffected.
+        self._ar_weight = 1.0
 
         self.action_space = gym.spaces.Discrete(self.N)
         self.observation_space = gym.spaces.Box(
@@ -426,9 +432,27 @@ class P4Env(gym.Env):
             # (a violated step never increments valid_placed), so this
             # branch tops out at -M*(1+1/M) < -M, below any ar>0 success.
             if total_viol == 0:
-                reward = float(self.M) * (2.0 * self.ar - 1.0)
+                # v2.7.0: blend a flat completion bonus (+M regardless of ar)
+                # with the AR-quality bonus M*(2*ar-1), weighted by
+                # self._ar_weight (0=pure completion signal, 1=original
+                # formula). Early training (w near 0) rewards "did you
+                # finish" with zero AR-quality noise; once the policy
+                # reliably completes placements the callback anneals w -> 1
+                # and the AR gradient reactivates. w=1.0 always reduces to
+                # the pre-v2.7.0 formula exactly.
+                w = self._ar_weight
+                reward = float(self.M) * ((1.0 - w) * 1.0 + w * (2.0 * self.ar - 1.0))
             else:
-                reward = -float(self.M) * (2.0 - self.valid_placed / float(self.M))
+                # v2.6.0 (untried in v2.5.0's 5-round ablation): failure used
+                # to span [-2M,-M) -- TWICE the magnitude of success's (-M,M]
+                # -- structurally teaching the policy that avoiding failure
+                # matters more than AR quality once "safely" above the
+                # success threshold. Rescaled to (-M,0] so failure and
+                # success share the same M-scale budget instead of failure
+                # dominating by 2x. Still strictly worse than any success:
+                # worst-case failure (valid_placed=0) bottoms out at -M,
+                # matched only in the limit by success's unreachable ar->0.
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
 

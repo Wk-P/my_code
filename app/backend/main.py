@@ -13,6 +13,8 @@ Serves:
   GET  /api/results/{scenario}/{algo}/{run}/{file}    training_curve.png / comparison.png
   GET  /api/history/{scenario}/{algo}                 all historical runs for one algo
   GET  /api/progress                                  live training progress per scenario
+  GET  /api/batches                                    auto-discovered ad-hoc batch names under scripts/logs/
+  GET  /api/batch_progress/{batch_name}                per-run status/results for one ad-hoc batch
   GET  /api/branch                                    current git branch + whether it has BC support
   GET  /api/system                                    CPU/load info, grouped by pinned core range
   GET  /                                              single-page dashboard (vanilla JS, no build step)
@@ -544,6 +546,116 @@ def get_progress():
 
         result[scenario] = entry
     return result
+
+
+BATCH_LOG_DIR_RE = re.compile(
+    r"^(?P<scenario>eq|gt|lt)_(?P<algo>\w+)_(?P<steps>\d+)_seed(?P<seed>\d+)_(?P<exp_id>[0-9a-f]+)\.log$"
+)
+
+
+@app.get("/api/batches")
+def list_batches():
+    """Auto-discovers every ad-hoc batch under scripts/logs/ so the frontend
+    doesn't need a hardcoded, ever-growing list of batch names — any
+    subdirectory containing at least one log file matching
+    BATCH_LOG_DIR_RE counts as a batch. Sorted by most-recently-modified log
+    file first (newest/most relevant batch on top)."""
+    logs_root = PROJECT_ROOT / "scripts" / "logs"
+    if not logs_root.is_dir():
+        return {"batches": []}
+    batches = []
+    for d in logs_root.iterdir():
+        if not d.is_dir():
+            continue
+        log_files = [f for f in d.glob("*.log") if BATCH_LOG_DIR_RE.match(f.name)]
+        if not log_files:
+            continue
+        latest_mtime = max(f.stat().st_mtime for f in log_files)
+        batches.append({"batch_name": d.name, "last_updated": latest_mtime, "run_count": len(log_files)})
+    batches.sort(key=lambda b: b["last_updated"], reverse=True)
+    return {"batches": batches}
+
+
+@app.get("/api/batch_progress/{batch_name}")
+def get_batch_progress(batch_name: str):
+    """Progress view for an ad-hoc parallel batch launched by a script like
+    scripts/<batch_name>.sh (e.g. eq_gt_migration_5seed), whose runs don't fit
+    /api/progress's "one sequential process per scenario" assumption: many
+    algos x many seeds run concurrently, each with its own exp_id, so
+    "N/6 models done" is meaningless here — this counts run completion
+    (results.json written) per (scenario, algo, seed) instead, which is
+    unambiguous regardless of how many processes are running at once.
+
+    Reads scripts/logs/<batch_name>/*.log filenames (written by the launch
+    script itself, see e.g. scripts/eq_gt_migration_5seed.sh) as the source
+    of truth for "which runs belong to this batch" — no manifest file
+    required, so this stays accurate even mid-launch while new runs are
+    still being started."""
+    log_dir = PROJECT_ROOT / "scripts" / "logs" / batch_name
+    if not log_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"no such batch log dir: {log_dir}")
+
+    # Elapsed time since the batch's first run was launched, taken from the
+    # oldest log file's ctime (each run's log is created the moment its
+    # process is spawned — see e.g. scripts/eq_gt_migration_5seed.sh's
+    # launch()). st_ctime on Linux is "inode change time", which for a
+    # freshly-created file is its creation time — good enough here since
+    # these log files are never touched again after creation.
+    log_ctimes = [f.stat().st_ctime for f in log_dir.glob("*.log")]
+    batch_started_at = min(log_ctimes) if log_ctimes else None
+    elapsed_seconds = (time.time() - batch_started_at) if batch_started_at else None
+
+    procs = _ps_snapshot()
+    live_scenario_algo = {_match_scenario_algo(p["cmd"], p["pid"]) for p in procs}
+    results_root = _results_root()
+
+    runs = []
+    for log_file in sorted(log_dir.glob("*.log")):
+        m = BATCH_LOG_DIR_RE.match(log_file.name)
+        if not m:
+            continue
+        scenario, algo, seed, exp_id = m["scenario"], m["algo"], m["seed"], m["exp_id"]
+        run_dir = results_root / scenario / algo / exp_id
+        results_path = run_dir / "results.json"
+        done = results_path.is_file()
+        running = (not done) and (scenario, algo) in live_scenario_algo
+        run = {
+            "scenario": scenario, "algo": algo, "seed": int(seed), "exp_id": exp_id,
+            "status": "done" if done else ("running" if running else "queued"),
+        }
+        if done:
+            # results.json nests the method's metrics under a method-specific
+            # key that varies per algo (e.g. "ppo", "lagrange_ppo",
+            # "maskable_ppo", "dqn", "ddqn") — pull whichever sub-dict has
+            # ar_mean instead of hardcoding one key per algo.
+            try:
+                payload = json.loads(results_path.read_text())
+                metrics = next(
+                    (v for v in payload.values() if isinstance(v, dict) and "ar_mean" in v),
+                    None,
+                )
+                if metrics:
+                    run["ar_mean"] = metrics.get("ar_mean")
+                    run["success_rate"] = metrics.get("success_rate")
+            except (json.JSONDecodeError, OSError):
+                pass
+        runs.append(run)
+
+    by_scenario: dict[str, dict] = {}
+    for r in runs:
+        sc = by_scenario.setdefault(r["scenario"], {"runs": [], "done": 0, "running": 0, "queued": 0})
+        sc["runs"].append(r)
+        sc[r["status"]] += 1
+
+    total_done = sum(1 for r in runs if r["status"] == "done")
+    return {
+        "batch_name": batch_name,
+        "total_runs": len(runs),
+        "done": total_done,
+        "overall_pct": round(100.0 * total_done / len(runs), 1) if runs else 0.0,
+        "elapsed_seconds": round(elapsed_seconds, 1) if elapsed_seconds is not None else None,
+        "by_scenario": by_scenario,
+    }
 
 
 @app.get("/", response_class=HTMLResponse)

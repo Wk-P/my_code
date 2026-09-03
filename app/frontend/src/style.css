@@ -202,6 +202,51 @@ a.run-id { text-decoration: none; }
 .bar-fill.eq { background: var(--accent-eq); }
 .bar-fill.gt { background: var(--accent-gt); }
 .bar-fill.lt { background: var(--accent-lt); }
+.bar-fill.batch { background: #8b5cf6; }
+
+/* ── Batch progress panel (ad-hoc parallel multi-seed launches, e.g.
+   scripts/eq_gt_migration_5seed.sh) — distinct from progress-card above,
+   which assumes one sequential process per scenario. This shows run-level
+   (scenario, algo, seed) completion instead, since many runs are alive
+   at once and only "results.json written" is an unambiguous done signal. */
+.batch-panel { padding: var(--space-4); margin-bottom: var(--space-4); }
+.batch-panel .title { font-weight: 700; font-size: 0.95rem; margin-bottom: var(--space-2); }
+.batch-elapsed {
+  font-family: var(--font-mono); font-weight: 600; font-size: 0.82rem; color: var(--text-dim);
+  margin-left: var(--space-2);
+}
+.batch-scenario-block { margin-top: var(--space-3); }
+.batch-scenario-label {
+  font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-dim); margin-bottom: var(--space-1);
+}
+.batch-algo-name { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); white-space: nowrap; }
+.batch-seed-dot {
+  width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border-soft);
+  font-size: 0; flex-shrink: 0; display: inline-block;
+}
+.batch-seed-dot--done { background: #22c55e; border-color: #22c55e; }
+.batch-seed-dot--running { background: #f59e0b; border-color: #f59e0b; animation: batch-pulse 1.4s ease-in-out infinite; }
+.batch-seed-dot--queued { background: var(--bg-elevated); }
+@keyframes batch-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.batch-legend { display: flex; gap: var(--space-3); font-size: 0.72rem; color: var(--text-faint); margin-top: var(--space-2); flex-wrap: wrap; }
+.batch-legend-item { display: flex; align-items: center; gap: 4px; }
+
+.batch-table { width: 100%; border-collapse: collapse; margin-bottom: var(--space-3); font-size: 0.78rem; }
+.batch-table th {
+  text-align: left; padding: 4px 8px; color: var(--text-faint); font-weight: 600;
+  border-bottom: 1px solid var(--border-soft); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.batch-table td { padding: 4px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+.batch-cell { white-space: nowrap; }
+.batch-cell-status {
+  display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 0.68rem;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; margin-right: 6px;
+}
+.batch-cell-status--done { background: #14532d; color: #4ade80; }
+.batch-cell-status--running { background: #78350f; color: #fbbf24; }
+.batch-cell-status--queued { background: var(--bg-elevated); color: var(--text-faint); }
+.batch-cell-metric { color: var(--text-dim); margin-right: 8px; font-family: var(--font-mono); }
 .log-tail {
   background: var(--bg); border-radius: var(--radius-md); margin-top: var(--space-3);
   border: 1px solid var(--border-soft); overflow: hidden;

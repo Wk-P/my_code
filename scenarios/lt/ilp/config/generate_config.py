@@ -107,7 +107,7 @@ def write_config(scenarios: list, filename: str) -> None:
 
 if __name__ == "__main__":
     random.seed(SEED)
-    n_total = 200
+    n_total = 2000
     print(f"Generating {n_total} scenarios, all feasible ...")
     scenarios = [generate_feasible(i + 1) for i in range(n_total)]
     random.shuffle(scenarios)

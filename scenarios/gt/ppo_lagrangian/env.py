@@ -230,7 +230,10 @@ class LagrangeEnv(gym.Env):
         match_gain     = float(ru)  # no capacity penalty since mask enforces it
         base_penalty   = 0.2
         if done:
-            reward = float(self.M) if self.episode_violations == 0 else -float(self.M)
+            if self.episode_violations == 0:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
 

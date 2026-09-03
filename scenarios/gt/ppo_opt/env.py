@@ -242,7 +242,10 @@ class P6Env(gym.Env):
         done = self._step >= self.M
         if done:
             success = not (self.episode_has_cap_violation or self.episode_has_conflict_violation)
-            reward = float(self.M) if success else -float(self.M)
+            if success:
+                reward = float(self.M) * (2.0 * self.ar - 1.0)
+            else:
+                reward = -float(self.M) * (1.0 - self.valid_placed / float(self.M))
         else:
             reward = 0.0
         return self._obs(), reward, done, False, {

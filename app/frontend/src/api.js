@@ -9,6 +9,18 @@ export async function getProgress() {
   return res.json();
 }
 
+export async function getBatchProgress(batchName) {
+  const res = await fetch(`/api/batch_progress/${encodeURIComponent(batchName)}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getBatches() {
+  const res = await fetch("/api/batches");
+  if (!res.ok) return { batches: [] };
+  return res.json();
+}
+
 export async function getHistory(scenario, algo, branch) {
   const url = branch
     ? `/api/history/${scenario}/${algo}?branch=${encodeURIComponent(branch)}`

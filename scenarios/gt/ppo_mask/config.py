@@ -43,9 +43,15 @@ import random as _random
 _rng = _random.Random(SEED)
 _idxs = list(range(len(SCENARIOS)))
 _rng.shuffle(_idxs)
-_n_train = int(0.8 * len(SCENARIOS))
+_n_train_default = int(0.8 * len(SCENARIOS))
+# TRAIN_SCENARIO_COUNT lets an experiment shrink the training set to study
+# whether more training scenarios helps, while TEST_SCENARIOS (the last 20%
+# of the SEED-shuffled pool) stays fixed regardless, so results across
+# different counts stay comparable against the same held-out set.
+_n_train = int(os.environ.get("TRAIN_SCENARIO_COUNT", _n_train_default))
+_n_train = min(_n_train, _n_train_default)
 TRAIN_SCENARIOS = [SCENARIOS[i] for i in _idxs[:_n_train]]
-TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train:]]
+TEST_SCENARIOS  = [SCENARIOS[i] for i in _idxs[_n_train_default:]]
 
 DEVICE      = "auto"
 N_ENVS      = 40

@@ -139,7 +139,16 @@ def solve_ilp_all_scenarios(yaml_config: Path, scenarios: list, outdir: Path):
     """
     from ilp.objects import ECU, SVC
 
-    cache_key = f"{yaml_config.name}__n{len(scenarios)}"
+    # Must actually depend on scenario CONTENT, not just count: different
+    # seeds shuffle TRAIN_SCENARIOS/TEST_SCENARIOS differently but land on
+    # the same len(scenarios) (e.g. 400 test scenarios regardless of seed),
+    # so a count-only key collides across seeds and one seed's ILP baseline
+    # silently gets reused for a completely different scenario set —
+    # corrupting every AR-gap comparison that hits the collision. Also
+    # caused a hard crash under concurrent multi-seed runs (two processes
+    # racing on the same cache file/tmp path).
+    scenarios_fingerprint = content_hash(repr(scenarios))
+    cache_key = f"{yaml_config.name}__n{len(scenarios)}__{scenarios_fingerprint}"
 
     def _load_cache(path):
         try:

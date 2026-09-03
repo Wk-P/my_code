@@ -166,6 +166,8 @@ class LagrangeCallback(BaseCallback):
         self.episode_cap_viol_rates:  list[float] = []
         self.episode_conf_viol_rates: list[float] = []
         self.episode_placed:          list[int]   = []
+        self.episode_valid_placed:    list[int]   = []
+        self.episode_success:         list[bool]  = []
         self.episode_lambdas:         list[float] = []
         self.timesteps_at_ep:         list[int]   = []
         self._next_progress_step = C.PROGRESS_LOG_EVERY_STEPS
@@ -189,6 +191,13 @@ class LagrangeCallback(BaseCallback):
             self.episode_cap_viol_rates.append(info.get("cap_violations", 0) / C.M)
             self.episode_conf_viol_rates.append(info.get("conflict_violations", 0) / C.M)
             self.episode_placed.append(int(info.get("services_placed", 0)))
+            valid_placed = int(info.get("valid_placed", 0))
+            self.episode_valid_placed.append(valid_placed)
+            self.episode_success.append(bool(
+                valid_placed == C.M
+                and int(info.get("cap_violations", 0)) == 0
+                and int(info.get("conflict_violations", 0)) == 0
+            ))
             self.episode_lambdas.append(self.lambda_val)
             self.timesteps_at_ep.append(self.num_timesteps)
 
@@ -270,6 +279,24 @@ def train_lagrange(device: str, n_envs: int = 1):
 #  Plotting helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
+def save_training_curve_csv(cb: LagrangeCallback, outdir: Path):
+    """Dump the raw per-episode training trajectory (not just the PNG) so the
+    curve's SHAPE can be checked quantitatively later."""
+    path = outdir / "training_curve.csv"
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["timestep", "episode_ar", "episode_success", "episode_valid_placed", "episode_placed"])
+        for i in range(len(cb.timesteps_at_ep)):
+            writer.writerow([
+                cb.timesteps_at_ep[i],
+                round(cb.episode_ars[i], 6),
+                int(cb.episode_success[i]),
+                cb.episode_valid_placed[i],
+                cb.episode_placed[i],
+            ])
+    print(f"  Saved -> {path}")
+
+
 def plot_training_curve(cb: LagrangeCallback, ilp_ar: float,
                         outdir: Path, scenario_name: str):
     ts  = np.array(cb.timesteps_at_ep)
@@ -303,7 +330,10 @@ def plot_training_curve(cb: LagrangeCallback, ilp_ar: float,
     ax2.plot(ts, conf_rates, color="darkorange", alpha=0.15, linewidth=0.6)
     ax2.plot(ts[off_cap:off_cap+len(sm_cap)],   sm_cap,  color="tomato",    linewidth=2, label="Cap viol rate (smoothed)")
     ax2.plot(ts[off_conf:off_conf+len(sm_conf)], sm_conf, color="darkorange", linewidth=2, label="Conflict viol rate (smoothed)")
-    ax2.set_ylabel("Violation Rate", fontsize=11)
+    sm_s, off_s = moving_avg([float(s) for s in cb.episode_success], C.SMOOTH_W)
+    ax2.plot(ts[off_s:off_s+len(sm_s)], sm_s, color="mediumseagreen", linewidth=2,
+             label=f"episode success rate (smoothed w={C.SMOOTH_W})")
+    ax2.set_ylabel("Rate", fontsize=11)
     ax2.set_ylim(-0.05, 1.1)
     ax2.legend(fontsize=9, loc="upper right")
     ax2.grid(alpha=0.3)
@@ -533,6 +563,7 @@ def main():
     print(f"  CSV  saved -> {csv_path}")
 
     # Plots
+    save_training_curve_csv(cb, run_dir)
     plot_training_curve(cb, ilp_ar, run_dir, sc_name)
     plot_comparison(ilp_ar, ppo_res, ppo_train_viol, ppo_train_viol_std, run_dir, sc_name)
 

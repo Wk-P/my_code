@@ -1,0 +1,57 @@
+{
+  "model": "/home/soar009/github/my_code/results/paper-verfication/lt/ppo_mask/e251a0fb_bc/model_e251a0fb_bc_v2.1.0",
+  "best_of_n": 8,
+  "groups": [
+    {
+      "group": 1,
+      "seed": 9000,
+      "size": 100,
+      "ilp_ar_mean": 0.731853,
+      "ilp_ar_std": 0.069901,
+      "rl_success_rate": 0.64,
+      "rl_ar_mean": 0.643997,
+      "rl_ar_std": 0.069136,
+      "rl_attempts_mean": 4.24,
+      "best_of_n": 8
+    },
+    {
+      "group": 2,
+      "seed": 109000,
+      "size": 100,
+      "ilp_ar_mean": 0.746187,
+      "ilp_ar_std": 0.069817,
+      "rl_success_rate": 0.54,
+      "rl_ar_mean": 0.651435,
+      "rl_ar_std": 0.077537,
+      "rl_attempts_mean": 4.65,
+      "best_of_n": 8
+    },
+    {
+      "group": 3,
+      "seed": 209000,
+      "size": 100,
+      "ilp_ar_mean": 0.761744,
+      "ilp_ar_std": 0.068459,
+      "rl_success_rate": 0.62,
+      "rl_ar_mean": 0.670586,
+      "rl_ar_std": 0.068037,
+      "rl_attempts_mean": 4.04,
+      "best_of_n": 8
+    },
+    {
+      "group": 4,
+      "seed": 309000,
+      "size": 100,
+      "ilp_ar_mean": 0.744079,
+      "ilp_ar_std": 0.066908,
+      "rl_success_rate": 0.58,
+      "rl_ar_mean": 0.656364,
+      "rl_ar_std": 0.060988,
+      "rl_attempts_mean": 4.25,
+      "best_of_n": 8
+    }
+  ],
+  "overall_rl_success_rate": 0.595,
+  "overall_ilp_ar_mean": 0.745966,
+  "overall_rl_ar_mean": 0.655595
+}

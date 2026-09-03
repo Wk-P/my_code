@@ -47,9 +47,15 @@ import random as _random
 _rng = _random.Random(SEED)
 _idxs = list(range(len(FEASIBLE_SCENARIOS)))
 _rng.shuffle(_idxs)
-_n_train = int(0.8 * len(FEASIBLE_SCENARIOS))
+_n_train_default = int(0.8 * len(FEASIBLE_SCENARIOS))
+# TRAIN_SCENARIO_COUNT lets an experiment shrink the training set to study
+# whether more training scenarios helps, while TEST_SCENARIOS (the last 20%
+# of the SEED-shuffled pool) stays fixed regardless, so results across
+# different counts stay comparable against the same held-out set.
+_n_train = int(os.environ.get("TRAIN_SCENARIO_COUNT", _n_train_default))
+_n_train = min(_n_train, _n_train_default)
 TRAIN_SCENARIOS = [FEASIBLE_SCENARIOS[i] for i in _idxs[:_n_train]]
-TEST_SCENARIOS  = [FEASIBLE_SCENARIOS[i] for i in _idxs[_n_train:]]
+TEST_SCENARIOS  = [FEASIBLE_SCENARIOS[i] for i in _idxs[_n_train_default:]]
 
 DEVICE      = "auto"
 N_ENVS      = 40
@@ -94,6 +100,23 @@ ADV_PRUNE_WEIGHT   = float(os.environ.get("ADV_PRUNE_WEIGHT", "1.0"))
 # (exact no-op, preserves pre-v2.4.0 behaviour).
 BOTTLENECK_SHAPING_WEIGHT_INIT  = float(os.environ.get("BOTTLENECK_SHAPING_WEIGHT_INIT", "0.0"))
 BOTTLENECK_SHAPING_WEIGHT_FINAL = float(os.environ.get("BOTTLENECK_SHAPING_WEIGHT_FINAL", "0.0"))
+# v2.7.0: weight on AR quality within the success-branch reward (P4Env.step,
+# see shared/adaptive_ppo.py::ar_weight_at). Annealed init->final RISING
+# (opposite direction from bottleneck shaping) -- 0.0 = pure "did you
+# complete the placement" signal, 1.0 = original M*(2*ar-1) formula.
+# Default 0.0->1.0: early training ignores AR entirely (pure success
+# signal), full AR-quality gradient only kicks in once training is mostly
+# done. Set both to 1.0 to reproduce the pre-v2.7.0 behaviour exactly.
+AR_WEIGHT_INIT  = float(os.environ.get("AR_WEIGHT_INIT", "0.0"))
+AR_WEIGHT_FINAL = float(os.environ.get("AR_WEIGHT_FINAL", "1.0"))
+# Fraction of TOTAL_STEPS over which the AR-weight ramp completes (reaches
+# AR_WEIGHT_FINAL and holds there for the rest of training), instead of
+# stretching the ramp across the entire run. 1.0 = old behaviour (ramp
+# finishes right as training ends, leaving ~no budget for the reactivated
+# AR gradient to actually improve packing quality). 0.5 = reach full AR
+# weight at the halfway point, giving the back half of training to act on
+# the AR signal instead of only touching it in the last few percent.
+AR_WEIGHT_RAMP_FRACTION = float(os.environ.get("AR_WEIGHT_RAMP_FRACTION", "1.0"))
 # Larger network to process richer observation space (3N+2 dims)
 PPO_NET_ARCH    = dict(pi=[256, 256], vf=[256, 256])
 
